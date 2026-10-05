@@ -67,7 +67,8 @@ public class QuoteController {
             @ApiResponse(responseCode = "404", description = "Quote not found")
     })
     public QuoteResponse updateQuote(@PathVariable Long id, @RequestBody UpdateQuoteRequest request) {
-        Quote quote = quoteRepository.getReferenceById(id);
+        Quote quote = quoteRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Quote not found with ID: " + id));
         quoteMapper.updateEntity(request, quote);
         Quote updated = quoteRepository.save(quote);
         return quoteMapper.toResponse(updated);

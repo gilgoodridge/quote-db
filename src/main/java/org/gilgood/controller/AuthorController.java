@@ -67,7 +67,8 @@ public class AuthorController {
             @ApiResponse(responseCode = "404", description = "Author not found")
     })
     public AuthorResponse updateAuthor(@PathVariable Long id, @RequestBody UpdateAuthorRequest request) {
-        Author author = authorRepository.getReferenceById(id);
+        Author author = authorRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Author not found with ID: " + id));
         authorMapper.updateEntity(request, author);
         Author updated = authorRepository.save(author);
         return authorMapper.toResponse(updated);
