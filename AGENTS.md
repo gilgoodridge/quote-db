@@ -167,18 +167,69 @@ This allows the frontend dev server to call the backend API without browser CORS
 ```
 frontend/
 ├── src/
-│   ├── App.jsx              # Main app component
-│   ├── App.css              # Global styles
-│   ├── main.jsx             # React entry point
-│   ├── api.js               # Backend API client
-│   ├── AuthorList.jsx       # Component: displays authors from API
-│   └── AuthorList.css       # Component styling
-├── public/                  # Static assets
-├── dist/                    # Production build (generated)
-├── .env.local               # Dev environment: VITE_API_URL=http://localhost:8080/api
+│   ├── App.jsx                   # Main app component with layout
+│   ├── App.css                   # Layout styles
+│   ├── main.jsx                  # React entry point
+│   ├── api.js                    # Backend API client
+│   ├── index.css                 # Global styles & theme variables
+│   ├── components/
+│   │   ├── Header.jsx            # Top header with logo, search, menu
+│   │   ├── Sidebar.jsx           # Left sidebar: author filter list
+│   │   ├── QuotesList.jsx        # Center content: quotes display
+│   │   └── Placeholder.jsx       # Right sidebar: future feature placeholder
+│   └── styles/
+│       ├── Header.css            # Header styling
+│       ├── Sidebar.css           # Left sidebar styling
+│       ├── QuotesList.css        # Center content styling
+│       └── Placeholder.css       # Right sidebar styling
+├── public/                       # Static assets
+├── dist/                         # Production build (generated)
+├── .env.local                    # Dev environment: VITE_API_URL=http://localhost:8080/api
 ├── package.json
 └── vite.config.js
 ```
+
+### Layout Design (2026 Modern Aesthetic)
+
+**Header (Full Width)**
+- Left: "Quotes DB" logo (accent color)
+- Center: Full-width search bar for quotes (currently disabled, ready for backend integration)
+- Right: "Quote of the Day" button + hamburger menu (About)
+- Neutral color scheme with subtle borders
+
+**Main Content (Below Header)**
+- **Left Sidebar (25% width)**: Author filter panel
+  - Displays list of authors fetched from backend
+  - Click author to select/deselect and filter quotes
+  - Active author highlighted with accent color
+  - Scrollable if many authors
+
+- **Center Content (50% width)**: Quote display area
+  - Empty state with icon when no author selected ("Select an author from left panel")
+  - Shows placeholder text when author selected (ready for backend quote list integration)
+  - Scrollable for long quote lists
+
+- **Right Sidebar (25% width)**: Reserved for future features
+  - Placeholder graphic with floating animation
+  - "Coming Soon" text (could be ads, recommendations, etc.)
+
+**Color Palette (CSS Variables)**
+- `--text`: #2d3436 (dark text, light mode)
+- `--bg`: #fafbfc (light background)
+- `--sidebar-bg`: #f8f9fa (sidebar background)
+- `--border`: #e9ecef (neutral borders)
+- `--accent`: #5f4b8b (purple for interactive elements)
+- Dark mode support: Automatically adjusts colors based on `prefers-color-scheme`
+
+**Typography**
+- Font Family: System sans-serif stack (`-apple-system`, `Segoe UI`, etc.)
+- Consistent font sizes for hierarchy (h1, h2, h3, body)
+- Letter spacing: 0.3px for improved readability
+
+**Responsive Behavior**
+- Desktop (1024px+): Full 3-column layout
+- Tablet (768px-1024px): Proportional column widths with adjusted padding
+- Mobile (<768px): Stacks vertically (header → sidebar → content → right)
 
 ### API Client Pattern
 ```javascript
@@ -195,11 +246,28 @@ api.authors.delete(id)  // DELETE /api/authors/:id
 
 Environment URL is configurable via `.env.local` (dev) or `.env.production` (build).
 
-### Component Example: AuthorList
-- Fetches from `GET /api/authors` on mount
+### Key Components
+
+**Header.jsx**
+- Hamburger menu with dropdown (currently "About")
+- Search input disabled until backend search is ready
+- Quote of the Day button placeholder
+
+**Sidebar.jsx**
+- Fetches authors from `GET /api/authors` on mount
 - Shows loading/error states
-- Renders table with author data
-- Uses React hooks: `useState`, `useEffect`
+- Button-based author selection with active state styling
+- Ready for backend quote filtering
+
+**QuotesList.jsx**
+- Shows empty state until author is selected
+- Placeholder text when author selected (ready for backend quote list)
+- Scrollable container for future quote display
+
+**Placeholder.jsx**
+- Decorative component for right sidebar
+- Animated graphic with gradient background
+- Placeholder for ads, recommendations, or other future features
 
 ---
 

@@ -1,0 +1,62 @@
+import { useEffect, useState } from 'react'
+import { api } from '../api'
+import '../styles/Sidebar.css'
+
+export default function Sidebar({ onAuthorSelect, selectedAuthorId }) {
+  const [authors, setAuthors] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    const fetchAuthors = async () => {
+      try {
+        setLoading(true)
+        const data = await api.authors.list()
+        setAuthors(data)
+        setError(null)
+      } catch (err) {
+        console.error('Failed to fetch authors:', err)
+        setError('Failed to load authors')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAuthors()
+  }, [])
+
+  const handleAuthorClick = (id) => {
+    onAuthorSelect(selectedAuthorId === id ? null : id)
+  }
+
+  return (
+    <div className="sidebar">
+      <div className="sidebar-header">
+        <h2>Authors</h2>
+      </div>
+
+      <div className="sidebar-content">
+        {loading && <p className="sidebar-message">Loading authors...</p>}
+        {error && <p className="sidebar-error">{error}</p>}
+        {!loading && authors.length === 0 && (
+          <p className="sidebar-message">No authors found</p>
+        )}
+
+        <ul className="authors-list">
+          {authors.map((author) => (
+            <li key={author.id}>
+              <button
+                className={`author-btn ${selectedAuthorId === author.id ? 'active' : ''}`}
+                onClick={() => handleAuthorClick(author.id)}
+              >
+                <span className="author-name">
+                  {author.givenName} {author.familyName}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
