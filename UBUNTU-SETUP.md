@@ -16,7 +16,15 @@ This guide covers installing everything needed to run the Quote DB backend and f
 ```bash
 sudo apt update
 sudo apt upgrade -y
+sudo apt install -y curl gnupg lsb-release git libicu-dev
+
+# Install locales (required for GitHub Actions runner on minimized Ubuntu)
+sudo apt install -y locales
+sudo locale-gen en_US.UTF-8
+sudo update-locale LANG=en_US.UTF-8
 ```
+
+**Note**: `libicu-dev` is required for the .NET-based GitHub Actions runner on minimized Ubuntu images. Without it, the runner crashes with CultureInfo errors.
 
 ### 2. Install Java 25
 
@@ -24,9 +32,6 @@ Quote DB requires **Java 25** (not Java 27 due to Spring Boot compatibility).
 
 ```bash
 # Add Eclipse Temurin repository (modern Ubuntu 26.04 method)
-sudo apt install -y curl gnupg lsb-release
-
-# Download and add GPG key
 curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | sudo tee /etc/apt/trusted.gpg.d/adoptium.asc > /dev/null
 
 # Add repository
