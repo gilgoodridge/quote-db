@@ -26,10 +26,12 @@ public class QuoteController {
     private QuoteMapper quoteMapper;
 
     @GetMapping
-    @Operation(summary = "List all quotes")
-    public List<QuoteResponse> listQuotes() {
-        return quoteRepository.findAll()
-                .stream()
+    @Operation(summary = "List quotes with optional filters", description = "Returns quotes filtered by author ID if provided")
+    public List<QuoteResponse> listQuotes(@RequestParam(required = false) Long authorId) {
+        List<Quote> quotes = authorId != null
+                ? quoteRepository.findByAuthorId(authorId)
+                : quoteRepository.findAll();
+        return quotes.stream()
                 .map(quoteMapper::toResponse)
                 .collect(Collectors.toList());
     }
