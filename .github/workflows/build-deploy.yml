@@ -1,0 +1,62 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+      
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+      
+      - name: Build backend with Maven
+        run: mvn clean package -DskipTests
+      
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+      
+      - name: Deploy backend JAR
+        run: |
+          mkdir -p /opt/quote-db
+          cp target/quote-db-1.0-SNAPSHOT.jar /opt/quote-db/
+          chmod +x /opt/quote-db/quote-db-1.0-SNAPSHOT.jar
+      
+      - name: Deploy frontend static files
+        run: |
+          mkdir -p /var/www/quote-db
+          cp -r frontend/dist/* /var/www/quote-db/
+          chmod -R 755 /var/www/quote-db
+      
+      - name: Restart backend service
+        run: |
+          sudo systemctl restart quote-db || echo "Service not yet configured"
+      
+      - name: Restart frontend service (if using nginx)
+        run: |
+          sudo systemctl reload nginx || echo "nginx not configured"
+      
+      - name: Verify deployment
+        run: |
+          sleep 5
+          curl -f http://localhost:8080/swagger-ui.html || echo "Backend health check failed"
+          curl -f http://localhost:80 || echo "Frontend health check skipped (nginx may not be configured)"

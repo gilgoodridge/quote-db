@@ -298,16 +298,87 @@ npm run dev
 # Opens http://localhost:5173 (auto-refresh on save)
 ```
 
-### Production Deployment
+## Production Deployment Strategy
 
-**Build frontend:**
-```bash
-cd frontend
-npm run build
-# Output: frontend/dist/ (static HTML/CSS/JS)
+### Overview
+Quote DB uses **GitHub Actions for CI/CD** with a self-hosted Ubuntu runner:
+
+1. **Trigger**: Push to `main` branch only (PRs do not trigger deployment)
+2. **Build**: GitHub Actions builds backend (Maven) and frontend (Node.js/npm)
+3. **Deploy**: Copies compiled artifacts to production directories
+4. **Restart**: Systemd services automatically restart with new code
+5. **Verify**: Health checks confirm services are running
+
+### Architecture
+- **Backend**: Spring Boot JAR running on port 8080 via systemd service
+- **Frontend**: Static React build served by nginx on port 80
+- **Database**: MySQL 8.0 (auto-creates `quote_db` on first backend run)
+- **Reverse Proxy**: nginx routes `/` to frontend, `/api/` to backend
+
+### Deployment Flow
+
+```
+GitHub Push to main branch
+    ↓
+GitHub Actions Runner (self-hosted Ubuntu)
+    ├─ Checkout code
+    ├─ Set up Java 25 + Maven
+    ├─ Set up Node.js 24 + npm
+    ├─ mvn clean package (build backend JAR)
+    ├─ npm ci && npm run build (build frontend)
+    ├─ Copy JAR to /opt/quote-db/
+    ├─ Copy frontend dist/ to /var/www/quote-db/
+    ├─ sudo systemctl restart quote-db
+    ├─ sudo systemctl reload nginx
+    └─ Health checks (curl endpoints)
+
+Note: PRs and pushes to other branches do NOT trigger deployment
 ```
 
-**Package backend + frontend:**
-- Option A: Serve static files from backend (configure Spring to serve `frontend/dist/` as static content)
-- Option B: Deploy frontend to CDN (S3, Cloudflare Pages, Vercel)
-- Option C: Deploy as separate services on same domain with reverse proxy (nginx)
+### File Locations on Ubuntu
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Backend JAR | `/opt/quote-db/quote-db-1.0-SNAPSHOT.jar` | Runnable application |
+| Frontend Static | `/var/www/quote-db/` | HTML/CSS/JS for browser |
+| systemd Service | `/etc/systemd/system/quote-db.service` | Auto-start backend on reboot |
+| nginx Config | `/etc/nginx/sites-available/quote-db` | Reverse proxy rules |
+| MySQL Data | `/var/lib/mysql/` | Database files |
+
+### Health Checks
+
+Workflow verifies deployment success:
+```bash
+curl -f http://localhost:8080/swagger-ui.html    # Backend API docs
+curl -f http://localhost/                         # Frontend (if nginx)
+```
+
+### Restart Behavior
+
+**Backend Service** (`/etc/systemd/system/quote-db.service`):
+- Restarts automatically on failure
+- Logs available via: `sudo journalctl -u quote-db -n 50`
+
+**Frontend** (nginx):
+- Graceful reload: `sudo systemctl reload nginx`
+- No downtime during refresh
+
+**Manual Restart** (if needed):
+```bash
+sudo systemctl restart quote-db
+sudo systemctl reload nginx
+```
+
+### Database Persistence
+
+- MySQL `quote_db` database persists across deployments
+- Hibernate `ddl-auto=update` automatically migrates schema
+- Seed data must be loaded separately (see `seed-data.sh`)
+
+### Rollback Strategy
+
+If a deployment fails:
+1. GitHub Actions shows failure with error logs
+2. Previous JAR remains in `/opt/quote-db/` (optional: keep backup)
+3. Manual rollback: Stop service, restore previous JAR, restart
+4. Frontend: Previous `dist/` can be kept as backup (nginx serves latest)

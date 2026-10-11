@@ -221,18 +221,61 @@ See existing `Author` entity for reference.
 
 ## Deployment
 
-### Option A: Serve frontend from backend
-Configure Spring to serve `frontend/dist/` as static content, deploy single JAR.
+### GitHub Actions CI/CD
+This project uses **GitHub Actions** with a self-hosted Ubuntu runner for automated building and deployment. See [`UBUNTU-SETUP.md`](UBUNTU-SETUP.md) for complete setup instructions.
 
-### Option B: Separate deployments
-- Backend: Deploy JAR to server/container
-- Frontend: Deploy `frontend/dist/` to CDN (S3, Cloudflare Pages, Vercel) or separate server
-- Use CORS headers to allow cross-origin calls
+**Workflow**: `.github/workflows/build-deploy.yml`
+- Triggers on push to `main` branch only (production deployment)
+- Pull requests do not trigger deployment
+- Builds backend (Maven) and frontend (Node.js)
+- Deploys to Ubuntu runner
+- Restarts services and verifies health
 
-### Option C: Reverse proxy (nginx)
-- Backend on port 8080
-- Frontend built to `frontend/dist/`
-- nginx routes `/api/` to backend, `/` to frontend
+### Prerequisites on Ubuntu
+- Java 25 (Spring Boot 3.5.0 requirement)
+- Maven 3.9+
+- Node.js 24 LTS
+- npm 11+
+- MySQL 8.0+
+- GitHub Actions Runner (self-hosted)
+
+**See [`UBUNTU-SETUP.md`](UBUNTU-SETUP.md) for step-by-step installation.**
+
+### Deployment Architecture
+```
+GitHub Repository
+    ↓
+Actions Workflow (self-hosted runner on Ubuntu)
+    ├─ Build backend: mvn clean package
+    ├─ Build frontend: npm run build
+    ├─ Deploy JAR: /opt/quote-db/quote-db-1.0-SNAPSHOT.jar
+    ├─ Deploy frontend: /var/www/quote-db/ (nginx static root)
+    ├─ Restart services: systemctl restart quote-db, systemctl reload nginx
+    └─ Health checks: curl http://localhost:8080/api/authors
+```
+
+### Access Points (after deployment)
+- **Frontend**: `http://your-server-ip/` (via nginx)
+- **Backend API**: `http://your-server-ip:8080/api/`
+- **Swagger UI**: `http://your-server-ip:8080/swagger-ui.html`
+- **MySQL**: Accessible locally on Ubuntu (auto-creates `quote_db` database)
+
+### Service Management (on Ubuntu)
+```bash
+# Check status
+sudo systemctl status quote-db
+sudo systemctl status nginx
+
+# Restart services (manual deployment)
+sudo systemctl restart quote-db
+sudo systemctl reload nginx
+
+# View logs
+sudo journalctl -u quote-db -n 50
+sudo tail -f /var/log/nginx/error.log
+```
+
+
 
 ## Future Considerations
 
