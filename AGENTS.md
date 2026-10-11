@@ -221,6 +221,15 @@ frontend/
 - `--accent`: #5f4b8b (purple for interactive elements)
 - Dark mode support: Automatically adjusts colors based on `prefers-color-scheme`
 
+**Dark Mode Requirements**
+⚠️ **CRITICAL**: Always use CSS variables for colors, never hardcode hex values. Dark mode is enabled via `prefers-color-scheme` media query in `index.css`.
+
+When adding new components or styling:
+- Use `var(--text)`, `var(--bg)`, `var(--sidebar-bg)`, `var(--border)`, `var(--accent)` instead of hardcoded colors
+- Test in both light and dark mode (toggle in browser dev tools or OS settings)
+- Common mistake: Using `#fafbfc` or `#f0eff7` for backgrounds breaks dark mode
+- Hover states, shadows, and borders must also respect variables
+
 **Typography**
 - Font Family: System sans-serif stack (`-apple-system`, `Segoe UI`, etc.)
 - Consistent font sizes for hierarchy (h1, h2, h3, body)

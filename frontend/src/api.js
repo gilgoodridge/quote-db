@@ -18,4 +18,11 @@ export const api = {
     }).then(r => r.json()),
     delete: (id) => fetch(`${API_BASE}/authors/${id}`, { method: 'DELETE' }).then(r => r.ok),
   },
+  // Quotes endpoints
+  quotes: {
+    list: (authorId) => {
+      const params = authorId ? `?authorId=${authorId}` : '';
+      return fetch(`${API_BASE}/quotes${params}`).then(r => r.json());
+    },
+  },
 };
