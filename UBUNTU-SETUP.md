@@ -265,7 +265,37 @@ curl http://localhost
 curl http://localhost:8080/api/authors
 ```
 
+### Open port 8080 on the instance firewall (OCI)
+
+OCI Ubuntu images ship with iptables rules that accept only SSH (22) and reject everything else. Opening 8080 in the VCN Security List is not enough; the instance firewall must also allow it.
+
+Check the current INPUT chain:
+
+```bash
+sudo iptables -L INPUT -n --line-numbers
+```
+
+Insert an ACCEPT rule for 8080 **above** the final `REJECT` line (position 5 in the example below; adjust to match your chain):
+
+```bash
+sudo iptables -I INPUT 5 -p tcp --dport 8080 -m state --state NEW -j ACCEPT
+sudo iptables -L INPUT -n --line-numbers
+```
+
+Persist the rule across reboots:
+
+```bash
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save
+```
+
+**Note**: Port 8080 is exposed without TLS. To limit access, add `-s <your-ip>/32` to the rule.
+
 ## Troubleshooting
+
+### Public URL times out but `curl localhost:8080` works
+- Usually the instance firewall. Check `sudo iptables -L INPUT -n --line-numbers` for a `REJECT` rule with no 8080 `ACCEPT` above it. See "Open port 8080 on the instance firewall" above.
+- Confirm the VCN Security List allows TCP 8080 ingress for the instance's subnet.
 
 ### Maven build fails with "No suitable Java version"
 - Verify Java 25 is installed: `java -version`
