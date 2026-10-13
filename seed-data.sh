@@ -3,15 +3,76 @@
 # Seed data script for quote-db
 # Works with Git Bash (Windows) and standard Ubuntu bash (Linux)
 # Usage: ./seed-data.sh [BASE_URL]
-# Example: ./seed-data.sh http://localhost:8080
+# Without an argument, choose a target interactively.
+# Stops on the first failed request or missing resource ID, without retrying.
+# Earlier writes are not rolled back; inspect/clean up data before rerunning.
 
-BASE_URL="${1:-http://localhost:8080}"
+set -euo pipefail
+
+if [ -n "${1:-}" ]; then
+    BASE_URL="$1"
+else
+    echo "Choose where to seed data:"
+    echo "  1) Local (http://localhost:8080)"
+    echo "  2) Production (https://www.gilgood.com)"
+    if ! read -r -p "Select 1 or 2: " choice; then
+        echo "Unable to read target selection." >&2
+        exit 1
+    fi
+
+    case "$choice" in
+        1) BASE_URL="http://localhost:8080" ;;
+        2) BASE_URL="https://www.gilgood.com" ;;
+        *)
+            echo "Invalid selection. Please run the script again and enter 1 or 2." >&2
+            exit 1
+            ;;
+    esac
+fi
+
 API_URL="$BASE_URL/api"
+
+trap 'status=$?; if (( status != 0 && BASH_SUBSHELL == 0 )); then
+    echo "Seeding stopped. Earlier requests may have saved data; no rollback was performed. Inspect the database before rerunning." >&2
+fi' EXIT
 
 echo "Seeding database at $API_URL"
 echo "=========================================="
 
-# Helper function to make API calls and extract ID
+create_resource() {
+    local endpoint="$1"
+    local json="$2"
+    local description="$3"
+    local response http_status body
+    local id_pattern='"id"[[:space:]]*:[[:space:]]*([1-9][0-9]*)[[:space:]]*[,}]'
+
+    if ! response=$(curl -sS --connect-timeout 10 --max-time 60 \
+        -X POST "$API_URL/$endpoint" \
+        -H "Content-Type: application/json" \
+        -d "$json" \
+        -w $'\n%{http_code}'); then
+        echo "Error creating $description: request to $API_URL/$endpoint failed (see curl error above)." >&2
+        return 1
+    fi
+
+    http_status="${response##*$'\n'}"
+    body="${response%$'\n'*}"
+
+    if [[ ! "$http_status" =~ ^2[0-9][0-9]$ ]]; then
+        echo "Error creating $description: POST $API_URL/$endpoint returned HTTP $http_status." >&2
+        printf 'Response: %s\n' "$body" >&2
+        return 1
+    fi
+
+    if [[ ! "$body" =~ $id_pattern ]]; then
+        echo "Error creating $description: HTTP $http_status response did not contain a valid positive resource ID." >&2
+        printf 'Response: %s\n' "$body" >&2
+        return 1
+    fi
+
+    printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
 create_author() {
     local given_name="$1"
     local family_name="$2"
@@ -19,18 +80,13 @@ create_author() {
     local date_of_death="$4"
     local nationality="$5"
     
-    local response=$(curl -s -X POST "$API_URL/authors" \
-        -H "Content-Type: application/json" \
-        -d "{
+    create_resource "authors" "{
             \"givenName\": \"$given_name\",
             \"familyName\": \"$family_name\",
             \"dateOfBirth\": \"$date_of_birth\",
             \"dateOfDeath\": \"$date_of_death\",
             \"nationality\": \"$nationality\"
-        }")
-    
-    local id=$(echo "$response" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-    echo "$id"
+        }" "author $given_name $family_name"
 }
 
 # Helper function to create a quote
@@ -40,6 +96,11 @@ create_quote() {
     local date="$3"
     local location="$4"
     local reference="$5"
+
+    if [[ ! "$author_id" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error creating quote: invalid author ID '$author_id'." >&2
+        return 1
+    fi
     
     local json="{
         \"text\": \"$text\",
@@ -59,9 +120,7 @@ create_quote() {
     
     json="$json}"
     
-    curl -s -X POST "$API_URL/quotes" \
-        -H "Content-Type: application/json" \
-        -d "$json" > /dev/null
+    create_resource "quotes" "$json" "quote for author $author_id: $text" > /dev/null
 }
 
 echo "Creating authors..."
