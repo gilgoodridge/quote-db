@@ -149,7 +149,7 @@ After=network.target mysql.service
 Type=simple
 User=$USER
 WorkingDirectory=/opt/quote-db
-ExecStart=/usr/bin/java -jar /opt/quote-db/quote-db-1.0-SNAPSHOT.jar
+ExecStart=/usr/bin/java -Xmx256m -Xss512k -XX:+UseSerialGC -jar /opt/quote-db/quote-db-1.0-SNAPSHOT.jar
 Restart=on-failure
 RestartSec=10
 
@@ -166,11 +166,13 @@ sudo systemctl start quote-db
 sudo systemctl status quote-db
 ```
 
-**Note**: Replace `$USER` with your actual username if running as a different user.
+**Note**: Replace `$USER` with your actual username if running as a different user. The JVM flags cap heap at 256 MB and use the serial GC to fit the ~1 GB instance; raise `-Xmx` if the app gets OOM errors.
 
-### 9. Set Up nginx as Reverse Proxy (Optional)
+If the service already exists, edit the `ExecStart` line in `/etc/systemd/system/quote-db.service`, then `sudo systemctl daemon-reload && sudo systemctl restart quote-db`.
 
-If you want to serve frontend on port 80 and proxy API calls to the backend:
+### 9. Set Up nginx as Reverse Proxy
+
+nginx serves the frontend on ports 80/443 and proxies API calls to the backend. (Not yet installed on the instance as of this writing.)
 
 ```bash
 # Install nginx
@@ -180,7 +182,7 @@ sudo apt install -y nginx
 sudo tee /etc/nginx/sites-available/quote-db > /dev/null <<EOF
 server {
     listen 80;
-    server_name _;
+    server_name www.gilgood.com;
 
     # Serve frontend static files
     location / {
@@ -198,8 +200,9 @@ server {
     }
 
     # Swagger UI
-    location /swagger-ui.html {
-        proxy_pass http://localhost:8080/swagger-ui.html;
+    location /swagger-ui {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host \$host;
     }
 
     location /v3/ {
@@ -218,7 +221,28 @@ sudo systemctl reload nginx
 sudo systemctl enable nginx
 ```
 
-### 10. Configure Backend Environment (Optional)
+### 10. Enable HTTPS with Let's Encrypt (www.gilgood.com)
+
+**DNS** (Squarespace Domains): an A record with host www pointing to the reserved public IP 132.226.92.246. Verify before continuing:
+
+```bash
+dig +short www.gilgood.com   # must print 132.226.92.246
+```
+
+Ports 80 and 443 must be open in both the OCI Security List and iptables (see the firewall section below). Then:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d www.gilgood.com --redirect -m <your-email> --agree-tos
+
+# Confirm automatic renewal works
+sudo systemctl list-timers | grep certbot
+sudo certbot renew --dry-run
+```
+
+Certbot edits the nginx site to add the 443 listener and the HTTP-to-HTTPS redirect. Renewal runs from a systemd timer and reloads nginx automatically; no deploy changes are needed. Only www is served; the apex gilgood.com is not covered by the certificate.
+
+### 11. Configure Backend Environment (Optional)
 
 If you need to customize database connection or server port, create `/opt/quote-db/application.properties`:
 
@@ -237,6 +261,39 @@ spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=false
 ```
 
+### 12. Add a Swap File
+
+The instance has ~1 GB RAM and no swap. Add 2 GB so builds and the JVM don't trigger OOM kills:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf
+sudo sysctl -p /etc/sysctl.d/99-swappiness.conf
+
+# Verify
+free -h
+```
+
+### 13. Allow the Deploy Workflow to Restart Services (sudoers)
+
+The workflow runs `sudo systemctl restart quote-db` and `sudo systemctl reload nginx` non-interactively. Grant the runner user (`ubuntu` here) passwordless access to exactly those commands:
+
+```bash
+sudo tee /etc/sudoers.d/quote-db-deploy > /dev/null <<EOF
+ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl restart quote-db, /usr/bin/systemctl reload nginx
+EOF
+sudo chmod 440 /etc/sudoers.d/quote-db-deploy
+sudo visudo -cf /etc/sudoers.d/quote-db-deploy
+
+# Verify (must not prompt for a password)
+sudo -n systemctl reload nginx && echo OK
+```
+
+Confirm the systemctl path with `command -v systemctl` and adjust the file if it differs. Restart the runner service afterward if the workflow still prompts.
 ## Verification
 
 ### Check all services are running:
@@ -265,9 +322,9 @@ curl http://localhost
 curl http://localhost:8080/api/authors
 ```
 
-### Open port 8080 on the instance firewall (OCI)
+### Open ports 80 and 443 on the instance firewall (OCI)
 
-OCI Ubuntu images ship with iptables rules that accept only SSH (22) and reject everything else. Opening 8080 in the VCN Security List is not enough; the instance firewall must also allow it.
+OCI Ubuntu images ship with iptables rules that accept only SSH (22) and reject everything else. Opening 80 and 443 in the VCN Security List is not enough; the instance firewall must also allow them. Port 8080 stays closed to the public; nginx proxies to the backend on localhost.
 
 Check the current INPUT chain:
 
@@ -275,27 +332,25 @@ Check the current INPUT chain:
 sudo iptables -L INPUT -n --line-numbers
 ```
 
-Insert an ACCEPT rule for 8080 **above** the final `REJECT` line (position 5 in the example below; adjust to match your chain):
+Insert ACCEPT rules at the top of the chain (above the final `REJECT`):
 
 ```bash
-sudo iptables -I INPUT 5 -p tcp --dport 8080 -m state --state NEW -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT
 sudo iptables -L INPUT -n --line-numbers
 ```
 
-Persist the rule across reboots:
+Persist the rules across reboots:
 
 ```bash
 sudo apt install -y iptables-persistent
 sudo netfilter-persistent save
 ```
-
-**Note**: Port 8080 is exposed without TLS. To limit access, add `-s <your-ip>/32` to the rule.
-
 ## Troubleshooting
 
-### Public URL times out but `curl localhost:8080` works
-- Usually the instance firewall. Check `sudo iptables -L INPUT -n --line-numbers` for a `REJECT` rule with no 8080 `ACCEPT` above it. See "Open port 8080 on the instance firewall" above.
-- Confirm the VCN Security List allows TCP 8080 ingress for the instance's subnet.
+### Public URL times out but `curl localhost` works
+- Usually the instance firewall. Check `sudo iptables -L INPUT -n --line-numbers` for a `REJECT` rule with no 80/443 `ACCEPT` above it. See "Open ports 80 and 443 on the instance firewall" above.
+- Confirm the VCN Security List allows TCP 80 and 443 ingress for the instance's subnet.
 
 ### Maven build fails with "No suitable Java version"
 - Verify Java 25 is installed: `java -version`
