@@ -70,25 +70,7 @@ npm --version   # Should be 11.x.x or higher
 sudo npm install -g npm@latest
 ```
 
-### 5. Install MySQL 8.0
-
-```bash
-sudo apt install -y mysql-server
-
-# Start MySQL service
-sudo systemctl start mysql
-sudo systemctl enable mysql
-
-# Secure MySQL (optional but recommended)
-sudo mysql_secure_installation
-
-# Verify MySQL is running
-sudo systemctl status mysql
-```
-
-**Note**: The backend automatically creates the `quote_db` database on first run. Ensure MySQL is running before deploying.
-
-### 6. Install GitHub Actions Runner
+### 5. Install GitHub Actions Runner
 
 #### 6a. Create a directory for the runner
 
@@ -123,6 +105,23 @@ sudo ./svc.sh start
 
 In GitHub: **Settings → Actions → Runners**, the runner should show as "Idle" (green).
 
+### 6. Add a Swap File
+
+The instance has ~1 GB RAM and no swap. Add 2 GB so builds and the JVM don't trigger OOM kills:
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf
+sudo sysctl -p /etc/sysctl.d/99-swappiness.conf
+
+# Verify
+free -h
+```
+
 ### 7. Set Up Application Directories and Permissions
 
 ```bash
@@ -135,7 +134,26 @@ sudo chown $USER:$USER /opt/quote-db
 sudo chown $USER:$USER /var/www/quote-db
 ```
 
-### 8. Create systemd Service for Backend (Optional but Recommended)
+### 8. Configure Backend Environment
+
+Point the backend at the OCI-hosted MySQL (the database server is not installed on this instance; the backend creates `quote_db` on first run). Create `/opt/quote-db/application.properties` (before starting the service in step 9):
+
+```properties
+# Server Port (default 8080)
+server.port=8080
+
+# MySQL Connection (OCI-hosted MySQL; use its private endpoint)
+spring.datasource.url=jdbc:mysql://<oci-mysql-host>:3306/quote_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=YOUR_MYSQL_PASSWORD
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# Hibernate Configuration
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+```
+
+### 9. Create systemd Service for Backend
 
 Create `/etc/systemd/system/quote-db.service`:
 
@@ -143,7 +161,7 @@ Create `/etc/systemd/system/quote-db.service`:
 sudo tee /etc/systemd/system/quote-db.service > /dev/null <<EOF
 [Unit]
 Description=Quote DB Backend
-After=network.target mysql.service
+After=network.target
 
 [Service]
 Type=simple
@@ -170,9 +188,54 @@ sudo systemctl status quote-db
 
 If the service already exists, edit the `ExecStart` line in `/etc/systemd/system/quote-db.service`, then `sudo systemctl daemon-reload && sudo systemctl restart quote-db`.
 
-### 9. Set Up nginx as Reverse Proxy
+### 10. Allow the Deploy Workflow to Restart Services (sudoers)
 
-nginx serves the frontend on ports 80/443 and proxies API calls to the backend. (Not yet installed on the instance as of this writing.)
+The workflow runs `sudo systemctl restart quote-db` and `sudo systemctl reload nginx` non-interactively. Grant the runner user (`ubuntu` here; use your runner's username) passwordless access to exactly those commands:
+
+```bash
+sudo tee /etc/sudoers.d/quote-db-deploy > /dev/null <<EOF
+ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl restart quote-db, /usr/bin/systemctl reload nginx
+EOF
+sudo chmod 440 /etc/sudoers.d/quote-db-deploy
+sudo visudo -cf /etc/sudoers.d/quote-db-deploy
+
+# Verify (must not prompt for a password; the nginx check works once step 12 is done)
+sudo -n systemctl restart quote-db && echo OK
+sudo -n systemctl reload nginx && echo OK
+```
+
+Confirm the systemctl path with `command -v systemctl` and adjust the file if it differs. Restart the runner service afterward if the workflow still prompts.
+
+The workflow's `|| echo` fallbacks hide a missing sudoers entry, so a deploy can look green without restarting anything. Do this step before relying on deploys.
+
+### 11. Open Ports 80 and 443 on the Instance Firewall (OCI)
+
+OCI Ubuntu images ship with iptables rules that accept only SSH (22) and reject everything else. Also open TCP 80 and 443 ingress in the OCI VCN Security List (or NSG). That alone is not enough; the instance firewall must also allow them. Port 8080 stays closed to the public; nginx proxies to the backend on localhost.
+
+Check the current INPUT chain:
+
+```bash
+sudo iptables -L INPUT -n --line-numbers
+```
+
+Insert ACCEPT rules at the top of the chain (above the final `REJECT`):
+
+```bash
+sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+sudo iptables -L INPUT -n --line-numbers
+```
+
+Persist the rules across reboots:
+
+```bash
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save
+```
+
+### 12. Set Up nginx as Reverse Proxy
+
+nginx serves the frontend on ports 80/443 and proxies API calls to the backend.
 
 ```bash
 # Install nginx
@@ -221,7 +284,7 @@ sudo systemctl reload nginx
 sudo systemctl enable nginx
 ```
 
-### 10. Enable HTTPS with Let's Encrypt (www.gilgood.com)
+### 13. Enable HTTPS with Let's Encrypt (www.gilgood.com)
 
 **DNS** (Squarespace Domains): an A record with host www pointing to the reserved public IP 132.226.92.246. Verify before continuing:
 
@@ -229,7 +292,7 @@ sudo systemctl enable nginx
 dig +short www.gilgood.com   # must print 132.226.92.246
 ```
 
-Ports 80 and 443 must be open in both the OCI Security List and iptables (see the firewall section below). Then:
+Ports 80 and 443 must be open in both the OCI Security List and iptables (see step 11). Then:
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
@@ -242,58 +305,6 @@ sudo certbot renew --dry-run
 
 Certbot edits the nginx site to add the 443 listener and the HTTP-to-HTTPS redirect. Renewal runs from a systemd timer and reloads nginx automatically; no deploy changes are needed. Only www is served; the apex gilgood.com is not covered by the certificate.
 
-### 11. Configure Backend Environment (Optional)
-
-If you need to customize database connection or server port, create `/opt/quote-db/application.properties`:
-
-```properties
-# Server Port (default 8080)
-server.port=8080
-
-# MySQL Connection
-spring.datasource.url=jdbc:mysql://localhost:3306/quote_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
-spring.datasource.username=root
-spring.datasource.password=YOUR_MYSQL_PASSWORD
-spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
-
-# Hibernate Configuration
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=false
-```
-
-### 12. Add a Swap File
-
-The instance has ~1 GB RAM and no swap. Add 2 GB so builds and the JVM don't trigger OOM kills:
-
-```bash
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf
-sudo sysctl -p /etc/sysctl.d/99-swappiness.conf
-
-# Verify
-free -h
-```
-
-### 13. Allow the Deploy Workflow to Restart Services (sudoers)
-
-The workflow runs `sudo systemctl restart quote-db` and `sudo systemctl reload nginx` non-interactively. Grant the runner user (`ubuntu` here) passwordless access to exactly those commands:
-
-```bash
-sudo tee /etc/sudoers.d/quote-db-deploy > /dev/null <<EOF
-ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl restart quote-db, /usr/bin/systemctl reload nginx
-EOF
-sudo chmod 440 /etc/sudoers.d/quote-db-deploy
-sudo visudo -cf /etc/sudoers.d/quote-db-deploy
-
-# Verify (must not prompt for a password)
-sudo -n systemctl reload nginx && echo OK
-```
-
-Confirm the systemctl path with `command -v systemctl` and adjust the file if it differs. Restart the runner service afterward if the workflow still prompts.
 ## Verification
 
 ### Check all services are running:
@@ -302,10 +313,7 @@ Confirm the systemctl path with `command -v systemctl` and adjust the file if it
 # Backend service
 sudo systemctl status quote-db
 
-# MySQL
-sudo systemctl status mysql
-
-# nginx (if installed)
+# nginx
 sudo systemctl status nginx
 ```
 
@@ -315,41 +323,23 @@ sudo systemctl status nginx
 # Test backend API
 curl http://localhost:8080/swagger-ui.html
 
-# Test frontend (if nginx configured)
-curl http://localhost
+# Test frontend through nginx
+curl -I http://localhost
 
 # Test API endpoint
 curl http://localhost:8080/api/authors
+
+# Test over TLS from anywhere (after step 13)
+curl -I https://www.gilgood.com/
+curl https://www.gilgood.com/api/authors
 ```
 
-### Open ports 80 and 443 on the instance firewall (OCI)
+Swagger UI: `https://www.gilgood.com/swagger-ui/index.html`.
 
-OCI Ubuntu images ship with iptables rules that accept only SSH (22) and reject everything else. Opening 80 and 443 in the VCN Security List is not enough; the instance firewall must also allow them. Port 8080 stays closed to the public; nginx proxies to the backend on localhost.
-
-Check the current INPUT chain:
-
-```bash
-sudo iptables -L INPUT -n --line-numbers
-```
-
-Insert ACCEPT rules at the top of the chain (above the final `REJECT`):
-
-```bash
-sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT -p tcp --dport 443 -j ACCEPT
-sudo iptables -L INPUT -n --line-numbers
-```
-
-Persist the rules across reboots:
-
-```bash
-sudo apt install -y iptables-persistent
-sudo netfilter-persistent save
-```
 ## Troubleshooting
 
 ### Public URL times out but `curl localhost` works
-- Usually the instance firewall. Check `sudo iptables -L INPUT -n --line-numbers` for a `REJECT` rule with no 80/443 `ACCEPT` above it. See "Open ports 80 and 443 on the instance firewall" above.
+- Usually the instance firewall. Check `sudo iptables -L INPUT -n --line-numbers` for a `REJECT` rule with no 80/443 `ACCEPT` above it. See step 11.
 - Confirm the VCN Security List allows TCP 80 and 443 ingress for the instance's subnet.
 
 ### Maven build fails with "No suitable Java version"
@@ -367,12 +357,13 @@ sudo netfilter-persistent save
 - Kill it: `sudo kill -9 <PID>`
 - Or change port in `/opt/quote-db/application.properties`
 
-### MySQL "Access denied"
-- Reset MySQL root password:
+### Backend can't connect to MySQL / "Access denied"
+- The database is OCI-hosted MySQL and is not installed on this instance. Check the host, username and password in `/opt/quote-db/application.properties`.
+- Confirm the MySQL subnet's Security List or NSG allows TCP 3306 from this instance.
+- The MySQL client is only needed for troubleshooting (not required to run the app):
   ```bash
-  sudo mysql
-  ALTER USER 'root'@'localhost' IDENTIFIED BY 'new_password';
-  FLUSH PRIVILEGES;
+  sudo apt install -y mysql-client
+  mysql -h <oci-mysql-host> -u <user> -p
   ```
 
 ### nginx returns 502 Bad Gateway
@@ -383,19 +374,20 @@ sudo netfilter-persistent save
 ## Next Steps
 
 1. **Commit and push** the `.github/workflows/build-deploy.yml` file
-2. **SSH into your Ubuntu instance** and follow installation steps 1-6
+2. **SSH into your Ubuntu instance** and follow installation steps 1-13 in order
 3. **Push to main branch** to trigger the first GitHub Actions workflow (only pushes to main trigger deployment)
 4. **Monitor the workflow** in GitHub: **Actions → Build & Deploy**
 5. **Check deployment** by accessing:
-   - Backend API: `http://<your-server-ip>:8080/api/authors`
-   - Frontend: `http://<your-server-ip>` (if nginx configured)
+   - Site: `https://www.gilgood.com`
+   - API: `https://www.gilgood.com/api/authors`
 
 ## Performance Notes
 
 - **First build** takes ~3-5 minutes (Maven dependency download, Node.js modules)
 - **Subsequent builds** are much faster (~1-2 minutes) due to caching
-- **Deployment** is atomic: New JAR is copied, then service restarts
+- **Deployment**: the new JAR and frontend files are copied, then the backend restarts and nginx reloads
+- **Memory**: the instance has ~1 GB RAM; the swap file (step 6) and the JVM `-Xmx256m` cap (step 9) keep builds and the backend from being OOM-killed
 
 ---
 
-*Last updated: 2026-10-11*
+*Last updated: 2026-10-13*
