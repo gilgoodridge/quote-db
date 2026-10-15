@@ -11,6 +11,11 @@
   --accent: #5f4b8b;
   --accent-light: #6c63a6;
   --accent-hover: #4a3a6b;
+  --modal-backdrop: rgb(0 0 0 / 55%);
+  --google-blue: #4285f4;
+  --google-green: #34a853;
+  --google-yellow: #fbbc05;
+  --google-red: #ea4335;
 
   /* Typography */
   --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;

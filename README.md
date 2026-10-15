@@ -147,6 +147,29 @@ registry.addMapping("/api/**")
 
 ### Running Backend & Frontend Together
 
+**IntelliJ IDEA (one click)**
+
+Shared run configurations are stored in `.run` and appear in the run configuration
+dropdown:
+- **Full Stack** starts both the backend and the Vite frontend.
+- **Frontend** runs `npm run dev` from the frontend directory.
+- **Backend** runs `org.gilgood.Application`, matching the existing Application configuration.
+
+Select **Full Stack** and click **Run**, then open http://localhost:5173.
+Both processes have separate consoles in the Run tool window, where you can stop
+them when finished. Stop any already-running copies first to avoid port conflicts.
+MySQL must already be running, and frontend dependencies must be installed once
+with `npm ci` in the frontend directory.
+
+The frontend configuration requires IntelliJ's **JavaScript and TypeScript** and
+**Node.js** plugins and uses the project Node.js interpreter. If prompted, set it
+to Node.js 24 under **Settings > Languages & Frameworks > Node.js**.
+The backend configuration uses the existing `ms-25` JDK; if your installed Java 25
+SDK has a different name, select it under **Run > Edit Configurations > Backend > JRE**.
+Your existing **Application** configuration is unchanged.
+
+**Using terminals instead**
+
 **Terminal 1: Backend**
 ```bash
 mvn spring-boot:run

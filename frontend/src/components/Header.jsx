@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import LoginDialog from './LoginDialog'
 import '../styles/Header.css'
 
 export default function Header() {
   const [showMenu, setShowMenu] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
+  const menuButtonRef = useRef(null)
+
+  function closeLogin() {
+    setShowLogin(false)
+    menuButtonRef.current?.focus()
+  }
 
   return (
     <header className="header">
@@ -27,14 +35,27 @@ export default function Header() {
 
         <div className="menu-container">
           <button
+            ref={menuButtonRef}
             className="hamburger-btn"
             onClick={() => setShowMenu(!showMenu)}
             aria-label="Menu"
+            aria-expanded={showMenu}
+            aria-controls="header-menu"
           >
             ☰
           </button>
           {showMenu && (
-            <div className="dropdown-menu">
+            <div className="dropdown-menu" id="header-menu">
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => {
+                  setShowMenu(false)
+                  setShowLogin(true)
+                }}
+              >
+                Login
+              </button>
               <a href="#" onClick={() => setShowMenu(false)}>
                 About
               </a>
@@ -42,6 +63,7 @@ export default function Header() {
           )}
         </div>
       </div>
+      {showLogin && <LoginDialog onClose={closeLogin} />}
     </header>
   )
 }

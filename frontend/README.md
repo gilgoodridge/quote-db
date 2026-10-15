@@ -2,6 +2,18 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
+## Login UI
+
+The header hamburger menu includes **Login** above **About**. Login opens a native
+modal dialog with a Google-branded **Continue with Google** button and a
+**Keep browsing** action. Browsing remains available without login.
+
+This is UI-only: the Google button is disabled until OIDC is connected. No Google
+scripts, authentication requests, redirects, or session storage are used.
+The dialog supports Escape to close, keeps keyboard focus within the modal,
+and returns focus to the hamburger button when closed. Colors follow the
+application's light and dark themes.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)

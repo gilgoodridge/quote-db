@@ -174,11 +174,13 @@ frontend/
 │   ├── index.css                 # Global styles & theme variables
 │   ├── components/
 │   │   ├── Header.jsx            # Top header with logo, search, menu
+│   │   ├── LoginDialog.jsx       # Optional Google login UI (not connected to OIDC)
 │   │   ├── Sidebar.jsx           # Left sidebar: author filter list
 │   │   ├── QuotesList.jsx        # Center content: quotes display
 │   │   └── Placeholder.jsx       # Right sidebar: future feature placeholder
 │   └── styles/
 │       ├── Header.css            # Header styling
+│       ├── LoginDialog.css       # Login modal and Google button styling
 │       ├── Sidebar.css           # Left sidebar styling
 │       ├── QuotesList.css        # Center content styling
 │       └── Placeholder.css       # Right sidebar styling
@@ -194,7 +196,7 @@ frontend/
 **Header (Full Width)**
 - Left: "Quotes DB" logo (accent color)
 - Center: Full-width search bar for quotes (currently disabled, ready for backend integration)
-- Right: "Quote of the Day" button + hamburger menu (About)
+- Right: "Quote of the Day" button + hamburger menu (Login above About)
 - Neutral color scheme with subtle borders
 
 **Main Content (Below Header)**
@@ -258,9 +260,18 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 ### Key Components
 
 **Header.jsx**
-- Hamburger menu with dropdown (currently "About")
+- Hamburger menu with dropdown ("Login" above "About")
+- Login opens LoginDialog; closing it returns focus to the hamburger button
 - Search input disabled until backend search is ready
 - Quote of the Day button placeholder
+
+**LoginDialog.jsx**
+- Native modal dialog with "Continue with Google" and "Keep browsing" actions
+- Login is optional; anonymous browsing remains available
+- UI-only: Google button is disabled until OIDC is connected; no authentication requests, redirects, or session storage
+- Do not display a "coming soon" message for Google sign-in
+- Native dialog provides modal keyboard focus and Escape dismissal
+- Uses theme variables for light/dark mode, with fixed Google brand colors defined in index.css
 
 **Sidebar.jsx**
 - Fetches authors from `GET /api/authors` on mount
@@ -283,6 +294,18 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 ## Running Frontend & Backend Together
 
 ### Development Mode (with hot reload)
+
+**IntelliJ IDEA**
+- Shared configurations live in `.run`, outside the ignored `.idea` directory
+- **Frontend** runs `npm run dev` using the project Node.js interpreter
+- **Backend** runs `org.gilgood.Application` in module `quote-db` using the existing `ms-25` Java 25 SDK
+- **Full Stack** launches Backend and Frontend together
+- The existing local **Application** configuration is unchanged
+- Requires IntelliJ's JavaScript and TypeScript and Node.js plugins, installed frontend dependencies (`npm ci`), and running MySQL
+- Stop existing server instances before launching to avoid port conflicts
+- See README.md for interpreter configuration and startup details
+
+**Terminal alternative**
 
 **Terminal 1: Backend**
 ```bash

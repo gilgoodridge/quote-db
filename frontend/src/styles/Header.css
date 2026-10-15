@@ -137,25 +137,33 @@
   animation: slideDown 0.2s ease;
 }
 
-.dropdown-menu a {
+.dropdown-menu a,
+.dropdown-menu button {
   display: block;
+  width: 100%;
   padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: var(--text);
+  text-align: left;
+  font-size: inherit;
   text-decoration: none;
   transition: all 0.2s ease;
   font-weight: 500;
 }
 
-.dropdown-menu a:hover {
+.dropdown-menu a:hover,
+.dropdown-menu button:hover {
   background: var(--bg-secondary);
   color: var(--accent);
 }
 
-.dropdown-menu a:first-child {
+.dropdown-menu > :first-child {
   border-radius: 8px 8px 0 0;
 }
 
-.dropdown-menu a:last-child {
+.dropdown-menu > :last-child {
   border-radius: 0 0 8px 8px;
 }
 
