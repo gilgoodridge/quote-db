@@ -76,6 +76,25 @@
   flex: 0 0 auto;
 }
 
+.auth-indicator {
+  max-width: 260px;
+  color: var(--text-light);
+  font-size: 0.85rem;
+}
+
+.auth-indicator-error,
+.header-login-error {
+  color: var(--accent);
+}
+
+.header-login-error {
+  flex-basis: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+
 .quote-of-day-btn {
   padding: 10px 18px;
   background: var(--accent);
@@ -165,6 +184,29 @@
 
 .dropdown-menu > :last-child {
   border-radius: 0 0 8px 8px;
+}
+
+.account-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-light);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.account-summary strong {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.menu-auth-message {
+  padding: 10px 16px;
+  color: var(--text-light);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
 }
 
 @keyframes slideDown {

@@ -174,7 +174,7 @@ frontend/
 │   ├── index.css                 # Global styles & theme variables
 │   ├── components/
 │   │   ├── Header.jsx            # Top header with logo, search, menu
-│   │   ├── LoginDialog.jsx       # Optional Google login UI (not connected to OIDC)
+│   │   ├── LoginDialog.jsx       # Optional Google OIDC login dialog
 │   │   ├── Sidebar.jsx           # Left sidebar: author filter list
 │   │   ├── QuotesList.jsx        # Center content: quotes display
 │   │   └── Placeholder.jsx       # Right sidebar: future feature placeholder
@@ -262,13 +262,16 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 **Header.jsx**
 - Hamburger menu with dropdown ("Login" above "About")
 - Login opens LoginDialog; closing it returns focus to the hamburger button
+- Loads `/api/auth/me`; signed-in users see their name and Logout instead of Login
+- Session lookup, login, and logout errors are visible without blocking public browsing
 - Search input disabled until backend search is ready
 - Quote of the Day button placeholder
 
 **LoginDialog.jsx**
 - Native modal dialog with "Continue with Google" and "Keep browsing" actions
 - Login is optional; anonymous browsing remains available
-- UI-only: Google button is disabled until OIDC is connected; no authentication requests, redirects, or session storage
+- Google button navigates to the backend `/oauth2/authorization/google` endpoint
+- Spring Security handles OIDC and stores authentication in the server session, not browser storage
 - Do not display a "coming soon" message for Google sign-in
 - Native dialog provides modal keyboard focus and Escape dismissal
 - Uses theme variables for light/dark mode, with fixed Google brand colors defined in index.css
@@ -320,6 +323,23 @@ cd frontend
 npm run dev
 # Opens http://localhost:5173 (auto-refresh on save)
 ```
+
+### Google Authentication
+
+- Backend requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables; never commit credentials or put them in `VITE_*` variables
+- Keep IntelliJ credentials local; do not overwrite user changes to `.run/Backend.run.xml`
+- Local Google callback: `http://localhost:8080/login/oauth2/code/google`
+- `FRONTEND_URL` sets the fixed post-login origin, default `http://localhost:5173` (no trailing slash)
+- `SecurityConfig` integrates Spring Security with the existing credentialed MVC CORS configuration
+- Anonymous GET/HEAD browsing of authors and quotes is allowed; all API writes require authentication and CSRF
+- Every authenticated Google user can write; editor/admin roles are not implemented
+- AuthController returns minimal DTOs from `/api/auth/me` and `/api/auth/csrf`, with `Cache-Control: no-store`
+- `/api/auth/logout` is a CSRF-protected POST that invalidates the session and clears its cookie
+- Frontend API calls include cookies and fetch a fresh session-bound CSRF token before writes
+- Login failure redirects to the frontend with `?login=error`; no provider error details or tokens are exposed
+- Session cookies are HttpOnly and SameSite=Lax; use localhost consistently for local development
+- Production still requires HTTPS, secure cookies, trusted proxy headers, production OAuth credentials/callback, and nginx forwarding of `/oauth2/` and `/login/oauth2/` as well as `/api/`
+- See README.md for setup, endpoint behavior, and deployment prerequisites
 
 ## Production Deployment Strategy
 

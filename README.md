@@ -188,6 +188,49 @@ npm run dev
 - `spring.jpa.hibernate.ddl-auto=update` (auto-creates/updates schema)
 - For production, consider Liquibase or Flyway
 
+### Google login
+
+Browsing authors and quotes is public. Creating, updating, or deleting either
+resource now requires a Google-authenticated session and a valid CSRF token.
+Any signed-in Google user can write; there are no editor/admin roles yet.
+
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the backend environment
+(IntelliJ: **Run > Edit Configurations > Backend > Environment variables**).
+Keep credentials local, not in shared `.run` files or `VITE_*` variables.
+Both are required to start the backend. Register this exact callback in the
+Google web OAuth client:
+
+```text
+http://localhost:8080/login/oauth2/code/google
+```
+
+Start **Full Stack** and open `http://localhost:5173`. Choose **Login > Continue
+with Google**. Spring Security handles the authorization-code OIDC flow and
+returns to the frontend after login. Cancelled or failed login returns with an
+error message while public browsing remains available. The menu shows your name
+and **Logout** after login. Use `localhost` consistently, not `127.0.0.1`.
+
+The browser uses an HttpOnly, SameSite=Lax session cookie; Google tokens and
+credentials are not exposed to React or stored in browser storage.
+Authentication endpoints:
+- `GET /api/auth/me`: minimal current-user DTO or `{"authenticated":false}`.
+- `GET /api/auth/csrf`: session-bound token and header name, with caching disabled.
+- `POST /api/auth/logout`: requires CSRF, invalidates the session, returns 204.
+
+The API client includes cookies and fetches a fresh CSRF token before each write.
+Direct API clients and Swagger writes must likewise send the session cookie and
+the header/token returned by `/api/auth/csrf`. Unauthenticated protected requests
+return 401 when CSRF is valid; missing/invalid CSRF returns 403. Anonymous
+seed/import scripts cannot write without authentication.
+
+`FRONTEND_URL` controls the fixed post-login destination (default
+`http://localhost:5173`; supply an origin without a trailing slash). Production
+OAuth setup is still required before deploying these changes: configure a
+production Google client and HTTPS callback, set the backend credentials and
+`FRONTEND_URL`, enable secure session cookies, and configure trusted proxy headers.
+nginx must forward `/oauth2/` and `/login/oauth2/` to the backend as well as `/api/`.
+Do not expose the session over production HTTP.
+
 ### Testing API
 - Swagger UI: http://localhost:8080/swagger-ui.html
 - Frontend UI: http://localhost:5173
