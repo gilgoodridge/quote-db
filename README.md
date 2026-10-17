@@ -87,6 +87,7 @@ preselected. **Add new author** is disabled until that feature is implemented.
 After a successful save, the author's quotes are refreshed and displayed.
 Saving failures leave the form and entered values intact.
 
+
 ## Architecture
 
 ### Tech Stack
