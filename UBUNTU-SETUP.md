@@ -141,6 +141,20 @@ Point the backend at the OCI-hosted MySQL (the database server is not installed 
 ```properties
 # Server Port (default 8080)
 server.port=8080
+server.address=127.0.0.1
+server.forward-headers-strategy=framework
+
+# HTTPS session cookies (login requires HTTPS; see step 13)
+server.servlet.session.cookie.http-only=true
+server.servlet.session.cookie.secure=true
+server.servlet.session.cookie.same-site=lax
+
+# Google OIDC (replace placeholders; keep this file server-local)
+spring.security.oauth2.client.registration.google.client-id=YOUR_GOOGLE_CLIENT_ID
+spring.security.oauth2.client.registration.google.client-secret=YOUR_GOOGLE_CLIENT_SECRET
+spring.security.oauth2.client.registration.google.scope=openid,email,profile
+spring.security.oauth2.client.registration.google.redirect-uri=https://www.gilgood.com/login/oauth2/code/google
+app.frontend-url=https://www.gilgood.com
 
 # MySQL Connection (OCI-hosted MySQL; use its private endpoint)
 spring.datasource.url=jdbc:mysql://<oci-mysql-host>:3306/quote_db?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
@@ -152,6 +166,17 @@ spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=false
 ```
+
+Use the existing OCI database private endpoint and credentials; do not replace the
+database host with localhost. Google credentials can be set directly in this
+server-local properties file; environment variables are not required. Spring
+loads it because the service's working directory is `/opt/quote-db`. Restrict
+read/write access to the service account (for example, `chmod 600` when that
+account owns the file), and never commit it to Git.
+
+In Google Auth Platform, register the exact authorized redirect URI
+`https://www.gilgood.com/login/oauth2/code/google` on the client whose ID is
+configured above. HTTPS must match exactly; an HTTP entry is not equivalent.
 
 ### 9. Create systemd Service for Backend
 
@@ -235,7 +260,14 @@ sudo netfilter-persistent save
 
 ### 12. Set Up nginx as Reverse Proxy
 
-nginx serves the frontend on ports 80/443 and proxies API calls to the backend.
+nginx serves the frontend on ports 80/443 and proxies API and Google login
+requests to the backend.
+
+The example below is for initial installation, before Certbot configures HTTPS.
+**For an existing HTTPS site, do not overwrite the file with this HTTP-only
+example.** Edit the existing HTTPS `server` block to add `/oauth2/` and
+`/login/oauth2/`, preserving its certificate settings and HTTP-to-HTTPS redirect.
+Use the proxy headers shown below on the existing API route too.
 
 ```bash
 # Install nginx
@@ -255,21 +287,48 @@ server {
 
     # Proxy API calls to backend
     location /api/ {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Start Google login
+    location /oauth2/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Google OIDC callback
+    location /login/oauth2/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header X-Forwarded-For \$remote_addr;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     # Swagger UI
     location /swagger-ui {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host \$host;
     }
 
     location /v3/ {
-        proxy_pass http://localhost:8080/v3/;
+        proxy_pass http://127.0.0.1:8080/v3/;
     }
 }
 EOF
@@ -282,6 +341,25 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 sudo systemctl enable nginx
+```
+
+Keep `proxy_pass` without a trailing slash on `/api/`, `/oauth2/`, and
+`/login/oauth2/` so nginx preserves the full request path. Logout and session
+checks are already covered by `/api/`. Without the login routes, React's
+`try_files` fallback serves HTML instead of reaching Spring Security.
+
+These headers assume nginx directly terminates public HTTPS. nginx overwrites
+forwarded host/protocol/client headers and removes the alternative `Forwarded`
+header; the backend listens only on loopback so public clients cannot bypass
+that boundary. If adding another load balancer or proxy, configure its trust
+boundary explicitly rather than blindly accepting client-provided headers.
+
+After editing an existing site, validate and reload nginx, and restart the
+backend if its properties changed:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+sudo systemctl restart quote-db
 ```
 
 ### 13. Enable HTTPS with Let's Encrypt (www.gilgood.com)
@@ -332,9 +410,20 @@ curl http://localhost:8080/api/authors
 # Test over TLS from anywhere (after step 13)
 curl -I https://www.gilgood.com/
 curl https://www.gilgood.com/api/authors
+
+# Session check: returns {"authenticated":false} before login
+curl https://www.gilgood.com/api/auth/me
+
+# Login start: expect HTTP 302 with Location pointing to accounts.google.com
+curl -sS -D - -o /dev/null https://www.gilgood.com/oauth2/authorization/google
 ```
 
 Swagger UI: `https://www.gilgood.com/swagger-ui/index.html`.
+
+In a browser, open `https://www.gilgood.com` and choose **Login > Continue with
+Google**. Confirm Google returns to the HTTPS site and the menu shows your name
+and **Logout**. After logout, browsing should still work. The production frontend
+must use the relative `/api` URL, not a localhost backend URL.
 
 ## Troubleshooting
 
@@ -370,6 +459,17 @@ Swagger UI: `https://www.gilgood.com/swagger-ui/index.html`.
 - Verify backend is running: `sudo systemctl status quote-db`
 - Check backend logs: `sudo journalctl -u quote-db -n 50`
 - Verify backend is listening on 8080: `sudo lsof -i :8080`
+- Check nginx's upstream error: `sudo tail -n 20 /var/log/nginx/error.log`. The proxy uses `127.0.0.1:8080`, matching the backend's loopback binding.
+
+### Google login returns redirect_uri_mismatch
+- Compare `redirect_uri` in the Google authorization request with the client's authorized redirect URI.
+- Both must be exactly `https://www.gilgood.com/login/oauth2/code/google`, without a trailing slash. Check HTTPS versus HTTP and www versus the apex domain.
+- Confirm the backend uses the intended Google client ID and restart it after changing properties.
+
+### Google login returns the frontend HTML or loses the session
+- Confirm both login proxy locations are inside the active HTTPS server block, not only the port 80 redirect block.
+- Check the proxy headers and `server.forward-headers-strategy=framework`.
+- Keep HTTPS enabled and `server.servlet.session.cookie.secure=true`; do not disable secure cookies to work around an HTTP configuration issue.
 
 ## Next Steps
 
@@ -390,4 +490,4 @@ Swagger UI: `https://www.gilgood.com/swagger-ui/index.html`.
 
 ---
 
-*Last updated: 2026-10-13*
+*Last updated: 2026-10-17*

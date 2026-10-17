@@ -149,8 +149,9 @@ registry.addMapping("/api/**")
 
 **IntelliJ IDEA (one click)**
 
-Shared run configurations are stored in `.run` and appear in the run configuration
-dropdown:
+Run configurations are machine-local. The `.run` and `.idea` directories are
+ignored by Git so local environment variables are not committed. Existing local
+configurations remain available in the run configuration dropdown:
 - **Full Stack** starts both the backend and the Vite frontend.
 - **Frontend** runs `npm run dev` from the frontend directory.
 - **Backend** runs `org.gilgood.Application`, matching the existing Application configuration.
@@ -167,6 +168,12 @@ to Node.js 24 under **Settings > Languages & Frameworks > Node.js**.
 The backend configuration uses the existing `ms-25` JDK; if your installed Java 25
 SDK has a different name, select it under **Run > Edit Configurations > Backend > JRE**.
 Your existing **Application** configuration is unchanged.
+
+On a fresh clone, create these configurations under **Run > Edit Configurations**:
+an **npm** configuration named **Frontend** targeting `frontend/package.json`
+with command `run` and script `dev`; an **Application** configuration named
+**Backend** targeting `org.gilgood.Application` in module `quote-db` with Java 25;
+and a **Compound** configuration named **Full Stack** containing both.
 
 **Using terminals instead**
 
@@ -196,7 +203,7 @@ Any signed-in Google user can write; there are no editor/admin roles yet.
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the backend environment
 (IntelliJ: **Run > Edit Configurations > Backend > Environment variables**).
-Keep credentials local, not in shared `.run` files or `VITE_*` variables.
+Keep credentials in local, Git-ignored IDE settings, never in tracked files or `VITE_*` variables.
 Both are required to start the backend. Register this exact callback in the
 Google web OAuth client:
 
