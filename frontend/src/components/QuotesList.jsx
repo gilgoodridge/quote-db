@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import '../styles/QuotesList.css'
 
-export default function QuotesList({ authorId }) {
+export default function QuotesList({ authorId, refreshKey = 0 }) {
   const [quotes, setQuotes] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [expandedQuoteId, setExpandedQuoteId] = useState(null)
 
   useEffect(() => {
+    let active = true
     if (!authorId) {
       setQuotes([])
       setError(null)
@@ -19,19 +20,24 @@ export default function QuotesList({ authorId }) {
       try {
         setLoading(true)
         const data = await api.quotes.list(authorId)
+        if (!active) return
         setQuotes(Array.isArray(data) ? data : [])
         setError(null)
         setExpandedQuoteId(null)
       } catch (err) {
+        if (!active) return
         console.error('Failed to fetch quotes:', err)
         setError('Failed to load quotes')
       } finally {
-        setLoading(false)
+        if (active) setLoading(false)
       }
     }
 
     fetchQuotes()
-  }, [authorId])
+    return () => {
+      active = false
+    }
+  }, [authorId, refreshKey])
 
   const toggleQuoteExpanded = (id) => {
     setExpandedQuoteId(expandedQuoteId === id ? null : id)

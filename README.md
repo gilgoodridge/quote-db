@@ -63,7 +63,29 @@ Unlike wiki-based quote collections, Quote DB provides a **relational database**
   ```
 - `DELETE /api/authors/{id}` - Delete author
 
-*More endpoints coming: quotes, sources, topics, analytics queries*
+#### Quotes
+- `GET /api/quotes?authorId={id}` - List quotes, optionally filtered by author
+- `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
+  `date` (`YYYY-MM-DD`), `location`, and `reference`
+- `GET /api/quotes/{id}` - Get a quote
+- `PUT /api/quotes/{id}` - Replace a quote
+- `DELETE /api/quotes/{id}` - Delete a quote
+
+### Adding a quote in the UI
+
+**Add Quote** is always visible in the right side of the header. **Quote of the
+Day** sits beside the Quotes DB logo on the left. Anonymous users are prompted
+to sign in with Google before adding a quote; after sign-in, the form opens
+automatically. A tab-scoped session-storage flag preserves only this intent
+across the redirect, not credentials or quote data. Browser session storage must
+be available to resume the action automatically.
+
+The form includes every POST field: quote text (up to 2,048 characters), an
+existing author selected from a dropdown, date, location, and reference (the
+latter two up to 255 characters each). The currently selected author is
+preselected. **Add new author** is disabled until that feature is implemented.
+After a successful save, the author's quotes are refreshed and displayed.
+Saving failures leave the form and entered values intact.
 
 ## Architecture
 
@@ -149,8 +171,9 @@ registry.addMapping("/api/**")
 
 **IntelliJ IDEA (one click)**
 
-Shared run configurations are stored in `.run` and appear in the run configuration
-dropdown:
+Run configurations are machine-local. The `.run` and `.idea` directories are
+ignored by Git so local environment variables are not committed. Existing local
+configurations remain available in the run configuration dropdown:
 - **Full Stack** starts both the backend and the Vite frontend.
 - **Frontend** runs `npm run dev` from the frontend directory.
 - **Backend** runs `org.gilgood.Application`, matching the existing Application configuration.
@@ -167,6 +190,12 @@ to Node.js 24 under **Settings > Languages & Frameworks > Node.js**.
 The backend configuration uses the existing `ms-25` JDK; if your installed Java 25
 SDK has a different name, select it under **Run > Edit Configurations > Backend > JRE**.
 Your existing **Application** configuration is unchanged.
+
+On a fresh clone, create these configurations under **Run > Edit Configurations**:
+an **npm** configuration named **Frontend** targeting `frontend/package.json`
+with command `run` and script `dev`; an **Application** configuration named
+**Backend** targeting `org.gilgood.Application` in module `quote-db` with Java 25;
+and a **Compound** configuration named **Full Stack** containing both.
 
 **Using terminals instead**
 
@@ -196,7 +225,7 @@ Any signed-in Google user can write; there are no editor/admin roles yet.
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the backend environment
 (IntelliJ: **Run > Edit Configurations > Backend > Environment variables**).
-Keep credentials local, not in shared `.run` files or `VITE_*` variables.
+Keep credentials in local, Git-ignored IDE settings, never in tracked files or `VITE_*` variables.
 Both are required to start the backend. Register this exact callback in the
 Google web OAuth client:
 

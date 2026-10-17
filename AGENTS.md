@@ -296,17 +296,25 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 
 ## Running Frontend & Backend Together
 
+### IDE-Agnostic Repository Policy
+
+- Keep tracked project configuration IDE-agnostic; do not commit IDE-specific settings or run configurations
+- Keep IDE-specific configuration local and Git-ignored, including `.run` directories at any depth and `.idea`
+- Document IDE-independent build and run commands as the primary workflow; IDE instructions may supplement them
+- Do not force-add ignored IDE files
+
 ### Development Mode (with hot reload)
 
 **IntelliJ IDEA**
-- Shared configurations live in `.run`, outside the ignored `.idea` directory
+- Configurations are machine-local; both `.run` and `.idea` are ignored by Git and must not be force-added
 - **Frontend** runs `npm run dev` using the project Node.js interpreter
 - **Backend** runs `org.gilgood.Application` in module `quote-db` using the existing `ms-25` Java 25 SDK
 - **Full Stack** launches Backend and Frontend together
 - The existing local **Application** configuration is unchanged
 - Requires IntelliJ's JavaScript and TypeScript and Node.js plugins, installed frontend dependencies (`npm ci`), and running MySQL
 - Stop existing server instances before launching to avoid port conflicts
-- See README.md for interpreter configuration and startup details
+- Existing local configurations are preserved; fresh clones must create them in IntelliJ
+- See README.md for configuration creation, interpreter configuration, and startup details
 
 **Terminal alternative**
 
@@ -327,7 +335,7 @@ npm run dev
 ### Google Authentication
 
 - Backend requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` environment variables; never commit credentials or put them in `VITE_*` variables
-- Keep IntelliJ credentials local; do not overwrite user changes to `.run/Backend.run.xml`
+- Keep IntelliJ credentials in Git-ignored local settings; do not overwrite user changes to `.run/Backend.run.xml` or track `.run` files
 - Local Google callback: `http://localhost:8080/login/oauth2/code/google`
 - `FRONTEND_URL` sets the fixed post-login origin, default `http://localhost:5173` (no trailing slash)
 - `SecurityConfig` integrates Spring Security with the existing credentialed MVC CORS configuration

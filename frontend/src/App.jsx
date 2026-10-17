@@ -7,16 +7,22 @@ import './App.css'
 
 function App() {
   const [selectedAuthorId, setSelectedAuthorId] = useState(null)
+  const [quotesVersion, setQuotesVersion] = useState(0)
+
+  function handleQuoteCreated(quote) {
+    setSelectedAuthorId(quote.author.id)
+    setQuotesVersion((version) => version + 1)
+  }
 
   return (
     <div className="app-container">
-      <Header />
+      <Header onQuoteCreated={handleQuoteCreated} selectedAuthorId={selectedAuthorId} />
       <div className="main-content">
         <aside className="sidebar-left">
           <Sidebar onAuthorSelect={setSelectedAuthorId} selectedAuthorId={selectedAuthorId} />
         </aside>
         <main className="content-middle">
-          <QuotesList authorId={selectedAuthorId} />
+          <QuotesList authorId={selectedAuthorId} refreshKey={quotesVersion} />
         </main>
         <aside className="sidebar-right">
           <Placeholder />

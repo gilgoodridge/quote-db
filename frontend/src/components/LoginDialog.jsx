@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import '../styles/LoginDialog.css'
 
-export default function LoginDialog({ onClose, onGoogleLogin }) {
+export default function LoginDialog({ onClose, onGoogleLogin, forAddQuote = false, error = '' }) {
   const dialogRef = useRef(null)
 
   useEffect(() => {
@@ -29,8 +29,11 @@ export default function LoginDialog({ onClose, onGoogleLogin }) {
       </button>
       <h2 id="login-title">Log in to Quotes DB</h2>
       <p id="login-description" className="login-description">
-        No login is needed to explore quotes. Continue with Google to sign in.
+        {forAddQuote
+          ? 'Please log in to add a quote. After signing in with Google, the Add Quote form will open.'
+          : 'No login is needed to explore quotes. Continue with Google to sign in.'}
       </p>
+      {error && <p role="alert">{error}</p>}
       <button type="button" className="google-login-btn" onClick={onGoogleLogin}>
         <svg className="google-login-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
           <path className="google-blue" d="M22.56 12.25c0-.73-.06-1.42-.19-2.09H12v3.96h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.75 3.28-7.95Z" />

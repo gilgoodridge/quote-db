@@ -94,6 +94,11 @@ export const api = {
     },
   },
   quotes: {
+    create: (data) => requestJson('/quotes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
     list: (authorId) => {
       const params = authorId ? `?authorId=${authorId}` : ''
       return requestJson(`/quotes${params}`)

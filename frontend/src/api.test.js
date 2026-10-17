@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
 import { api, getGoogleOAuthStartUrl, getLoginReturnState } from './api.js'
+import { clearAddQuoteIntent, hasAddQuoteIntent, saveAddQuoteIntent } from './quoteIntent.js'
 
 const originalFetch = globalThis.fetch
 
@@ -117,4 +118,67 @@ test('non-OK read responses reject with backend text', async () => {
   globalThis.fetch = async () => new Response('Service unavailable', { status: 503 })
 
   await assert.rejects(api.auth.me(), /Request failed \(503\): Service unavailable/)
+})
+
+test('quote creation sends all POST fields with session credentials and CSRF', async () => {
+  const calls = []
+  const quote = {
+    text: 'A new quote',
+    authorId: 12,
+    date: '2026-10-17',
+    location: 'London',
+    reference: 'A book, page 42',
+  }
+  const saved = { ...quote, id: 42, author: { id: 12 } }
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return new Response(JSON.stringify(url === '/api/auth/csrf'
+      ? { token: 'quote-token', headerName: 'X-CSRF-TOKEN' }
+      : saved))
+  }
+
+  assert.deepEqual(await api.quotes.create(quote), saved)
+  assert.equal(calls.length, 2)
+  assert.equal(calls[1].url, '/api/quotes')
+  assert.equal(calls[1].options.method, 'POST')
+  assert.equal(calls[1].options.credentials, 'include')
+  assert.equal(calls[1].options.headers['Content-Type'], 'application/json')
+  assert.equal(calls[1].options.headers['X-CSRF-TOKEN'], 'quote-token')
+  assert.deepEqual(JSON.parse(calls[1].options.body), quote)
+})
+
+test('quote creation preserves optional null fields and surfaces authentication errors', async () => {
+  const quote = { text: 'A quote', authorId: 1, date: null, location: null, reference: null }
+  globalThis.fetch = async (url, options) => {
+    if (url === '/api/auth/csrf') {
+      return new Response('{"token":"token","headerName":"X-CSRF-TOKEN"}')
+    }
+    assert.deepEqual(JSON.parse(options.body), quote)
+    return new Response('{"error":"Login required"}', { status: 401 })
+  }
+
+  await assert.rejects(api.quotes.create(quote), /Request failed \(401\).*Login required/)
+})
+
+test('Add Quote intent survives the login redirect and is cleared after use', () => {
+  const entries = new Map()
+  const storage = {
+    getItem: (key) => entries.get(key) ?? null,
+    setItem: (key, value) => entries.set(key, value),
+    removeItem: (key) => entries.delete(key),
+  }
+  assert.equal(hasAddQuoteIntent(storage), false)
+  saveAddQuoteIntent(storage)
+  assert.equal(hasAddQuoteIntent(storage), true)
+  assert.deepEqual([...entries.values()], ['true'])
+  clearAddQuoteIntent(storage)
+  assert.equal(hasAddQuoteIntent(storage), false)
+})
+
+test('intent storage failures propagate so sign-in can show an actionable error', () => {
+  const unavailable = () => { throw new Error('Storage blocked') }
+  const storage = { getItem: unavailable, setItem: unavailable, removeItem: unavailable }
+  assert.throws(() => hasAddQuoteIntent(storage), /Storage blocked/)
+  assert.throws(() => saveAddQuoteIntent(storage), /Storage blocked/)
+  assert.throws(() => clearAddQuoteIntent(storage), /Storage blocked/)
 })

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, getGoogleOAuthStartUrl, getLoginReturnState } from '../api'
+import { clearAddQuoteIntent, hasAddQuoteIntent, saveAddQuoteIntent } from '../quoteIntent'
+import AddQuoteDialog from './AddQuoteDialog'
 import LoginDialog from './LoginDialog'
 import '../styles/Header.css'
 
-export default function Header() {
+export default function Header({ onQuoteCreated, selectedAuthorId }) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
   const [authStatus, setAuthStatus] = useState('loading')
@@ -11,9 +13,17 @@ export default function Header() {
   const [authError, setAuthError] = useState('')
   const [logoutError, setLogoutError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
+  const [authAttempt, setAuthAttempt] = useState(0)
+  const [loginForQuote, setLoginForQuote] = useState(false)
+  const [showAddQuote, setShowAddQuote] = useState(false)
+  const [quoteActionError, setQuoteActionError] = useState('')
+  const [quoteAdded, setQuoteAdded] = useState(false)
   const [loginReturn] = useState(() => getLoginReturnState(window.location.href))
   const loginError = loginReturn.failed ? 'Google sign-in failed. Please try again.' : ''
   const menuButtonRef = useRef(null)
+  const addQuoteButtonRef = useRef(null)
+  const loginTriggerRef = useRef(null)
+  const addQuoteRequestedRef = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -30,6 +40,23 @@ export default function Header() {
         } else {
           throw new Error('The session endpoint returned an invalid authentication status')
         }
+        let pending = false
+        try {
+          pending = hasAddQuoteIntent(window.sessionStorage)
+          clearAddQuoteIntent(window.sessionStorage)
+        } catch (error) {
+          setQuoteActionError(`Unable to restore the Add Quote action: ${error.message}`)
+        }
+        if ((pending && !loginReturn.failed) || addQuoteRequestedRef.current) {
+          addQuoteRequestedRef.current = false
+          if (session.authenticated) {
+            setShowAddQuote(true)
+          } else {
+            loginTriggerRef.current = addQuoteButtonRef.current
+            setLoginForQuote(true)
+            setShowLogin(true)
+          }
+        }
       })
       .catch((error) => {
         if (!active) return
@@ -40,7 +67,7 @@ export default function Header() {
     return () => {
       active = false
     }
-  }, [])
+  }, [authAttempt, loginReturn.failed])
 
   useEffect(() => {
     if (!loginReturn.hasLoginParameter) return
@@ -53,7 +80,8 @@ export default function Header() {
 
   function closeLogin() {
     setShowLogin(false)
-    menuButtonRef.current?.focus()
+    setLoginForQuote(false)
+    loginTriggerRef.current?.focus()
   }
 
   async function logout() {
@@ -71,7 +99,42 @@ export default function Header() {
   }
 
   function startGoogleLogin() {
+    try {
+      if (loginForQuote) {
+        saveAddQuoteIntent(window.sessionStorage)
+      } else {
+        clearAddQuoteIntent(window.sessionStorage)
+      }
+    } catch (error) {
+      setQuoteActionError(`Unable to prepare sign-in: ${error.message}`)
+      return
+    }
     window.location.assign(getGoogleOAuthStartUrl())
+  }
+
+  function addQuote() {
+    setShowMenu(false)
+    setQuoteAdded(false)
+    setQuoteActionError('')
+    if (authStatus === 'authenticated') {
+      setShowAddQuote(true)
+    } else if (authStatus === 'anonymous') {
+      loginTriggerRef.current = addQuoteButtonRef.current
+      setLoginForQuote(true)
+      setShowLogin(true)
+    } else {
+      addQuoteRequestedRef.current = true
+      if (authStatus === 'error') {
+        setAuthError('')
+        setAuthStatus('loading')
+        setAuthAttempt((attempt) => attempt + 1)
+      }
+    }
+  }
+
+  function closeAddQuote() {
+    setShowAddQuote(false)
+    addQuoteButtonRef.current?.focus()
   }
 
   const displayName = user?.name || user?.email || 'Google account'
@@ -80,6 +143,7 @@ export default function Header() {
     <header className="header">
       <div className="header-left">
         <h1 className="logo">Quotes DB</h1>
+        <button type="button" className="quote-of-day-btn">Quote of the Day</button>
       </div>
 
       <div className="header-center">
@@ -103,7 +167,15 @@ export default function Header() {
             Unable to check sign-in: {authError}
           </span>
         )}
-        <button className="quote-of-day-btn">Quote of the Day</button>
+        <button
+          ref={addQuoteButtonRef}
+          type="button"
+          className="add-quote-btn"
+          aria-haspopup="dialog"
+          onClick={addQuote}
+        >
+          Add Quote
+        </button>
 
         <div className="menu-container">
           <button
@@ -131,6 +203,8 @@ export default function Header() {
                   aria-haspopup="dialog"
                   onClick={() => {
                     setShowMenu(false)
+                    setQuoteActionError('')
+                    loginTriggerRef.current = menuButtonRef.current
                     setShowLogin(true)
                   }}
                 >
@@ -165,7 +239,24 @@ export default function Header() {
       {loginError && (
         <p className="header-login-error" role="alert">{loginError}</p>
       )}
-      {showLogin && <LoginDialog onClose={closeLogin} onGoogleLogin={startGoogleLogin} />}
+      {quoteActionError && !showLogin && (
+        <p className="header-login-error" role="alert">{quoteActionError}</p>
+      )}
+      {quoteAdded && <p className="header-quote-success" role="status">Quote added successfully.</p>}
+      {showLogin && (
+        <LoginDialog onClose={closeLogin} onGoogleLogin={startGoogleLogin} forAddQuote={loginForQuote} error={quoteActionError} />
+      )}
+      {showAddQuote && (
+        <AddQuoteDialog
+          initialAuthorId={selectedAuthorId}
+          onClose={closeAddQuote}
+          onCreated={(quote) => {
+            closeAddQuote()
+            setQuoteAdded(true)
+            onQuoteCreated(quote)
+          }}
+        />
+      )}
     </header>
   )
 }
