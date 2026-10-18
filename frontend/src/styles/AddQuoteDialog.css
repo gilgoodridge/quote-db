@@ -59,12 +59,12 @@
 }
 
 .add-quote-submit {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--maize);
+  color: var(--on-maize);
 }
 
 .add-quote-submit:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--maize-hover);
 }
 
 .add-quote-error {

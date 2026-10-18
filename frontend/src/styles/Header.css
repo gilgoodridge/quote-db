@@ -23,6 +23,10 @@
   color: var(--accent);
   margin: 0;
   letter-spacing: -0.5px;
+  text-decoration: underline;
+  text-decoration-color: var(--maize);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 5px;
 }
 
 .header-center {
@@ -55,7 +59,7 @@
   outline: none;
   border-color: var(--accent);
   background: var(--bg);
-  box-shadow: 0 0 0 3px rgba(95, 75, 139, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .search-input:disabled {
@@ -121,6 +125,15 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
+.add-quote-btn {
+  background: var(--maize);
+  color: var(--on-maize);
+}
+
+.add-quote-btn:hover:not(:disabled) {
+  background: var(--maize-hover);
+}
+
 .quote-of-day-btn:active,
 .add-quote-btn:active {
   transform: translateY(0);
@@ -165,7 +178,7 @@
   border-radius: 8px;
   margin-top: 8px;
   min-width: 150px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 12%, transparent);
   z-index: 100;
   animation: slideDown 0.2s ease;
 }

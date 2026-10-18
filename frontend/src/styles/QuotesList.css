@@ -52,7 +52,7 @@
 }
 
 .error-state p {
-  color: #d32f2f;
+  color: var(--error);
   font-size: 1rem;
   margin: 0;
 }
@@ -101,7 +101,7 @@
 
 .quote-row:hover {
   background-color: var(--bg);
-  box-shadow: 0 2px 4px rgba(95, 75, 139, 0.1);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .quote-row.expanded {

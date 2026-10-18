@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(95, 75, 139, 0.2);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent);
   animation: float 3s ease-in-out infinite;
 }
 
