@@ -2,28 +2,34 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import '../styles/Sidebar.css'
 
-export default function Sidebar({ onAuthorSelect, selectedAuthorId }) {
+export default function Sidebar({ onAuthorSelect, selectedAuthorId, refreshKey = 0 }) {
   const [authors, setAuthors] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    let active = true
     const fetchAuthors = async () => {
       try {
         setLoading(true)
         const data = await api.authors.list()
+        if (!active) return
         setAuthors(data)
         setError(null)
       } catch (err) {
+        if (!active) return
         console.error('Failed to fetch authors:', err)
         setError('Failed to load authors')
       } finally {
-        setLoading(false)
+        if (active) setLoading(false)
       }
     }
 
     fetchAuthors()
-  }, [])
+    return () => {
+      active = false
+    }
+  }, [refreshKey])
 
   const handleAuthorClick = (id) => {
     onAuthorSelect(selectedAuthorId === id ? null : id)

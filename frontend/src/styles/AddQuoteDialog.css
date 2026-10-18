@@ -36,7 +36,7 @@
   resize: vertical;
 }
 
-.add-author-placeholder {
+.add-author-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -45,7 +45,7 @@
   font-size: 0.9rem;
 }
 
-.add-author-placeholder button,
+.add-author-actions button,
 .add-quote-cancel {
   background: var(--bg-secondary);
   color: var(--text);
@@ -76,4 +76,10 @@
 .add-quote-dialog :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+.author-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }

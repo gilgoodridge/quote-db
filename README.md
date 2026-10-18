@@ -83,7 +83,13 @@ be available to resume the action automatically.
 The form includes every POST field: quote text (up to 2,048 characters), an
 existing author selected from a dropdown, date, location, and reference (the
 latter two up to 255 characters each). The currently selected author is
-preselected. **Add new author** is disabled until that feature is implemented.
+preselected. **Add new author** opens a separate form without losing your quote
+draft. It supports all author POST fields: required given and family names, plus
+preferred name, pseudonym, birth/death dates, birthplace, nationality, and
+biography. Text fields allow up to 255 characters (biography: 1,024).
+Saving immediately creates the author, selects them in the quote dropdown, and
+refreshes the Authors sidebar. Cancelling the quote does not delete an already
+saved author. Cancelling the author form returns to the unchanged quote draft.
 After a successful save, the author's quotes are refreshed and displayed.
 Saving failures leave the form and entered values intact.
 

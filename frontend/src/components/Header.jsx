@@ -5,7 +5,7 @@ import AddQuoteDialog from './AddQuoteDialog'
 import LoginDialog from './LoginDialog'
 import '../styles/Header.css'
 
-export default function Header({ onQuoteCreated, selectedAuthorId }) {
+export default function Header({ onQuoteCreated, onAuthorCreated, selectedAuthorId }) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
   const [authStatus, setAuthStatus] = useState('loading')
@@ -249,6 +249,7 @@ export default function Header({ onQuoteCreated, selectedAuthorId }) {
       {showAddQuote && (
         <AddQuoteDialog
           initialAuthorId={selectedAuthorId}
+          onAuthorCreated={onAuthorCreated}
           onClose={closeAddQuote}
           onCreated={(quote) => {
             closeAddQuote()

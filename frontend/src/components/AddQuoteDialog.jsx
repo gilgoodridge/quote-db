@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
+import AddAuthorDialog from './AddAuthorDialog'
 import '../styles/AddQuoteDialog.css'
 
-export default function AddQuoteDialog({ onClose, onCreated, initialAuthorId }) {
+export default function AddQuoteDialog({ onClose, onCreated, onAuthorCreated, initialAuthorId }) {
   const dialogRef = useRef(null)
+  const addAuthorButtonRef = useRef(null)
   const submittingRef = useRef(false)
   const [authors, setAuthors] = useState([])
   const [loadingAuthors, setLoadingAuthors] = useState(true)
@@ -11,6 +13,8 @@ export default function AddQuoteDialog({ onClose, onCreated, initialAuthorId }) 
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [showAddAuthor, setShowAddAuthor] = useState(false)
+  const [authorAdded, setAuthorAdded] = useState(false)
   const [fields, setFields] = useState({
     text: '',
     authorId: initialAuthorId ? String(initialAuthorId) : '',
@@ -80,14 +84,20 @@ export default function AddQuoteDialog({ onClose, onCreated, initialAuthorId }) 
     onCreated(quote)
   }
 
+  function closeAddAuthor() {
+    setShowAddAuthor(false)
+    addAuthorButtonRef.current?.focus()
+  }
+
   return (
+    <>
     <dialog
       ref={dialogRef}
       className="add-quote-dialog"
       aria-labelledby="add-quote-title"
       onClose={onClose}
       onCancel={(event) => {
-        if (submittingRef.current) event.preventDefault()
+        if (submittingRef.current || showAddAuthor) event.preventDefault()
       }}
     >
       <h2 id="add-quote-title">Add Quote</h2>
@@ -123,10 +133,21 @@ export default function AddQuoteDialog({ onClose, onCreated, initialAuthorId }) 
           {!loadingAuthors && !authorError && authors.length === 0 && (
             <p role="status">No authors are available. An author must be added before you can save a quote.</p>
           )}
-          <div className="add-author-placeholder">
-            <button type="button" disabled aria-describedby="add-author-help">Add new author</button>
-            <span id="add-author-help">Not available yet</span>
+          <div className="add-author-actions">
+            <button
+              ref={addAuthorButtonRef}
+              type="button"
+              disabled={loadingAuthors}
+              aria-haspopup="dialog"
+              onClick={() => {
+                setAuthorAdded(false)
+                setShowAddAuthor(true)
+              }}
+            >
+              Add new author
+            </button>
           </div>
+          {authorAdded && <p role="status">Author added and selected.</p>}
 
           <label htmlFor="quote-date">Date</label>
           <input id="quote-date" name="date" type="date" value={fields.date} onChange={updateField} />
@@ -145,5 +166,19 @@ export default function AddQuoteDialog({ onClose, onCreated, initialAuthorId }) 
         {saving && <p role="status">Saving quote...</p>}
       </form>
     </dialog>
+    {showAddAuthor && (
+      <AddAuthorDialog
+        onClose={closeAddAuthor}
+        onCreated={(author) => {
+          setAuthors((current) => [...current, author])
+          setFields((current) => ({ ...current, authorId: String(author.id) }))
+          setSaveError('')
+          setAuthorAdded(true)
+          closeAddAuthor()
+          onAuthorCreated(author)
+        }}
+      />
+    )}
+    </>
   )
 }
