@@ -95,7 +95,7 @@ To avoid ambiguity with partial updates, all PUT endpoints use **full replacemen
 **PUT Behavior:**
 - Client sends complete replacement (all fields)
 - Fields set to null or omitted (if optional) → deleted/cleared in database
-- Required fields (e.g., `givenName`, `familyName`) must be provided; missing = 400 Bad Request
+- Required fields (e.g., `fullName`) must be provided; missing = 400 Bad Request
 - Clean, predictable semantics: no "empty string vs null" ambiguity
 - Clients must fetch full resource before updating if partial changes needed
 
@@ -103,12 +103,12 @@ To avoid ambiguity with partial updates, all PUT endpoints use **full replacemen
 
 PUT /api/authors/1
 
-// Replace entire author; preferredName and bio are deleted
+// Replace entire author; knownAs and bio are deleted
 
 ```json
 {
-  "givenName": "Jane",
-  "familyName": "Doe",
+  "fullName": "Jane Doe",
+  "knownAs": "Jane",
   "dateOfBirth": "1950-05-15",
   "nationality": "US"
 }

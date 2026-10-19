@@ -4,6 +4,7 @@
 # Works with Git Bash (Windows) and standard Ubuntu bash (Linux)
 # Usage: ./seed-data.sh [BASE_URL]
 # Without an argument, choose a target interactively.
+# Requires a signed-in JSESSIONID cookie for the selected base URL.
 # Stops on the first failed request or missing resource ID, without retrying.
 # Earlier writes are not rolled back; inspect/clean up data before rerunning.
 
@@ -32,6 +33,34 @@ fi
 
 API_URL="$BASE_URL/api"
 
+if ! read -r -s -p "Enter the JSESSIONID value for $BASE_URL: " SESSION_ID; then
+    echo "Unable to read the session ID." >&2
+    exit 1
+fi
+printf '\n'
+
+if [[ ! "$SESSION_ID" =~ ^[[:alnum:]_.-]+$ ]]; then
+    echo "Invalid session ID. Enter only the JSESSIONID cookie value, not the full cookie header." >&2
+    exit 1
+fi
+
+if ! csrf_response=$(curl -fsS --connect-timeout 10 --max-time 60 \
+    -H "Cookie: JSESSIONID=$SESSION_ID" \
+    "$API_URL/auth/csrf"); then
+    echo "Unable to fetch a CSRF token from $API_URL/auth/csrf." >&2
+    exit 1
+fi
+
+CSRF_TOKEN=$(printf '%s' "$csrf_response" |
+    sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+CSRF_HEADER=$(printf '%s' "$csrf_response" |
+    sed -n 's/.*"headerName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+
+if [[ -z "$CSRF_TOKEN" || ! "$CSRF_HEADER" =~ ^[[:alnum:]-]+$ ]]; then
+    echo "The CSRF endpoint returned an invalid response." >&2
+    exit 1
+fi
+
 trap 'status=$?; if (( status != 0 && BASH_SUBSHELL == 0 )); then
     echo "Seeding stopped. Earlier requests may have saved data; no rollback was performed. Inspect the database before rerunning." >&2
 fi' EXIT
@@ -48,6 +77,8 @@ create_resource() {
 
     if ! response=$(curl -sS --connect-timeout 10 --max-time 60 \
         -X POST "$API_URL/$endpoint" \
+        -H "Cookie: JSESSIONID=$SESSION_ID" \
+        -H "$CSRF_HEADER: $CSRF_TOKEN" \
         -H "Content-Type: application/json" \
         -d "$json" \
         -w $'\n%{http_code}'); then
@@ -74,19 +105,19 @@ create_resource() {
 }
 
 create_author() {
-    local given_name="$1"
-    local family_name="$2"
+    local full_name="$1"
+    local known_as="$2"
     local date_of_birth="$3"
     local date_of_death="$4"
     local nationality="$5"
     
     create_resource "authors" "{
-            \"givenName\": \"$given_name\",
-            \"familyName\": \"$family_name\",
+            \"fullName\": \"$full_name\",
+            \"knownAs\": \"$known_as\",
             \"dateOfBirth\": \"$date_of_birth\",
             \"dateOfDeath\": \"$date_of_death\",
             \"nationality\": \"$nationality\"
-        }" "author $given_name $family_name"
+        }" "author $known_as"
 }
 
 # Helper function to create a quote
@@ -127,25 +158,25 @@ echo "Creating authors..."
 echo "----------------------------------------"
 
 # Create authors
-EINSTEIN_ID=$(create_author "Albert" "Einstein" "1879-03-14" "1955-04-18" "German/Swiss/American")
+EINSTEIN_ID=$(create_author "Albert Einstein" "Albert Einstein" "1879-03-14" "1955-04-18" "German/Swiss/American")
 echo "✓ Albert Einstein (ID: $EINSTEIN_ID)"
 
-CHURCHILL_ID=$(create_author "Winston" "Churchill" "1874-01-30" "1965-01-24" "British")
+CHURCHILL_ID=$(create_author "Winston Leonard Spencer Churchill" "Winston Churchill" "1874-01-30" "1965-01-24" "British")
 echo "✓ Winston Churchill (ID: $CHURCHILL_ID)"
 
-TWAIN_ID=$(create_author "Mark" "Twain" "1835-11-30" "1910-04-21" "American")
+TWAIN_ID=$(create_author "Samuel Langhorne Clemens" "Mark Twain" "1835-11-30" "1910-04-21" "American")
 echo "✓ Mark Twain (ID: $TWAIN_ID)"
 
-AUSTEN_ID=$(create_author "Jane" "Austen" "1775-12-16" "1817-07-18" "British")
+AUSTEN_ID=$(create_author "Jane Austen" "Jane Austen" "1775-12-16" "1817-07-18" "British")
 echo "✓ Jane Austen (ID: $AUSTEN_ID)"
 
-DARWIN_ID=$(create_author "Charles" "Darwin" "1809-02-12" "1882-04-19" "British")
+DARWIN_ID=$(create_author "Charles Robert Darwin" "Charles Darwin" "1809-02-12" "1882-04-19" "British")
 echo "✓ Charles Darwin (ID: $DARWIN_ID)"
 
-SHAKESPEARE_ID=$(create_author "William" "Shakespeare" "1564-04-23" "1616-05-03" "British")
+SHAKESPEARE_ID=$(create_author "William Shakespeare" "William Shakespeare" "1564-04-23" "1616-05-03" "British")
 echo "✓ William Shakespeare (ID: $SHAKESPEARE_ID)"
 
-JOBS_ID=$(create_author "Steve" "Jobs" "1955-02-24" "2011-10-05" "American")
+JOBS_ID=$(create_author "Steven Paul Jobs" "Steve Jobs" "1955-02-24" "2011-10-05" "American")
 echo "✓ Steve Jobs (ID: $JOBS_ID)"
 
 echo ""

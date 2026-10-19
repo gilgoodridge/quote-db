@@ -41,6 +41,10 @@ Unlike wiki-based quote collections, Quote DB provides a **relational database**
 
 ## API Overview
 
+For guidance on choosing names and entering author and quote information, see
+[Editorial Guidelines](EDITORIAL-GUIDELINES.md). That guide distinguishes
+established name rules from editorial policies still to be defined.
+
 ### Available Endpoints
 
 #### Authors
@@ -48,16 +52,16 @@ Unlike wiki-based quote collections, Quote DB provides a **relational database**
 - `POST /api/authors` - Create author
   ```json
   {
-    "givenName": "John",
-    "familyName": "Doe"
+    "fullName": "Samuel Langhorne Clemens",
+    "knownAs": "Mark Twain"
   }
   ```
 - `PUT /api/authors/{id}` - **Full replacement** (all optional fields omitted are cleared)
   ```json
   {
-    "givenName": "Jane",
-    "familyName": "Doe",
-    "dateOfBirth": "1950-05-15",
+    "fullName": "Jane Austen",
+    "knownAs": "Jane Austen",
+    "dateOfBirth": "1775-12-16",
     "nationality": "US"
   }
   ```
@@ -84,9 +88,10 @@ The form includes every POST field: quote text (up to 2,048 characters), an
 existing author selected from a dropdown, date, location, and reference (the
 latter two up to 255 characters each). The currently selected author is
 preselected. **Add new author** opens a separate form without losing your quote
-draft. It supports all author POST fields: required given and family names, plus
-preferred name, pseudonym, birth/death dates, birthplace, nationality, and
-biography. Text fields allow up to 255 characters (biography: 1,024).
+draft. It supports all author POST fields: required full name, optional known-as name,
+birth/death dates, birthplace, nationality, and biography. The known-as name is
+used for display when present; otherwise the full name is displayed. Text fields
+allow up to 255 characters (biography: 1,024).
 Saving immediately creates the author, selects them in the quote dropdown, and
 refreshes the Authors sidebar. Cancelling the quote does not delete an already
 saved author. Cancelling the author form returns to the unchanged quote draft.
@@ -222,6 +227,12 @@ npm run dev
 
 ### Database Migrations
 - `spring.jpa.hibernate.ddl-auto=update` (auto-creates/updates schema)
+- Hibernate `update` does not reliably drop renamed/removed columns. To reset the
+  schema after this name-field change, stop the application, drop and recreate the
+  `quote_db` database, then restart it so Hibernate creates the current schema.
+  Deleting rows alone leaves the old columns in place, and the existing author
+  columns may prevent writes after the rename. This reset deletes all quotes and
+  authors; back up any data you need first.
 - For production, consider Liquibase or Flyway
 
 ### Google login
@@ -258,6 +269,12 @@ Direct API clients and Swagger writes must likewise send the session cookie and
 the header/token returned by `/api/auth/csrf`. Unauthenticated protected requests
 return 401 when CSRF is valid; missing/invalid CSRF returns 403. Anonymous
 seed/import scripts cannot write without authentication.
+
+`seed-data.sh` prompts for the `JSESSIONID` cookie value from a signed-in session
+for the selected base URL, fetches its CSRF token, and includes both on seed
+requests. Sign into the site first and copy the cookie value from browser
+developer tools; do not save or share it. The session ID is sensitive and
+expires when the session ends.
 
 `FRONTEND_URL` controls the fixed post-login destination (default
 `http://localhost:5173`; supply an origin without a trailing slash). Production

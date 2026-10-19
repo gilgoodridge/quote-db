@@ -56,7 +56,7 @@ export default function Sidebar({ onAuthorSelect, selectedAuthorId, refreshKey =
                 onClick={() => handleAuthorClick(author.id)}
               >
                 <span className="author-name">
-                  {author.givenName} {author.familyName}
+                  {author.knownAs || author.fullName}
                 </span>
               </button>
             </li>

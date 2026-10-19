@@ -3,6 +3,7 @@ package org.gilgood.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.validation.Valid;
 import org.gilgood.dto.AuthorResponse;
 import org.gilgood.dto.CreateAuthorRequest;
 import org.gilgood.dto.UpdateAuthorRequest;
@@ -48,7 +49,7 @@ public class AuthorController {
 
     @PostMapping
     @Operation(summary = "Create new author")
-    public AuthorResponse addAuthor(@RequestBody CreateAuthorRequest request) {
+    public AuthorResponse addAuthor(@Valid @RequestBody CreateAuthorRequest request) {
         Author author = authorMapper.toEntity(request);
         Author saved = authorRepository.save(author);
         return authorMapper.toResponse(saved);
@@ -59,14 +60,14 @@ public class AuthorController {
             summary = "Replace author (full update)",
             description = "Replaces the entire author record. " +
                     "Any optional fields omitted or set to null will be deleted from the database. " +
-                    "Required fields (givenName, familyName) must be provided; missing required fields will return 400 Bad Request."
+                    "The required fullName field must be provided; missing it will return 400 Bad Request."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Author updated successfully"),
             @ApiResponse(responseCode = "400", description = "Missing required fields"),
             @ApiResponse(responseCode = "404", description = "Author not found")
     })
-    public AuthorResponse updateAuthor(@PathVariable Long id, @RequestBody UpdateAuthorRequest request) {
+    public AuthorResponse updateAuthor(@PathVariable Long id, @Valid @RequestBody UpdateAuthorRequest request) {
         Author author = authorRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Author not found with ID: " + id));
         authorMapper.updateEntity(request, author);

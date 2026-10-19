@@ -10,16 +10,13 @@ import java.time.LocalDate;
 @NoArgsConstructor
 public class AuthorResponse {
     private Long id;
-    private String givenName;
-    private String familyName;
-    private String preferredName;
+    private String fullName;
+    private String knownAs;
     private LocalDate dateOfBirth;
     private LocalDate dateOfDeath;
     private String placeOfBirth;
     private String nationality;
     private String bio;
-    private String pseudonym;
-
     @Schema(description = "Author's current age, or age at death if deceased")
     private Integer age;
 }

@@ -68,8 +68,8 @@ test('every write and logout fetch fresh CSRF tokens with credentials', async ()
     return new Response('{}', { status: 200 })
   }
 
-  await api.authors.create({ givenName: 'Ada' })
-  await api.authors.update(1, { givenName: 'Grace' })
+  await api.authors.create({ fullName: 'Ada Lovelace' })
+  await api.authors.update(1, { fullName: 'Grace Hopper' })
   const logoutResponse = await api.auth.logout()
 
   assert.equal(logoutResponse.status, 200)
@@ -105,7 +105,7 @@ test('resource writes fetch CSRF and surface backend error text', async () => {
   }
 
   await assert.rejects(
-    api.authors.create({ givenName: 'Ada' }),
+    api.authors.create({ fullName: 'Ada Lovelace' }),
     /Request failed \(400\): Author could not be saved/,
   )
   assert.equal(calls.length, 2)
@@ -123,10 +123,8 @@ test('non-OK read responses reject with backend text', async () => {
 test('author creation sends every POST field with session credentials and CSRF', async () => {
   const calls = []
   const author = {
-    givenName: 'Mary',
-    familyName: 'Evans',
-    preferredName: 'Marian',
-    pseudonym: 'George Eliot',
+    fullName: 'Mary Anne Evans',
+    knownAs: 'George Eliot',
     dateOfBirth: '1819-11-22',
     dateOfDeath: '1880-12-22',
     placeOfBirth: 'Nuneaton',

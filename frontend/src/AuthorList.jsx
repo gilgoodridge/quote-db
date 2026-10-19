@@ -31,8 +31,8 @@ export function AuthorList() {
         <table>
           <thead>
             <tr>
-              <th>Given Name</th>
-              <th>Family Name</th>
+              <th>Full Name</th>
+              <th>Known As</th>
               <th>Date of Birth</th>
               <th>Nationality</th>
             </tr>
@@ -40,8 +40,8 @@ export function AuthorList() {
           <tbody>
             {authors.map(author => (
               <tr key={author.id}>
-                <td>{author.givenName}</td>
-                <td>{author.familyName}</td>
+                <td>{author.fullName}</td>
+                <td>{author.knownAs || '-'}</td>
                 <td>{author.dateOfBirth || '-'}</td>
                 <td>{author.nationality || '-'}</td>
               </tr>

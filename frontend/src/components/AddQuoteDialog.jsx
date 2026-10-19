@@ -127,7 +127,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onAuthorCreated, in
           <select id="quote-author" name="authorId" value={fields.authorId} onChange={updateField} required disabled={loadingAuthors || Boolean(authorError)}>
             <option value="">Choose an author</option>
             {authors.map((author) => (
-              <option key={author.id} value={author.id}>{author.givenName} {author.familyName}</option>
+              <option key={author.id} value={author.id}>{author.knownAs || author.fullName}</option>
             ))}
           </select>
           {!loadingAuthors && !authorError && authors.length === 0 && (

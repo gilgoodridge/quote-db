@@ -3,10 +3,8 @@ import { api } from '../api'
 import '../styles/AddQuoteDialog.css'
 
 const authorFields = [
-  { name: 'givenName', label: 'Given name', required: true },
-  { name: 'familyName', label: 'Family name', required: true },
-  { name: 'preferredName', label: 'Preferred name' },
-  { name: 'pseudonym', label: 'Pseudonym' },
+  { name: 'fullName', label: 'Full name', required: true },
+  { name: 'knownAs', label: 'Known as' },
   { name: 'dateOfBirth', label: 'Date of birth', type: 'date' },
   { name: 'dateOfDeath', label: 'Date of death', type: 'date' },
   { name: 'placeOfBirth', label: 'Place of birth' },
@@ -37,8 +35,8 @@ export default function AddAuthorDialog({ onClose, onCreated }) {
   async function submit(event) {
     event.preventDefault()
     if (submittingRef.current) return
-    if (!fields.givenName.trim() || !fields.familyName.trim()) {
-      setError('Enter both a given name and a family name, not just whitespace.')
+    if (!fields.fullName.trim()) {
+      setError('Enter a full name, not just whitespace.')
       return
     }
     submittingRef.current = true
@@ -74,7 +72,7 @@ export default function AddAuthorDialog({ onClose, onCreated }) {
     >
       <h2 id="add-author-title">New author</h2>
       <p id="add-author-description" className="add-quote-description">
-        Given name and family name are required. Saving creates the author immediately, even if you later cancel the quote.
+        Full name is required. Known as is optional and is used as the display name when provided. Saving creates the author immediately, even if you later cancel the quote.
       </p>
       <form onSubmit={submit} aria-busy={saving}>
         <fieldset disabled={saving}>

@@ -22,14 +22,11 @@ public class Author {
     @OneToMany(mappedBy = "author", fetch = FetchType.LAZY)
     private List<Quote> quotes;
 
-    @Column(name = "family_name", nullable = false)
-    private String familyName;
+    @Column(name = "full_name", nullable = false)
+    private String fullName;
 
-    @Column(name = "given_name", nullable = false)
-    private String givenName;
-
-    @Column(name = "preferred_name")
-    private String preferredName;
+    @Column(name = "known_as")
+    private String knownAs;
 
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
@@ -46,12 +43,7 @@ public class Author {
     @Column(name = "bio", length = 1024)
     private String bio;
 
-    @Column(name = "pseudonym")
-    private String pseudonym;
-
-    public Author(String familyName, String givenName) {
-        this.familyName = familyName;
-        this.givenName = givenName;
+    public Author(String fullName) {
+        this.fullName = fullName;
     }
 }
-
