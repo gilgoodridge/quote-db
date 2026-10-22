@@ -53,7 +53,8 @@ established name rules from editorial policies still to be defined.
   ```json
   {
     "fullName": "Samuel Langhorne Clemens",
-    "knownAs": "Mark Twain"
+    "knownAs": "Mark Twain",
+    "dateOfBirth": "1835-11-30"
   }
   ```
 - `PUT /api/authors/{id}` - **Full replacement** (all optional fields omitted are cleared)
@@ -66,6 +67,25 @@ established name rules from editorial policies still to be defined.
   }
   ```
 - `DELETE /api/authors/{id}` - Delete author
+
+Creating or replacing an author requires both `fullName` and `dateOfBirth`
+(`YYYY-MM-DD`); missing either returns **400 Bad Request**. Authors with the same
+birth date cannot share a full name or a nonblank known-as name. Matching is
+within each field (not across fields) and follows the database collation.
+Blank known-as names are stored as null and do not count as duplicates.
+Database unique constraints enforce this for creates and updates, including
+concurrent requests. A duplicate returns **409 Conflict** with the message
+**"The author already exists"**, which the author form displays prominently
+without clearing the entered values.
+
+**Existing databases:** Before deploying, back up the database and resolve any
+missing birth dates and duplicate `(full_name, date_of_birth)` or nonblank
+`(known_as, date_of_birth)` pairs. Normalize existing blank known-as values to
+null. Do not invent dates or automatically delete/merge authors, which may have
+quotes attached. Hibernate's schema update needs this cleanup to apply the
+required birth date and the `uk_author_full_name_birth` /
+`uk_author_known_as_birth` unique constraints. Verify these constraints and the
+NOT NULL birth-date column were applied; do not rely on schema-update warnings.
 
 #### Quotes
 - `GET /api/quotes?authorId={id}` - List quotes, optionally filtered by author
@@ -88,8 +108,8 @@ The form includes every POST field: quote text (up to 2,048 characters), an
 existing author selected from a dropdown, date, location, and reference (the
 latter two up to 255 characters each). The currently selected author is
 preselected. **Add new author** opens a separate form without losing your quote
-draft. It supports all author POST fields: required full name, optional known-as name,
-birth/death dates, birthplace, nationality, and biography. The known-as name is
+draft. It supports all author POST fields: required full name and birth date,
+optional known-as name, death date, birthplace, nationality, and biography. The known-as name is
 used for display when present; otherwise the full name is displayed. Text fields
 allow up to 255 characters (biography: 1,024).
 Saving immediately creates the author, selects them in the quote dropdown, and

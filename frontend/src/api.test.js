@@ -120,6 +120,21 @@ test('non-OK read responses reject with backend text', async () => {
   await assert.rejects(api.auth.me(), /Request failed \(503\): Service unavailable/)
 })
 
+test('duplicate author errors expose conflict status and the clear backend message', async () => {
+  globalThis.fetch = async (url) => url === '/api/auth/csrf'
+    ? new Response('{"token":"token","headerName":"X-CSRF-TOKEN"}')
+    : new Response('The author already exists', { status: 409 })
+
+  await assert.rejects(
+    api.authors.create({ fullName: 'Jane Austen', dateOfBirth: '1775-12-16' }),
+    (error) => {
+      assert.equal(error.status, 409)
+      assert.match(error.message, /The author already exists/)
+      return true
+    },
+  )
+})
+
 test('author creation sends every POST field with session credentials and CSRF', async () => {
   const calls = []
   const author = {

@@ -114,13 +114,17 @@ information to fill them.
 
 | Field | Current format or limit | Editorial rules to define |
 |-------|-------------------------|---------------------------|
-| Date of birth (`dateOfBirth`) | Optional date: `YYYY-MM-DD` | Sources, uncertain dates, and dates known only to the year or month |
+| Date of birth (`dateOfBirth`) | Required date: `YYYY-MM-DD` | Sources, uncertain dates, and dates known only to the year or month |
 | Date of death (`dateOfDeath`) | Optional date: `YYYY-MM-DD` | Sources, uncertain dates, and distinguishing unknown from not applicable |
 | Place of birth (`placeOfBirth`) | Optional text; up to 255 characters in the form | Geographic detail, historical versus current place names, and formatting |
 | Nationality (`nationality`) | Optional text; up to 255 characters in the form | Country names, multiple nationalities, and changes over a lifetime |
 | Biography (`bio`) | Optional text; up to 1,024 characters | Scope, tone, sourcing, and treatment of alternate names |
 
 Partial or uncertain dates are not currently represented by the date fields.
+An author cannot be saved without a complete birth date; do not invent one.
+An existing author with the same birth date and matching full name or nonblank
+known-as name cannot be added again. Names are compared within the same field,
+using the database collation.
 The future rules must account for that limitation rather than imply support
 for approximate dates.
 

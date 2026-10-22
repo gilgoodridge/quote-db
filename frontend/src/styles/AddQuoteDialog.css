@@ -73,6 +73,23 @@
   overflow-wrap: anywhere;
 }
 
+.add-author-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--error);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--error-bg);
+  color: var(--error);
+  font-weight: 600;
+}
+
+.add-author-error svg {
+  flex-shrink: 0;
+}
+
 .add-quote-dialog :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;

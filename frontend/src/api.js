@@ -8,9 +8,11 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const message = await response.text()
-    throw new Error(
+    const error = new Error(
       `Request failed (${response.status}): ${message || response.statusText || 'Unknown error'}`,
     )
+    error.status = response.status
+    throw error
   }
 
   return response

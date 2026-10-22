@@ -4,6 +4,7 @@ import org.gilgood.dto.AuthorResponse;
 import org.gilgood.dto.CreateAuthorRequest;
 import org.gilgood.dto.UpdateAuthorRequest;
 import org.gilgood.entity.Author;
+import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
@@ -18,6 +19,13 @@ public interface AuthorMapper {
 
     @Mapping(target = "age", expression = "java(computeAge(author.getDateOfBirth(), author.getDateOfDeath()))")
     AuthorResponse toResponse(Author author);
+
+    @AfterMapping
+    default void normalizeKnownAs(@MappingTarget Author author) {
+        if (author.getKnownAs() != null && author.getKnownAs().isBlank()) {
+            author.setKnownAs(null);
+        }
+    }
 
     default Integer computeAge(LocalDate dateOfBirth, LocalDate dateOfDeath) {
         if (dateOfBirth == null) {

@@ -1,6 +1,7 @@
 package org.gilgood.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,6 +15,7 @@ public class CreateAuthorRequest {
     @NotBlank
     private String fullName;
     private String knownAs;
+    @NotNull(message = "Date of birth is required")
     private LocalDate dateOfBirth;
     private LocalDate dateOfDeath;
     private String placeOfBirth;

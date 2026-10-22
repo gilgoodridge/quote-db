@@ -49,9 +49,14 @@ public class AuthorController {
 
     @PostMapping
     @Operation(summary = "Create new author")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Author created"),
+            @ApiResponse(responseCode = "400", description = "Missing required fullName or dateOfBirth"),
+            @ApiResponse(responseCode = "409", description = "The author already exists")
+    })
     public AuthorResponse addAuthor(@Valid @RequestBody CreateAuthorRequest request) {
         Author author = authorMapper.toEntity(request);
-        Author saved = authorRepository.save(author);
+        Author saved = authorRepository.saveAndFlush(author);
         return authorMapper.toResponse(saved);
     }
 
@@ -60,18 +65,19 @@ public class AuthorController {
             summary = "Replace author (full update)",
             description = "Replaces the entire author record. " +
                     "Any optional fields omitted or set to null will be deleted from the database. " +
-                    "The required fullName field must be provided; missing it will return 400 Bad Request."
+                    "The required fullName and dateOfBirth fields must be provided; missing either returns 400 Bad Request."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Author updated successfully"),
             @ApiResponse(responseCode = "400", description = "Missing required fields"),
-            @ApiResponse(responseCode = "404", description = "Author not found")
+            @ApiResponse(responseCode = "404", description = "Author not found"),
+            @ApiResponse(responseCode = "409", description = "The author already exists")
     })
     public AuthorResponse updateAuthor(@PathVariable Long id, @Valid @RequestBody UpdateAuthorRequest request) {
         Author author = authorRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Author not found with ID: " + id));
         authorMapper.updateEntity(request, author);
-        Author updated = authorRepository.save(author);
+        Author updated = authorRepository.saveAndFlush(author);
         return authorMapper.toResponse(updated);
     }
 

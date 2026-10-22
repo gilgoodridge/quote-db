@@ -9,7 +9,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Entity
-@Table(name = "authors")
+@Table(name = "authors", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_author_full_name_birth", columnNames = {"full_name", "date_of_birth"}),
+        @UniqueConstraint(name = "uk_author_known_as_birth", columnNames = {"known_as", "date_of_birth"})
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -28,7 +31,7 @@ public class Author {
     @Column(name = "known_as")
     private String knownAs;
 
-    @Column(name = "date_of_birth")
+    @Column(name = "date_of_birth", nullable = false)
     private LocalDate dateOfBirth;
 
     @Column(name = "date_of_death")
