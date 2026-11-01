@@ -99,7 +99,10 @@ unique constraints are already present. See [Database Migrations](#database-migr
 
 `GET /api/quotes?query=love%20life` searches **quote text only** with MySQL's
 built-in InnoDB FULLTEXT index and `IN NATURAL LANGUAGE MODE`. No database
-add-ons, embeddings, or external search service are required. Combine with
+add-ons, embeddings, or external search service are required. Java normalizes
+both quote text and queries with **Snowball English (Porter2)**, via Apache
+Lucene's `SnowballFilter` and `EnglishStemmer`, before
+MySQL searches the derived `quotes.search_text` column. Combine with
 `authorId` to search within an author: `/api/quotes?authorId=1&query=love`.
 The response remains a list of `QuoteResponse` DTOs; no score is exposed.
 Search remains available to anonymous users.
@@ -107,17 +110,49 @@ Search remains available to anonymous users.
 - Any searchable word can match; results are sorted by relevance descending,
   then quote ID ascending for ties. Relevance uses the whole quote corpus,
   even when filtering by author.
+- Double quotes enable MySQL natural-language **phrase matching**. Words inside
+  and outside quotes are stemmed, but quote boundaries are preserved. For example,
+  `"hoping for peace"` matches `hoped, for peace`, but not `peace for those who hoped`.
+  Phrase matching requires the normalized words in order; punctuation need not
+  match, and this is not an exact original-text substring match.
+- `"to be or not to be"` retains phrase matching, unlike the unquoted query
+  which can match quotes sharing `not`. MySQL's default InnoDB stopwords do not
+  include `not`; a phrase with no indexed terms (such as `"to be"`) returns no matches.
 - There is no connector/Boolean syntax parsing or query expansion. `AND`, `OR`,
-  `+`, and quotation marks do not provide operators or phrase matching.
-- This is word matching, not substring, stemming, synonym, or vector/semantic
-  search. Case/accent matching follows the `quotes.text` database collation.
-- MySQL's default InnoDB parser ignores stopwords and tokens shorter than three
+  and `+` are not operators. Empty and unmatched double-quote boundaries are
+  retained and left to MySQL's native interpretation.
+- English stemming matches plurals and other word forms: `move`, `moves`,
+  `moved`, and `moving` normalize to `move`; `walked`/`walking` to `walk`;
+  `connected`/`connections` to `connect`. Stems need not be dictionary words:
+  `study`/`studies`/`studied` normalize to `studi`. This is more aggressive
+  than Krovetz and can conflate distinct words. It is not synonym, substring,
+  or vector/semantic search, nor universal lemmatization: `children` and `child`
+  remain distinct. Only the English Snowball algorithm is used.
+- Standard tokenization and lowercasing precede stemming. Accents are retained
+  by the Java normalizer; MySQL case/accent matching follows the `search_text`
+  column collation. Original quote text and returned DTOs are unchanged;
+  `search_text` is internal and never exposed in the API.
+- MySQL's default InnoDB parser ignores stopwords and normalized tokens shorter than three
   or longer than 84 characters. A nonblank query with no indexed/matching terms
   returns `[]`; it does not fall back to listing everything.
 - Omitted, empty, or whitespace-only `query` preserves the original listing
   behavior (including `authorId` filtering and existing unsorted order).
-- MySQL maintains the index on quote creates, updates, and deletes. Changing
-  token-size or stopword settings requires rebuilding the index.
+- JPA `@PrePersist` / `@PreUpdate` callbacks regenerate `search_text` on quote
+  saves; MySQL maintains its index on creates, updates, and deletes. Query
+  words use that same helper through `QuoteSearchText.normalizeQuery`, which
+  additionally retains double-quoted phrase boundaries.
+  Use the API/JPA for quote writes, including seed imports. Direct SQL and
+  bulk JPQL writes bypass callbacks: those paths must populate/regenerate
+  `search_text` with that same helper, not merely copy the original text.
+- Changing the analyzer, stemmer, or Lucene version requires a new migration
+  to backfill all derived text consistently with query normalization. Changing
+  MySQL token-size or stopword settings requires rebuilding the index.
+
+The Maven dependency `org.apache.lucene:lucene-analysis-common` is distributed
+under Apache-2.0 and includes Snowball code with BSD licensing notices.
+No standalone stemming dependency or Lucene index/server is used. The executable JAR includes
+the Lucene dependency JARs with their applicable `META-INF/LICENSE*` and
+`META-INF/NOTICE*` files; retain these notices when redistributing dependencies.
 
 See [MySQL natural-language full-text search](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/fulltext-natural-language.html)
 for matching and relevance details.
@@ -283,13 +318,27 @@ npm run dev
 
 ### Database Migrations
 
-Flyway runs versioned MySQL migrations from `src/main/resources/db/migration`
-before JPA starts. `V1` creates the current authors/quotes schema; `V2` adds
-`ft_quotes_text`. Hibernate now uses `spring.jpa.hibernate.ddl-auto=validate`,
+Flyway runs versioned MySQL SQL migrations from `src/main/resources/db/migration`
+and Java migrations from `src/main/java/db/migration` before JPA starts.
+`V1` creates the authors/quotes schema; `V2` adds the original `ft_quotes_text`.
+`V3` adds the derived `search_text` column, `V4` backfills it with Snowball English
+normalization in batches of 500 using keyset pagination, and `V5` makes it
+NOT NULL and replaces the original index with `ft_quotes_search_text`.
+Hibernate uses `spring.jpa.hibernate.ddl-auto=validate`,
 not `update`. Add new migrations for future schema changes; do not edit migrations
 that have already run. The database account needs schema DDL privileges in addition
 to normal data access. Migration failures stop startup rather than allowing search
 to run without its index.
+
+**Upgrade an existing Flyway V2 database (including production):** Back up and
+stop all old backend instances/writers before starting the new JAR. Flyway
+applies V3-V5 automatically, preserving IDs, original text, authors, and all
+metadata. No reset, reload, or new baseline is needed. The backfill and index
+creation extend startup time and may lock the table; plan a maintenance window.
+Do not run the old application alongside the upgrade: it cannot maintain the
+new search column. Migration failures stop startup; because MySQL DDL is not
+transactional, inspect any partial changes and Flyway history before repairing
+and retrying a failed migration. Do not blindly drop tables or enable baselining.
 
 **Fresh/reset database:** Stop the application and back up any needed data.
 If resetting, drop the `quote_db` database (not just its rows), then restart.
@@ -303,7 +352,7 @@ or use the reset procedure above; baselining does not repair an old schema.
 For the first startup only, set `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`
 in the backend environment, or pass `--spring.flyway.baseline-on-migrate=true`
 when launching the JAR. Flyway records the existing schema at version 1 without
-recreating tables, then applies `V2` while preserving data. Remove this override
+recreating tables, then applies V2-V5 while preserving data. Remove this override
 after successful startup; by default Flyway refuses unversioned nonempty databases
 to avoid silently adopting the wrong database. Do not manually pre-create the index.
 Index creation can take time and require table locks; schedule deployment accordingly.
@@ -334,7 +383,8 @@ unset MYSQL_TEST_PASSWORD
 ```
 
 Replace `root` with your local test account. The URL must end with `/` and must
-not include a database name. This runs the five MySQL search/migration tests;
+not include a database name. This runs the MySQL search/migration tests, including
+stemming on creates/updates and a multi-batch backfill of an existing V2 database;
 without `MYSQL_TEST_URL`, they are skipped even if MySQL is running. To run the
 full suite, replace the Maven command with `mvn clean install`.
 

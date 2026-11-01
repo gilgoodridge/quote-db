@@ -429,6 +429,15 @@ sudo systemctl reload nginx
 - Hibernate `ddl-auto=validate` checks entity/schema compatibility; use new migrations for schema changes
 - Existing unversioned databases must match V1 before a one-time Flyway baseline; see README.md
 - Quote search uses optional `query` on GET `/api/quotes`, MySQL natural-language FULLTEXT on text only, and relevance ordering
+- Snowball English (Porter2), supplied by lucene-analysis-common, normalizes quotes and queries via `QuoteSearchText.normalize`: StandardTokenizer -> LowerCaseFilter -> SnowballFilter(EnglishStemmer)
+- Queries use `QuoteSearchText.normalizeQuery` to retain double-quote phrase boundaries while stemming words; MySQL natural-language mode supports phrases, not AND/OR operators
+- Phrase matching uses normalized word order, not exact punctuation/original spelling; keep quoted/unquoted Shakespeare regression tests
+- `quotes.search_text` is a derived internal TEXT column, indexed by `ft_quotes_search_text`; never expose it in DTOs or accept it from clients
+- Quote `@PrePersist`/`@PreUpdate` callbacks maintain search text for every JPA save; direct SQL/bulk JPQL bypass them and must use the same normalizer
+- Flyway V3 adds search text, Java V4 backfills in 500-row keyset batches, V5 makes it required and replaces the raw-text index; keep applied migrations unchanged
+- Stop old writers before the V2-to-V5 upgrade; existing data is preserved with no reset or baseline needed
+- Snowball matches move/moving, walk/walking, study/studied and other inflections/derivations; stems may not be words and irregulars such as child/children remain distinct
+- Analyzer/dependency changes after deployment require a new derived-text backfill migration; the undeployed V3-V5 migrations install Snowball directly
 - MySQL search/migration tests require `MYSQL_TEST_URL`, `MYSQL_TEST_USERNAME`, and `MYSQL_TEST_PASSWORD`; H2 tests disable Flyway
 - Seed data must be loaded separately (see `seed-data.sh`)
 

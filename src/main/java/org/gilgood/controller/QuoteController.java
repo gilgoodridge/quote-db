@@ -10,6 +10,7 @@ import org.gilgood.dto.UpdateQuoteRequest;
 import org.gilgood.entity.Quote;
 import org.gilgood.mapper.QuoteMapper;
 import org.gilgood.repository.QuoteRepository;
+import org.gilgood.search.QuoteSearchText;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,7 +30,9 @@ public class QuoteController {
     @GetMapping
     @Operation(summary = "List quotes with optional filters",
             description = "Optionally filters by author ID and searches quote text using MySQL natural-language " +
-                    "FULLTEXT search. Search results are ordered by relevance, then ID. No connector syntax is " +
+                    "FULLTEXT search with Snowball English (Porter2) stemming of quotes and queries. Search results are " +
+                    "ordered by relevance, then ID. Double quotes preserve phrase matching over stemmed words. " +
+                    "No connector syntax is " +
                     "parsed. Omitted or blank query preserves normal listing behavior. MySQL stopwords and " +
                     "minimum indexed word length apply; this is not substring or semantic search.")
     public List<QuoteResponse> listQuotes(
@@ -38,7 +41,7 @@ public class QuoteController {
             @RequestParam(required = false) String query) {
         List<Quote> quotes;
         if (query != null && !query.isBlank()) {
-            quotes = quoteRepository.search(query.strip(), authorId);
+            quotes = quoteRepository.search(QuoteSearchText.normalizeQuery(query), authorId);
         } else {
             quotes = authorId != null
                     ? quoteRepository.findByAuthorId(authorId)

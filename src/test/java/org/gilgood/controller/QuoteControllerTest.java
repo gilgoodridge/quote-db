@@ -67,6 +67,7 @@ class QuoteControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(9))
                 .andExpect(jsonPath("$[0].text").value("love life"))
+                .andExpect(jsonPath("$[0].searchText").doesNotExist())
                 .andExpect(jsonPath("$[0].author.fullName").value("Test Author"))
                 .andExpect(jsonPath("$[0].author.quotes").doesNotExist())
                 .andExpect(jsonPath("$[1].id").value(3));
@@ -76,11 +77,42 @@ class QuoteControllerTest {
 
     @Test
     void combinesSearchWithAuthorAndDoesNotParseConnectors() throws Exception {
-        when(repository.search("love OR +life", 7L)).thenReturn(List.of());
+        when(repository.search("love or life", 7L)).thenReturn(List.of());
         mvc.perform(request("love OR +life").param("authorId", "7"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
-        verify(repository).search("love OR +life", 7L);
+        verify(repository).search("love or life", 7L);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void normalizesOtherWordFormsBeforeSearching() throws Exception {
+        when(repository.search("hope", null)).thenReturn(List.of(quote(1L, "We hoped for peace.")));
+        mvc.perform(request("HOPING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].text").value("We hoped for peace."))
+                .andExpect(jsonPath("$[0].searchText").doesNotExist());
+        verify(repository).search("hope", null);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void punctuationOnlyQueryDoesNotFallBackToListing() throws Exception {
+        when(repository.search("", null)).thenReturn(List.of());
+        mvc.perform(request("... + !!!"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+        verify(repository).search("", null);
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void preservesQuotedPhraseWhenCombiningWithAuthorFilter() throws Exception {
+        when(repository.search("\"hope for peac\"", 7L)).thenReturn(List.of(quote(1L, "We hoped for peace.")));
+        mvc.perform(request("\"HOPING for peace\"").param("authorId", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].text").value("We hoped for peace."));
+        verify(repository).search("\"hope for peac\"", 7L);
         verifyNoMoreInteractions(repository);
     }
 

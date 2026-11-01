@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.gilgood.search.QuoteSearchText;
 
 import java.time.LocalDate;
 
@@ -21,6 +22,9 @@ public class Quote {
     @Column(name = "text", nullable = false, length = 2048)
     private String text;
 
+    @Column(name = "search_text", nullable = false, columnDefinition = "text")
+    private String searchText;
+
     @Column(name = "date")
     private LocalDate date;
 
@@ -37,5 +41,11 @@ public class Quote {
     public Quote(String text, Author author) {
         this.text = text;
         this.author = author;
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void updateSearchText() {
+        searchText = QuoteSearchText.normalize(text);
     }
 }

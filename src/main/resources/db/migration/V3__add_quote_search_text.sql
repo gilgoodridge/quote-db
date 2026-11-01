@@ -1,0 +1,1 @@
+ALTER TABLE quotes ADD COLUMN search_text TEXT NULL;

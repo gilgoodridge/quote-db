@@ -23,10 +23,12 @@ public abstract class QuoteMapper {
 
     @Mapping(target = "author", expression = "java(authorRepository.getReferenceById(request.getAuthorId()))")
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "searchText", ignore = true)
     public abstract Quote toEntity(CreateQuoteRequest request);
 
     @Mapping(target = "author", expression = "java(authorRepository.getReferenceById(request.getAuthorId()))")
     @Mapping(target = "id", ignore = true)
+    @Mapping(target = "searchText", ignore = true)
     public abstract void updateEntity(UpdateQuoteRequest request, @MappingTarget Quote quote);
 
     @Mapping(target = "author", expression = "java(authorMapper.toResponse(quote.getAuthor()))")

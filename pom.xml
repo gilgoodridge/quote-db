@@ -68,6 +68,13 @@
             <artifactId>flyway-mysql</artifactId>
         </dependency>
 
+        <!-- Tokenization and Snowball English stemming; no Lucene search engine is used. -->
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analysis-common</artifactId>
+            <version>10.6.0</version>
+        </dependency>
+
         <!-- MapStruct for DTO mapping -->
         <dependency>
             <groupId>org.mapstruct</groupId>

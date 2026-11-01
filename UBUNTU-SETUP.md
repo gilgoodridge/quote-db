@@ -181,6 +181,11 @@ it after backing up. The OCI database account needs DDL privileges. Update any
 existing server-local `ddl-auto=update` setting to `validate`; a baseline must
 only be enabled for the first migration of a verified existing schema.
 
+For an already versioned V2 database, the Snowball English search upgrade automatically
+applies V3-V5 and backfills existing quotes without resetting data or baselining.
+Back up and stop all old backend writers first; allow a maintenance window for
+the backfill and FULLTEXT index rebuild. See README.md for upgrade details.
+
 In Google Auth Platform, register the exact authorized redirect URI
 `https://www.gilgood.com/login/oauth2/code/google` on the client whose ID is
 configured above. HTTPS must match exactly; an HTTP entry is not equivalent.
