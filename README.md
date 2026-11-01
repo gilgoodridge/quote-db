@@ -189,6 +189,20 @@ saved author. Cancelling the author form returns to the unchanged quote draft.
 After a successful save, the author's quotes are refreshed and displayed.
 Saving failures leave the form and entered values intact.
 
+### Editing and deleting quotes in the UI
+
+Signed-in users see pencil (edit) and X (delete) buttons at the top-right of
+each quote card. Editing opens the same form prefilled with all quote fields,
+including the author. Saving sends a full replacement: clearing an optional
+field removes its value. Results refresh in the current author/search scope,
+so a changed quote may no longer match. Cancel leaves the quote unchanged;
+save failures keep the draft open.
+
+Delete requires browser confirmation before sending the request. Failures are
+shown without removing the card. Deleting a quote never deletes its author,
+even when it was their last quote. Both actions use the existing
+session-authenticated, CSRF-protected PUT and DELETE endpoints.
+
 
 ## Architecture
 

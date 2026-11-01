@@ -248,6 +248,80 @@ test('quote creation preserves optional null fields and surfaces authentication 
   await assert.rejects(api.quotes.create(quote), /Request failed \(401\).*Login required/)
 })
 
+test('quote editing sends a full replacement with credentials and a fresh CSRF token', async () => {
+  const calls = []
+  const replacement = {
+    text: 'Updated quote',
+    authorId: 12,
+    date: null,
+    location: null,
+    reference: 'Updated reference',
+  }
+  const saved = { ...replacement, id: 42, author: { id: 12 } }
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return new Response(JSON.stringify(url === '/api/auth/csrf'
+      ? { token: 'edit-token', headerName: 'X-CSRF-TOKEN' }
+      : saved))
+  }
+
+  assert.deepEqual(await api.quotes.update(42, replacement), saved)
+  assert.deepEqual(calls.map(({ url }) => url), ['/api/auth/csrf', '/api/quotes/42'])
+  assert.ok(calls.every(({ options }) => options.credentials === 'include'))
+  assert.equal(calls[1].options.method, 'PUT')
+  assert.equal(calls[1].options.headers['Content-Type'], 'application/json')
+  assert.equal(calls[1].options.headers['X-CSRF-TOKEN'], 'edit-token')
+  assert.deepEqual(JSON.parse(calls[1].options.body), replacement)
+})
+
+test('quote deletion accepts an empty response and never requests author deletion', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return url === '/api/auth/csrf'
+      ? new Response('{"token":"delete-token","headerName":"X-CSRF-TOKEN"}')
+      : new Response(null, { status: 204 })
+  }
+
+  assert.equal(await api.quotes.delete(42), true)
+  assert.deepEqual(calls.map(({ url }) => url), ['/api/auth/csrf', '/api/quotes/42'])
+  assert.ok(calls.every(({ options }) => options.credentials === 'include'))
+  assert.equal(calls[1].options.method, 'DELETE')
+  assert.equal(calls[1].options.headers['X-CSRF-TOKEN'], 'delete-token')
+  assert.equal(calls[1].options.body, undefined)
+})
+
+test('quote edits and deletes surface authentication and server failures', async () => {
+  for (const status of [401, 403, 500]) {
+    globalThis.fetch = async (url) => url === '/api/auth/csrf'
+      ? new Response('{"token":"token","headerName":"X-CSRF-TOKEN"}')
+      : new Response('Quote could not be changed', { status })
+
+    for (const write of [
+      () => api.quotes.update(42, { text: 'Quote', authorId: 1 }),
+      () => api.quotes.delete(42),
+    ]) {
+      await assert.rejects(write(), (error) => {
+        assert.equal(error.status, status)
+        assert.match(error.message, /Quote could not be changed/)
+        return true
+      })
+    }
+  }
+})
+
+test('failed CSRF lookup prevents quote edits and deletes', async () => {
+  const calls = []
+  globalThis.fetch = async (url) => {
+    calls.push(url)
+    return new Response('Sign in again', { status: 401 })
+  }
+
+  await assert.rejects(api.quotes.update(42, { text: 'Quote', authorId: 1 }), /Sign in again/)
+  await assert.rejects(api.quotes.delete(42), /Sign in again/)
+  assert.deepEqual(calls, ['/api/auth/csrf', '/api/auth/csrf'])
+})
+
 test('Add Quote intent survives the login redirect and is cleared after use', () => {
   const entries = new Map()
   const storage = {

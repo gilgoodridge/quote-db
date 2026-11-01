@@ -11,6 +11,7 @@ function App() {
   const [authorsVersion, setAuthorsVersion] = useState(0)
   const [searchText, setSearchText] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   function handleSearch() {
     setSearchQuery(searchText.trim())
@@ -30,6 +31,7 @@ function App() {
   return (
     <div className="app-container">
       <Header
+        onAuthenticationChange={setIsAuthenticated}
         onQuoteCreated={handleQuoteCreated}
         onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
         selectedAuthorId={selectedAuthorId}
@@ -43,6 +45,8 @@ function App() {
         </aside>
         <main className="content-middle">
           <QuotesList
+            isAuthenticated={isAuthenticated}
+            onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
             key={`${selectedAuthorId ?? 'all'}:${searchQuery}`}
             authorId={selectedAuthorId}
             query={searchQuery}

@@ -96,6 +96,15 @@ export const api = {
     },
   },
   quotes: {
+    update: (id, data) => requestJson(`/quotes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
+    delete: async (id) => {
+      await requestWithCsrf(`/quotes/${id}`, { method: 'DELETE' })
+      return true
+    },
     create: (data) => requestJson('/quotes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

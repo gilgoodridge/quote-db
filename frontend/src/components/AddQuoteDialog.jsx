@@ -3,7 +3,7 @@ import {api} from '../api'
 import AddAuthorDialog from './AddAuthorDialog'
 import '../styles/AddQuoteDialog.css'
 
-export default function AddQuoteDialog({ onClose, onCreated, onAuthorCreated, initialAuthorId }) {
+export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthorCreated, initialAuthorId, quote }) {
   const dialogRef = useRef(null)
   const addAuthorButtonRef = useRef(null)
   const submittingRef = useRef(false)
@@ -16,11 +16,11 @@ export default function AddQuoteDialog({ onClose, onCreated, onAuthorCreated, in
   const [showAddAuthor, setShowAddAuthor] = useState(false)
   const [authorAdded, setAuthorAdded] = useState(false)
   const [fields, setFields] = useState({
-    text: '',
-    authorId: initialAuthorId ? String(initialAuthorId) : '',
-    date: '',
-    location: '',
-    reference: '',
+    text: quote?.text ?? '',
+    authorId: String(quote?.author.id ?? initialAuthorId ?? ''),
+    date: quote?.date ?? '',
+    location: quote?.location ?? '',
+    reference: quote?.reference ?? '',
   })
 
   useEffect(() => {
@@ -65,23 +65,27 @@ export default function AddQuoteDialog({ onClose, onCreated, onAuthorCreated, in
     submittingRef.current = true
     setSaving(true)
     setSaveError('')
-    let quote
+    let savedQuote
     try {
-      quote = await api.quotes.create({
+      const request = {
         text: fields.text,
         authorId: author.id,
         date: fields.date || null,
         location: fields.location || null,
         reference: fields.reference || null,
-      })
+      }
+      savedQuote = quote
+        ? await api.quotes.update(quote.id, request)
+        : await api.quotes.create(request)
     } catch (error) {
-      setSaveError(`Unable to add quote: ${error.message}`)
+      setSaveError(`Unable to ${quote ? 'update' : 'add'} quote: ${error.message}`)
       return
     } finally {
       submittingRef.current = false
       setSaving(false)
     }
-    onCreated(quote)
+    if (quote) onUpdated(savedQuote)
+    else onCreated(savedQuote)
   }
 
   function closeAddAuthor() {
@@ -100,7 +104,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onAuthorCreated, in
         if (submittingRef.current || showAddAuthor) event.preventDefault()
       }}
     >
-      <h2 id="add-quote-title">Add Quote</h2>
+      <h2 id="add-quote-title">{quote ? 'Edit Quote' : 'Add Quote'}</h2>
       <p className="add-quote-description">Quote text and author are required. Other fields are optional.</p>
       <form onSubmit={submit} aria-busy={saving}>
         <fieldset disabled={saving}>

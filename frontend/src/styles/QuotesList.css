@@ -94,6 +94,57 @@
   animation: fadeIn 0.3s ease;
 }
 
+.quote-card-header {
+  position: relative;
+}
+
+.quote-card-header:has(.quote-actions) .quote-row {
+  padding-right: 100px;
+}
+
+.quote-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.quote-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--sidebar-bg);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+
+.quote-delete {
+  color: var(--error);
+}
+
+.quote-action:hover:not(:disabled) {
+  background: var(--bg-secondary);
+}
+
+.quote-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.quote-action-message,
+.quote-action-error {
+  padding: 12px 24px;
+  overflow-wrap: anywhere;
+}
+
+.quote-action-error {
+  color: var(--error);
+}
+
 .quote-row {
   display: flex;
   align-items: flex-start;

@@ -7,6 +7,7 @@ import '../styles/Header.css'
 
 export default function Header({
   onQuoteCreated, onAuthorCreated, selectedAuthorId, searchText, onSearchTextChange, onSearch,
+  onAuthenticationChange,
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
@@ -26,6 +27,10 @@ export default function Header({
   const addQuoteButtonRef = useRef(null)
   const loginTriggerRef = useRef(null)
   const addQuoteRequestedRef = useRef(false)
+
+  useEffect(() => {
+    onAuthenticationChange(authStatus === 'authenticated')
+  }, [authStatus, onAuthenticationChange])
 
   useEffect(() => {
     let active = true
