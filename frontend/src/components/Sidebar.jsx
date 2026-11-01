@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { api } from '../api'
+import {useEffect, useState} from 'react'
+import {api} from '../api'
 import '../styles/Sidebar.css'
 
 export default function Sidebar({ onAuthorSelect, selectedAuthorId, refreshKey = 0 }) {

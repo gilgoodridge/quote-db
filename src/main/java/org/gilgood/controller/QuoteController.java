@@ -1,6 +1,7 @@
 package org.gilgood.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.gilgood.dto.CreateQuoteRequest;
@@ -26,11 +27,23 @@ public class QuoteController {
     private QuoteMapper quoteMapper;
 
     @GetMapping
-    @Operation(summary = "List quotes with optional filters", description = "Returns quotes filtered by author ID if provided")
-    public List<QuoteResponse> listQuotes(@RequestParam(required = false) Long authorId) {
-        List<Quote> quotes = authorId != null
-                ? quoteRepository.findByAuthorId(authorId)
-                : quoteRepository.findAll();
+    @Operation(summary = "List quotes with optional filters",
+            description = "Optionally filters by author ID and searches quote text using MySQL natural-language " +
+                    "FULLTEXT search. Search results are ordered by relevance, then ID. No connector syntax is " +
+                    "parsed. Omitted or blank query preserves normal listing behavior. MySQL stopwords and " +
+                    "minimum indexed word length apply; this is not substring or semantic search.")
+    public List<QuoteResponse> listQuotes(
+            @RequestParam(required = false) Long authorId,
+            @Parameter(description = "Plain-text search terms; any searchable word can match")
+            @RequestParam(required = false) String query) {
+        List<Quote> quotes;
+        if (query != null && !query.isBlank()) {
+            quotes = quoteRepository.search(query.strip(), authorId);
+        } else {
+            quotes = authorId != null
+                    ? quoteRepository.findByAuthorId(authorId)
+                    : quoteRepository.findAll();
+        }
         return quotes.stream()
                 .map(quoteMapper::toResponse)
                 .collect(Collectors.toList());

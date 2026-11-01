@@ -163,7 +163,7 @@ spring.datasource.password=YOUR_MYSQL_PASSWORD
 spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 
 # Hibernate Configuration
-spring.jpa.hibernate.ddl-auto=update
+spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.show-sql=false
 ```
 
@@ -173,6 +173,13 @@ server-local properties file; environment variables are not required. Spring
 loads it because the service's working directory is `/opt/quote-db`. Restrict
 read/write access to the service account (for example, `chmod 600` when that
 account owns the file), and never commit it to Git.
+
+Flyway now creates and migrates the schema, including the quote FULLTEXT index.
+Before the first deployment to an existing database, follow README.md's
+**Database Migrations** instructions to verify and baseline it, or reset/reload
+it after backing up. The OCI database account needs DDL privileges. Update any
+existing server-local `ddl-auto=update` setting to `validate`; a baseline must
+only be enabled for the first migration of a verified existing schema.
 
 In Google Auth Platform, register the exact authorized redirect URI
 `https://www.gilgood.com/login/oauth2/code/google` on the client whose ID is

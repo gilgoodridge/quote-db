@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import {useState} from 'react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import QuotesList from './components/QuotesList'
@@ -9,6 +9,18 @@ function App() {
   const [selectedAuthorId, setSelectedAuthorId] = useState(null)
   const [quotesVersion, setQuotesVersion] = useState(0)
   const [authorsVersion, setAuthorsVersion] = useState(0)
+  const [searchText, setSearchText] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  function handleSearch() {
+    setSearchQuery(searchText.trim())
+    setQuotesVersion((version) => version + 1)
+  }
+
+  function handleSearchTextChange(text) {
+    setSearchText(text)
+    if (!text.trim()) setSearchQuery('')
+  }
 
   function handleQuoteCreated(quote) {
     setSelectedAuthorId(quote.author.id)
@@ -21,13 +33,21 @@ function App() {
         onQuoteCreated={handleQuoteCreated}
         onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
         selectedAuthorId={selectedAuthorId}
+        searchText={searchText}
+        onSearchTextChange={handleSearchTextChange}
+        onSearch={handleSearch}
       />
       <div className="main-content">
         <aside className="sidebar-left">
           <Sidebar onAuthorSelect={setSelectedAuthorId} selectedAuthorId={selectedAuthorId} refreshKey={authorsVersion} />
         </aside>
         <main className="content-middle">
-          <QuotesList authorId={selectedAuthorId} refreshKey={quotesVersion} />
+          <QuotesList
+            key={`${selectedAuthorId ?? 'all'}:${searchQuery}`}
+            authorId={selectedAuthorId}
+            query={searchQuery}
+            refreshKey={quotesVersion}
+          />
         </main>
         <aside className="sidebar-right">
           <Placeholder />

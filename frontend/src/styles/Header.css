@@ -62,19 +62,22 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
-.search-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .search-icon {
   position: absolute;
   right: 12px;
   font-size: 1rem;
-  pointer-events: none;
-  opacity: 0.5;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  cursor: pointer;
   top: 50%;
   transform: translateY(-50%);
+}
+
+.search-icon:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .header-right {

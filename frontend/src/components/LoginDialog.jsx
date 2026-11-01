@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import {useEffect, useRef} from 'react'
 import '../styles/LoginDialog.css'
 
 export default function LoginDialog({ onClose, onGoogleLogin, forAddQuote = false, error = '' }) {

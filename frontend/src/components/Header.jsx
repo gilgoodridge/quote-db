@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import { api, getGoogleOAuthStartUrl, getLoginReturnState } from '../api'
-import { clearAddQuoteIntent, hasAddQuoteIntent, saveAddQuoteIntent } from '../quoteIntent'
+import {useEffect, useRef, useState} from 'react'
+import {api, getGoogleOAuthStartUrl, getLoginReturnState} from '../api'
+import {clearAddQuoteIntent, hasAddQuoteIntent, saveAddQuoteIntent} from '../quoteIntent'
 import AddQuoteDialog from './AddQuoteDialog'
 import LoginDialog from './LoginDialog'
 import '../styles/Header.css'
 
-export default function Header({ onQuoteCreated, onAuthorCreated, selectedAuthorId }) {
+export default function Header({
+  onQuoteCreated, onAuthorCreated, selectedAuthorId, searchText, onSearchTextChange, onSearch,
+}) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
   const [authStatus, setAuthStatus] = useState('loading')
@@ -147,15 +149,20 @@ export default function Header({ onQuoteCreated, onAuthorCreated, selectedAuthor
       </div>
 
       <div className="header-center">
-        <div className="search-container">
+        <form className="search-container" role="search" onSubmit={(event) => {
+          event.preventDefault()
+          onSearch()
+        }}>
           <input
-            type="text"
-            placeholder="Search quotes..."
+            type="search"
+            aria-label={selectedAuthorId ? 'Search quotes by the selected author' : 'Search all quotes'}
+            placeholder={selectedAuthorId ? 'Search this author (Enter)...' : 'Search all quotes (Enter)...'}
             className="search-input"
-            disabled
+            value={searchText}
+            onChange={(event) => onSearchTextChange(event.target.value)}
           />
-          <span className="search-icon">🔍</span>
-        </div>
+          <button type="submit" className="search-icon" aria-label="Search quotes">🔍</button>
+        </form>
       </div>
 
       <div className="header-right">

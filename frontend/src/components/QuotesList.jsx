@@ -1,33 +1,33 @@
-import { useEffect, useState } from 'react'
-import { api } from '../api'
+import {useEffect, useState} from 'react'
+import {api} from '../api'
 import '../styles/QuotesList.css'
 
-export default function QuotesList({ authorId, refreshKey = 0 }) {
+export default function QuotesList({ authorId, query = '', refreshKey = 0 }) {
   const [quotes, setQuotes] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(Boolean(authorId || query))
   const [error, setError] = useState(null)
   const [expandedQuoteId, setExpandedQuoteId] = useState(null)
 
   useEffect(() => {
     let active = true
-    if (!authorId) {
-      setQuotes([])
-      setError(null)
-      return
-    }
+    if (!authorId && !query) return
 
     const fetchQuotes = async () => {
       try {
         setLoading(true)
-        const data = await api.quotes.list(authorId)
+        setError(null)
+        setQuotes([])
+        setExpandedQuoteId(null)
+        const data = await api.quotes.list(authorId, query)
         if (!active) return
-        setQuotes(Array.isArray(data) ? data : [])
+        if (!Array.isArray(data)) throw new Error('The quotes endpoint returned an invalid quote list')
+        setQuotes(data)
         setError(null)
         setExpandedQuoteId(null)
       } catch (err) {
         if (!active) return
         console.error('Failed to fetch quotes:', err)
-        setError('Failed to load quotes')
+        setError(`Failed to ${query ? 'search' : 'load'} quotes: ${err.message}`)
       } finally {
         if (active) setLoading(false)
       }
@@ -37,7 +37,7 @@ export default function QuotesList({ authorId, refreshKey = 0 }) {
     return () => {
       active = false
     }
-  }, [authorId, refreshKey])
+  }, [authorId, query, refreshKey])
 
   const toggleQuoteExpanded = (id) => {
     setExpandedQuoteId(expandedQuoteId === id ? null : id)
@@ -72,32 +72,39 @@ export default function QuotesList({ authorId, refreshKey = 0 }) {
 
   return (
     <div className="quotes-container">
-      {!authorId ? (
+      {!authorId && !query ? (
         <div className="empty-state">
           <div className="empty-icon">📖</div>
           <h2>No Author Selected</h2>
-          <p>Select an author from the left panel to view their quotes</p>
+          <p>Select an author from the left panel or search all quotes above</p>
         </div>
       ) : (
         <>
+          {query && (
+            <p className="search-summary" role="status">
+              Results for “{query}” {authorId ? 'within the selected author' : 'across all authors'}
+            </p>
+          )}
           {loading && (
-            <div className="loading-state">
+            <div className="loading-state" role="status">
               <p>Loading quotes...</p>
             </div>
           )}
           {error && (
-            <div className="error-state">
+            <div className="error-state" role="alert">
               <p>{error}</p>
             </div>
           )}
-          {!loading && quotes.length === 0 && (
+          {!loading && !error && quotes.length === 0 && (
             <div className="empty-state">
               <div className="empty-icon">✨</div>
               <h2>No Quotes Found</h2>
-              <p>This author has no quotes yet</p>
+              <p>{query
+                ? 'No quotes match this search. Try different words; common words and words shorter than three characters may be ignored.'
+                : 'This author has no quotes yet'}</p>
             </div>
           )}
-          {!loading && quotes.length > 0 && (
+          {!loading && !error && quotes.length > 0 && (
             <div className="quotes-content">
               <ul className="quotes-list">
                 {quotes.map((quote) => (
@@ -111,6 +118,9 @@ export default function QuotesList({ authorId, refreshKey = 0 }) {
                         {quote.text}
                       </blockquote>
                     </button>
+                    {!authorId && (
+                      <p className="quote-author">{quote.author.knownAs || quote.author.fullName}</p>
+                    )}
                     {expandedQuoteId === quote.id && (
                       <div className="quote-details">
                         <div className="detail-field">

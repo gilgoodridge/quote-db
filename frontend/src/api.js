@@ -101,9 +101,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
-    list: (authorId) => {
-      const params = authorId ? `?authorId=${authorId}` : ''
-      return requestJson(`/quotes${params}`)
+    list: (authorId, query = '') => {
+      const params = new URLSearchParams()
+      if (authorId != null) params.set('authorId', authorId)
+      if (query.trim()) params.set('query', query.trim())
+      const search = params.toString()
+      return requestJson(`/quotes${search ? `?${search}` : ''}`)
     },
   },
 }

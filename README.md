@@ -24,7 +24,8 @@ Unlike wiki-based quote collections, Quote DB provides a **relational database**
 
 #### Backend
 1. Clone the repository
-2. MySQL will auto-create `quote_db` database on first run (configured in `application.properties`)
+2. MySQL will auto-create `quote_db` database on first run; Flyway creates the tables and indexes.
+   For an existing database, follow [Database Migrations](#database-migrations) before starting.
 3. Build: `mvn clean package`
 4. Run: `java -jar target/quote-db-1.0-SNAPSHOT.jar`
    - Starts on `http://localhost:8080`
@@ -82,18 +83,53 @@ without clearing the entered values.
 missing birth dates and duplicate `(full_name, date_of_birth)` or nonblank
 `(known_as, date_of_birth)` pairs. Normalize existing blank known-as values to
 null. Do not invent dates or automatically delete/merge authors, which may have
-quotes attached. Hibernate's schema update needs this cleanup to apply the
-required birth date and the `uk_author_full_name_birth` /
-`uk_author_known_as_birth` unique constraints. Verify these constraints and the
-NOT NULL birth-date column were applied; do not rely on schema-update warnings.
+quotes attached. Before baselining an existing database, verify the required
+birth date and the `uk_author_full_name_birth` / `uk_author_known_as_birth`
+unique constraints are already present. See [Database Migrations](#database-migrations).
 
 #### Quotes
-- `GET /api/quotes?authorId={id}` - List quotes, optionally filtered by author
+- `GET /api/quotes?authorId={id}&query={text}` - List quotes, optionally filtered by author and searched by text
 - `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
   `date` (`YYYY-MM-DD`), `location`, and `reference`
 - `GET /api/quotes/{id}` - Get a quote
 - `PUT /api/quotes/{id}` - Replace a quote
 - `DELETE /api/quotes/{id}` - Delete a quote
+
+#### Searching quotes
+
+`GET /api/quotes?query=love%20life` searches **quote text only** with MySQL's
+built-in InnoDB FULLTEXT index and `IN NATURAL LANGUAGE MODE`. No database
+add-ons, embeddings, or external search service are required. Combine with
+`authorId` to search within an author: `/api/quotes?authorId=1&query=love`.
+The response remains a list of `QuoteResponse` DTOs; no score is exposed.
+Search remains available to anonymous users.
+
+- Any searchable word can match; results are sorted by relevance descending,
+  then quote ID ascending for ties. Relevance uses the whole quote corpus,
+  even when filtering by author.
+- There is no connector/Boolean syntax parsing or query expansion. `AND`, `OR`,
+  `+`, and quotation marks do not provide operators or phrase matching.
+- This is word matching, not substring, stemming, synonym, or vector/semantic
+  search. Case/accent matching follows the `quotes.text` database collation.
+- MySQL's default InnoDB parser ignores stopwords and tokens shorter than three
+  or longer than 84 characters. A nonblank query with no indexed/matching terms
+  returns `[]`; it does not fall back to listing everything.
+- Omitted, empty, or whitespace-only `query` preserves the original listing
+  behavior (including `authorId` filtering and existing unsorted order).
+- MySQL maintains the index on quote creates, updates, and deletes. Changing
+  token-size or stopword settings requires rebuilding the index.
+
+See [MySQL natural-language full-text search](https://docs.oracle.com/cd/E17952_01/mysql-8.0-en/fulltext-natural-language.html)
+for matching and relevance details.
+
+In the header, type a query and press **Enter** (or click the search icon).
+If an author is selected, only that author's quotes are searched; otherwise,
+all quotes are searched and each result displays its author. Changing or
+deselecting the author reruns the submitted search in the new scope.
+Editing nonblank text does not search until submission; clearing the box
+immediately returns to normal author browsing (or the author-selection prompt).
+Submitting again also retries a failed search. Loading, failures, and no matches
+are displayed separately, and results retain the backend's relevance ordering.
 
 ### Adding a quote in the UI
 
@@ -246,14 +282,61 @@ npm run dev
 ```
 
 ### Database Migrations
-- `spring.jpa.hibernate.ddl-auto=update` (auto-creates/updates schema)
-- Hibernate `update` does not reliably drop renamed/removed columns. To reset the
-  schema after this name-field change, stop the application, drop and recreate the
-  `quote_db` database, then restart it so Hibernate creates the current schema.
-  Deleting rows alone leaves the old columns in place, and the existing author
-  columns may prevent writes after the rename. This reset deletes all quotes and
-  authors; back up any data you need first.
-- For production, consider Liquibase or Flyway
+
+Flyway runs versioned MySQL migrations from `src/main/resources/db/migration`
+before JPA starts. `V1` creates the current authors/quotes schema; `V2` adds
+`ft_quotes_text`. Hibernate now uses `spring.jpa.hibernate.ddl-auto=validate`,
+not `update`. Add new migrations for future schema changes; do not edit migrations
+that have already run. The database account needs schema DDL privileges in addition
+to normal data access. Migration failures stop startup rather than allowing search
+to run without its index.
+
+**Fresh/reset database:** Stop the application and back up any needed data.
+If resetting, drop the `quote_db` database (not just its rows), then restart.
+Flyway automatically creates the schema and index; reload your seed data afterward.
+No manual index creation is necessary. A reset deletes all authors and quotes.
+
+**Existing database without Flyway history:** Back up first and verify it matches
+`V1` (including current column names, required birth dates, author uniqueness
+constraints, and the quote-author foreign key). If it does not, correct it explicitly
+or use the reset procedure above; baselining does not repair an old schema.
+For the first startup only, set `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`
+in the backend environment, or pass `--spring.flyway.baseline-on-migrate=true`
+when launching the JAR. Flyway records the existing schema at version 1 without
+recreating tables, then applies `V2` while preserving data. Remove this override
+after successful startup; by default Flyway refuses unversioned nonempty databases
+to avoid silently adopting the wrong database. Do not manually pre-create the index.
+Index creation can take time and require table locks; schedule deployment accordingly.
+Update any server-local `application.properties` override from `ddl-auto=update`
+to `validate` as well.
+
+**MySQL integration tests:** Normal `mvn test` covers HTTP compatibility using mocks
+and other existing tests; H2 cannot validate MySQL FULLTEXT. To include actual
+search and migration tests, set `MYSQL_TEST_URL` to a server-only URL such as
+`jdbc:mysql://localhost:3306/`, plus `MYSQL_TEST_USERNAME` and `MYSQL_TEST_PASSWORD`,
+then run `mvn test`. Use a dedicated local/test MySQL 8.0+ instance, never production.
+The account must be able to create/drop databases. Tests create uniquely named
+`quote_db_search_test_*` databases and remove only those databases afterward;
+if interrupted, remove the leftover test databases manually.
+
+From the repository root in **Git Bash**, run:
+
+```bash
+export MYSQL_TEST_URL='jdbc:mysql://localhost:3306/'
+export MYSQL_TEST_USERNAME='root'
+read -r -s -p 'Local MySQL password: ' MYSQL_TEST_PASSWORD
+printf '\n'
+export MYSQL_TEST_PASSWORD
+
+mvn -Dtest=QuoteSearchMySqlTest test
+
+unset MYSQL_TEST_PASSWORD
+```
+
+Replace `root` with your local test account. The URL must end with `/` and must
+not include a database name. This runs the five MySQL search/migration tests;
+without `MYSQL_TEST_URL`, they are skipped even if MySQL is running. To run the
+full suite, replace the Maven command with `mvn clean install`.
 
 ### Google login
 
@@ -340,6 +423,7 @@ npm run build
    - `@RestController`, `@RequestMapping("/api/newentities")`
    - Inject mapper and repository
    - Define GET/POST endpoints
+6. Add a versioned Flyway migration for the new tables, columns, and indexes
 
 See existing `Author` entity for reference.
 
@@ -425,7 +509,7 @@ sudo tail -f /var/log/nginx/error.log
 - **Frontend Components**: Forms for create/edit, delete confirmations, pagination UI
 - **State Management**: Consider Redux or Zustand for complex state
 - **Caching**: Redis/Spring Cache for frequently accessed data
-- **Full-text Search**: Elasticsearch for quote content search
+- **Semantic Search**: Consider vector search if word-based MySQL FULLTEXT is insufficient
 - **Analytics Endpoints**: Aggregations and reporting queries
 
 ## License

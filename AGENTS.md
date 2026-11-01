@@ -195,7 +195,7 @@ frontend/
 
 **Header (Full Width)**
 - Left: "Quotes DB" logo (accent color)
-- Center: Full-width search bar for quotes (currently disabled, ready for backend integration)
+- Center: Quote search bar; submit with Enter or search icon, scoped to selected author or all quotes
 - Right: "Quote of the Day" button + hamburger menu (Login above About)
 - Neutral color scheme with subtle borders
 
@@ -264,7 +264,7 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Login opens LoginDialog; closing it returns focus to the hamburger button
 - Loads `/api/auth/me`; signed-in users see their name and Logout instead of Login
 - Session lookup, login, and logout errors are visible without blocking public browsing
-- Search input disabled until backend search is ready
+- Search submits plain text via optional `query`; changing author selection reruns the submitted search, clearing restores browsing
 - Quote of the Day button placeholder
 
 **LoginDialog.jsx**
@@ -283,9 +283,11 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Ready for backend quote filtering
 
 **QuotesList.jsx**
-- Shows empty state until author is selected
-- Placeholder text when author selected (ready for backend quote list)
-- Scrollable container for future quote display
+- Shows an author-selection prompt when neither an author nor a search query is active
+- Searches all quotes when a query is submitted without an author; otherwise scopes to the selected author
+- Displays author names in all-author results and preserves backend relevance order
+- Shows distinct loading, error, and no-match states; ignores outdated requests after filter changes
+- Scrollable quote display with expandable details
 
 **Placeholder.jsx**
 - Decorative component for right sidebar
@@ -423,7 +425,11 @@ sudo systemctl reload nginx
 ### Database Persistence
 
 - MySQL `quote_db` database persists across deployments
-- Hibernate `ddl-auto=update` automatically migrates schema
+- Flyway applies versioned MySQL migrations from `src/main/resources/db/migration`
+- Hibernate `ddl-auto=validate` checks entity/schema compatibility; use new migrations for schema changes
+- Existing unversioned databases must match V1 before a one-time Flyway baseline; see README.md
+- Quote search uses optional `query` on GET `/api/quotes`, MySQL natural-language FULLTEXT on text only, and relevance ordering
+- MySQL search/migration tests require `MYSQL_TEST_URL`, `MYSQL_TEST_USERNAME`, and `MYSQL_TEST_PASSWORD`; H2 tests disable Flyway
 - Seed data must be loaded separately (see `seed-data.sh`)
 
 ### Rollback Strategy

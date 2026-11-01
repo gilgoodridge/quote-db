@@ -10,9 +10,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDate;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DataJpaTest(properties = {
+        "spring.flyway.enabled=false",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
         "spring.jpa.hibernate.ddl-auto=create-drop"
 })

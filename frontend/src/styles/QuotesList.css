@@ -66,6 +66,19 @@
   animation: fadeIn 0.3s ease;
 }
 
+.search-summary {
+  padding: 16px 24px 0;
+  margin: 0;
+  color: var(--text-light);
+  overflow-wrap: anywhere;
+}
+
+.quote-author {
+  margin: 8px 16px;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
 .quotes-list {
   list-style: none;
   margin: 0;

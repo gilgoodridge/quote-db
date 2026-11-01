@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api } from './api';
+import {useEffect, useState} from 'react';
+import {api} from './api';
 import './AuthorList.css';
 
 export function AuthorList() {

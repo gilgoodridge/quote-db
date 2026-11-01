@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { api } from '../api'
+import {useEffect, useRef, useState} from 'react'
+import {api} from '../api'
 import AddAuthorDialog from './AddAuthorDialog'
 import '../styles/AddQuoteDialog.css'
 

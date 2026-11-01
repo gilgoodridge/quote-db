@@ -1,9 +1,53 @@
 import assert from 'node:assert/strict'
-import { afterEach, test } from 'node:test'
-import { api, getGoogleOAuthStartUrl, getLoginReturnState } from './api.js'
-import { clearAddQuoteIntent, hasAddQuoteIntent, saveAddQuoteIntent } from './quoteIntent.js'
+import {afterEach, test} from 'node:test'
+import {api, getGoogleOAuthStartUrl, getLoginReturnState} from './api.js'
+import {clearAddQuoteIntent, hasAddQuoteIntent, saveAddQuoteIntent} from './quoteIntent.js'
 
 const originalFetch = globalThis.fetch
+
+test('quote listing preserves optional author filtering and blank-query behavior', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return new Response('[]')
+  }
+
+  await api.quotes.list()
+  await api.quotes.list(7)
+  await api.quotes.list(7, ' \t ')
+  await api.quotes.list(null, '')
+  assert.deepEqual(calls.map(({ url }) => url),
+    ['/api/quotes', '/api/quotes?authorId=7', '/api/quotes?authorId=7', '/api/quotes'])
+  assert.ok(calls.every(({ options }) => options.credentials === 'include'))
+})
+
+test('quote search encodes plain text and optionally restricts it to an author', async () => {
+  const calls = []
+  const results = [{ id: 9, text: 'Love life' }, { id: 3, text: 'Life' }]
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return new Response(JSON.stringify(results))
+  }
+  const query = '  love OR +life & café?  '
+  assert.deepEqual(await api.quotes.list(null, query), results)
+  assert.deepEqual(await api.quotes.list(7, query), results)
+  assert.equal(calls.length, 2)
+  for (const [index, call] of calls.entries()) {
+    const url = new URL(call.url, 'http://localhost')
+    assert.equal(url.pathname, '/api/quotes')
+    assert.equal(url.searchParams.get('query'), query.trim())
+    assert.equal(url.searchParams.get('authorId'), index === 0 ? null : '7')
+    assert.equal([...url.searchParams.keys()].length, index === 0 ? 1 : 2)
+    assert.equal(call.options.credentials, 'include')
+  }
+})
+
+test('quote search surfaces backend failures and invalid JSON', async () => {
+  globalThis.fetch = async () => new Response('Search unavailable', { status: 503 })
+  await assert.rejects(api.quotes.list(null, 'love'), /Request failed \(503\): Search unavailable/)
+  globalThis.fetch = async () => new Response('not JSON')
+  await assert.rejects(api.quotes.list(7, 'love'), /returned invalid JSON/)
+})
 
 afterEach(() => {
   globalThis.fetch = originalFetch
