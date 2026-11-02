@@ -201,7 +201,7 @@ class QuoteSearchMySqlTest {
             insert.executeBatch();
         }
         flyway = Flyway.configure().dataSource(serverUrl() + LEGACY_DATABASE, username(), password()).load();
-        assertEquals(3, flyway.migrate().migrationsExecuted);
+        assertEquals(4, flyway.migrate().migrationsExecuted);
         assertEquals(0, flyway.migrate().migrationsExecuted);
         try (Connection connection = DriverManager.getConnection(serverUrl() + LEGACY_DATABASE, username(), password());
              var statement = connection.createStatement()) {
@@ -220,6 +220,23 @@ class QuoteSearchMySqlTest {
                 assertEquals("1950-01-02", results.getString("date"));
                 assertEquals("Old location", results.getString("location"));
                 assertEquals("Old reference", results.getString("reference"));
+            }
+            for (String table : List.of("quote_tones", "quote_themes", "quote_forms", "quote_sources")) {
+                try (var results = statement.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                    assertTrue(results.next());
+                    assertEquals(0, results.getInt(1));
+                }
+            }
+            for (String table : List.of("tones", "themes", "forms", "sources")) {
+                try (var results = statement.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                    assertTrue(results.next());
+                    assertEquals(switch (table) {
+                        case "tones" -> 7;
+                        case "themes" -> 12;
+                        case "forms" -> 6;
+                        default -> 11;
+                    }, results.getInt(1));
+                }
             }
             try (var results = statement.executeQuery("""
                     SELECT DISTINCT INDEX_NAME FROM information_schema.statistics

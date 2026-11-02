@@ -5,10 +5,16 @@
 # Usage: ./seed-data.sh [BASE_URL]
 # Without an argument, choose a target interactively.
 # Requires a signed-in JSESSIONID cookie for the selected base URL.
+# Requires jq to resolve category names through the backend catalog.
 # Stops on the first failed request or missing resource ID, without retrying.
 # Earlier writes are not rolled back; inspect/clean up data before rerunning.
 
 set -euo pipefail
+
+if ! command -v jq > /dev/null 2>&1; then
+    echo "jq is required. Install it (Ubuntu: sudo apt install jq; Windows: scoop install jq) and rerun." >&2
+    exit 1
+fi
 
 if [ -n "${1:-}" ]; then
     BASE_URL="$1"
@@ -67,6 +73,29 @@ fi' EXIT
 
 echo "Seeding database at $API_URL"
 echo "=========================================="
+
+if ! CATEGORY_CATALOG=$(curl -fsS --connect-timeout 10 --max-time 60 "$API_URL/categories"); then
+    echo "Unable to fetch category catalogs from $API_URL/categories. Deploy the category migration first." >&2
+    exit 1
+fi
+if ! printf '%s' "$CATEGORY_CATALOG" | jq -e '
+    [.tones, .themes, .forms, .sources] |
+    all(.[]; type == "array" and length > 0 and
+        all(.[]; (.id | type == "number" and . > 0 and floor == .) and (.name | type == "string")))
+' > /dev/null; then
+    echo "The category endpoint returned an invalid catalog." >&2
+    exit 1
+fi
+
+category_ids() {
+    local dimension="$1"
+    local names="$2"
+    printf '%s' "$CATEGORY_CATALOG" | jq -ce --arg dimension "$dimension" --arg names "$names" '
+        ($names | split("|") | map(select(length > 0))) as $labels |
+        [$labels[] as $label | .[$dimension] | map(select(.name == $label)) |
+            if length == 1 then .[0].id else error("Missing or duplicate category: " + $label) end]
+    '
+}
 
 create_resource() {
     local endpoint="$1"
@@ -127,6 +156,12 @@ create_quote() {
     local date="$3"
     local location="$4"
     local reference="$5"
+    # Optional category labels, separated by | for multiple selections.
+    local tone_ids theme_ids form_ids source_ids
+    tone_ids=$(category_ids tones "${6:-}")
+    theme_ids=$(category_ids themes "${7:-}")
+    form_ids=$(category_ids forms "${8:-}")
+    source_ids=$(category_ids sources "${9:-}")
 
     if [[ ! "$author_id" =~ ^[1-9][0-9]*$ ]]; then
         echo "Error creating quote: invalid author ID '$author_id'." >&2
@@ -135,7 +170,11 @@ create_quote() {
     
     local json="{
         \"text\": \"$text\",
-        \"authorId\": $author_id"
+        \"authorId\": $author_id,
+        \"toneIds\": $tone_ids,
+        \"themeIds\": $theme_ids,
+        \"formIds\": $form_ids,
+        \"sourceIds\": $source_ids"
     
     if [ -n "$date" ]; then
         json="$json, \"date\": \"$date\""
@@ -184,70 +223,90 @@ echo "Creating quotes..."
 echo "----------------------------------------"
 
 # Einstein quotes
-create_quote "Life is like riding a bicycle. To keep your balance, you must keep moving." "$EINSTEIN_ID" "1950-05-23" "In a letter" "https://www.goodreads.com/quotes/11621"
+create_quote "Life is like riding a bicycle. To keep your balance, you must keep moving." "$EINSTEIN_ID" "1950-05-23" "In a letter" "https://www.goodreads.com/quotes/11621" \
+    "Inspirational|Insightful" "Life & death|Courage & resolve" "Metaphor|Advice" "Letter"
 echo "✓ Einstein quote 1"
 
-create_quote "Imagination is more important than knowledge. Knowledge is limited to what we already know and understand." "$EINSTEIN_ID" "" "" "https://www.goodreads.com/quotes/6060"
+create_quote "Imagination is more important than knowledge. Knowledge is limited to what we already know and understand." "$EINSTEIN_ID" "" "" "https://www.goodreads.com/quotes/6060" \
+    "Insightful|Provocative" "Wisdom & learning|Art & beauty" "Aphorism" ""
 echo "✓ Einstein quote 2"
 
-create_quote "In the middle of difficulty lies opportunity." "$EINSTEIN_ID" "" "" ""
+create_quote "In the middle of difficulty lies opportunity." "$EINSTEIN_ID" "" "" "" \
+    "Inspirational|Comforting" "Success & failure|Courage & resolve" "Aphorism|Paradox" ""
 echo "✓ Einstein quote 3"
 
-create_quote "Life is not a problem to be solved, but a reality to be experienced." "$EINSTEIN_ID" "" "" ""
+create_quote "Life is not a problem to be solved, but a reality to be experienced." "$EINSTEIN_ID" "" "" "" \
+    "Insightful" "Life & death|Joy & meaning" "Aphorism" ""
 echo "✓ Einstein quote 4"
 
 # Churchill quotes
-create_quote "Never give up. Never surrender." "$CHURCHILL_ID" "1941-06-18" "Speech" "https://en.wikiquote.org/wiki/Winston_Churchill"
+create_quote "Never give up. Never surrender." "$CHURCHILL_ID" "1941-06-18" "Speech" "https://en.wikiquote.org/wiki/Winston_Churchill" \
+    "Inspirational" "Courage & resolve" "Advice" "Speech"
 echo "✓ Churchill quote 1"
 
-create_quote "Success is not final, failure is not fatal: it is the courage to continue that counts." "$CHURCHILL_ID" "" "" "https://www.goodreads.com/quotes/11470"
+create_quote "Success is not final, failure is not fatal: it is the courage to continue that counts." "$CHURCHILL_ID" "" "" "https://www.goodreads.com/quotes/11470" \
+    "Inspirational|Comforting" "Success & failure|Courage & resolve" "Aphorism" ""
 echo "✓ Churchill quote 2"
 
-create_quote "We are all worms. But I do believe I am a glow-worm." "$CHURCHILL_ID" "" "Parliament" ""
+create_quote "We are all worms. But I do believe I am a glow-worm." "$CHURCHILL_ID" "" "Parliament" "" \
+    "Funny" "Human nature" "Metaphor" ""
 echo "✓ Churchill quote 3"
 
 # Twain quotes
-create_quote "The secret of getting ahead is getting started." "$TWAIN_ID" "" "" "https://www.goodreads.com/quotes/24723"
+create_quote "The secret of getting ahead is getting started." "$TWAIN_ID" "" "" "https://www.goodreads.com/quotes/24723" \
+    "Inspirational" "Work & ambition|Success & failure" "Aphorism|Advice" ""
 echo "✓ Twain quote 1"
 
-create_quote "If you tell the truth, you don't have to remember anything." "$TWAIN_ID" "" "" "https://www.goodreads.com/quotes/3325"
+create_quote "If you tell the truth, you don't have to remember anything." "$TWAIN_ID" "" "" "https://www.goodreads.com/quotes/3325" \
+    "Funny|Insightful" "Human nature|Wisdom & learning" "Aphorism|Advice" ""
 echo "✓ Twain quote 2"
 
-create_quote "Eat a live frog first thing in the morning and nothing worse will happen to you the rest of the day." "$TWAIN_ID" "" "" ""
+create_quote "Eat a live frog first thing in the morning and nothing worse will happen to you the rest of the day." "$TWAIN_ID" "" "" "" \
+    "Funny|Provocative" "Work & ambition" "Metaphor|Advice" ""
 echo "✓ Twain quote 3"
 
 # Austen quotes
-create_quote "There is nothing I would not do for those who are really my friends." "$AUSTEN_ID" "" "" "https://www.goodreads.com/quotes/10126"
+create_quote "There is nothing I would not do for those who are really my friends." "$AUSTEN_ID" "" "" "https://www.goodreads.com/quotes/10126" \
+    "Comforting" "Love & connection" "Aphorism" ""
 echo "✓ Austen quote 1"
 
-create_quote "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife." "$AUSTEN_ID" "1813-01-28" "Pride and Prejudice" ""
+create_quote "It is a truth universally acknowledged, that a single man in possession of a good fortune, must be in want of a wife." "$AUSTEN_ID" "1813-01-28" "Pride and Prejudice" "" \
+    "Funny|Cynical" "Love & connection|Society & power|Human nature" "Aphorism" "Book"
 echo "✓ Austen quote 2"
 
 # Darwin quotes
-create_quote "It is not the strongest of the species that survives, nor the most intelligent, but the one most responsive to change." "$DARWIN_ID" "" "" ""
+create_quote "It is not the strongest of the species that survives, nor the most intelligent, but the one most responsive to change." "$DARWIN_ID" "" "" "" \
+    "Insightful|Cautionary" "Time & change|Life & death" "Aphorism" ""
 echo "✓ Darwin quote 1"
 
-create_quote "There is grandeur in this view of life." "$DARWIN_ID" "1859-11-24" "On the Origin of Species" ""
+create_quote "There is grandeur in this view of life." "$DARWIN_ID" "1859-11-24" "On the Origin of Species" "" \
+    "Inspirational" "Life & death|Art & beauty" "Aphorism" "Book"
 echo "✓ Darwin quote 2"
 
 # Shakespeare quotes
-create_quote "All the world's a stage, and all the men and women merely players." "$SHAKESPEARE_ID" "" "As You Like It" ""
+create_quote "All the world's a stage, and all the men and women merely players." "$SHAKESPEARE_ID" "" "As You Like It" "" \
+    "Insightful" "Life & death|Human nature" "Metaphor|Verse" "Play|Book"
 echo "✓ Shakespeare quote 1"
 
-create_quote "To be, or not to be, that is the question." "$SHAKESPEARE_ID" "" "Hamlet" ""
+create_quote "To be, or not to be, that is the question." "$SHAKESPEARE_ID" "" "Hamlet" "" \
+    "Provocative" "Life & death|Joy & meaning" "Verse" "Play"
 echo "✓ Shakespeare quote 2"
 
-create_quote "Some Cupid kills with arrows, some with traps." "$SHAKESPEARE_ID" "" "Much Ado About Nothing" ""
+create_quote "Some Cupid kills with arrows, some with traps." "$SHAKESPEARE_ID" "" "Much Ado About Nothing" "" \
+    "Funny|Cautionary" "Love & connection|Human nature" "Metaphor|Verse" "Play"
 echo "✓ Shakespeare quote 3"
 
 # Jobs quotes
-create_quote "The only way to do great work is to love what you do." "$JOBS_ID" "" "Stanford University" "https://www.goodreads.com/quotes/32963"
+create_quote "The only way to do great work is to love what you do." "$JOBS_ID" "" "Stanford University" "https://www.goodreads.com/quotes/32963" \
+    "Inspirational" "Work & ambition|Joy & meaning" "Advice" "Speech"
 echo "✓ Jobs quote 1"
 
-create_quote "Innovation distinguishes between a leader and a follower." "$JOBS_ID" "" "" "https://www.goodreads.com/quotes/34043"
+create_quote "Innovation distinguishes between a leader and a follower." "$JOBS_ID" "" "" "https://www.goodreads.com/quotes/34043" \
+    "Insightful" "Work & ambition|Art & beauty" "Aphorism" ""
 echo "✓ Jobs quote 2"
 
-create_quote "Stay hungry. Stay foolish." "$JOBS_ID" "1997-10-12" "Apple Keynote" ""
+create_quote "Stay hungry. Stay foolish." "$JOBS_ID" "1997-10-12" "Apple Keynote" "" \
+    "Inspirational|Provocative" "Wisdom & learning|Work & ambition" "Advice|Paradox" "Speech"
 echo "✓ Jobs quote 3"
 
 echo ""
@@ -256,4 +315,4 @@ echo "✓ Database seeded successfully!"
 echo ""
 echo "Summary:"
 echo "  - 7 authors created"
-echo "  - 21 quotes created"
+echo "  - 20 quotes created with optional category selections"

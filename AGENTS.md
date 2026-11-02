@@ -131,6 +131,47 @@ public List<AuthorResponse> list() {
 }
 ```
 
+### Quote Categorization
+
+- Four defined dimensions: Tone (reader effect), Theme (subject), Form
+  (construction), and Source (origin type, distinct from precise `location`).
+- Every dimension is optional and multi-select. Do not require categories on quotes.
+- Flyway V6 creates separate `tones`, `themes`, `forms`, and `sources` lookup
+  tables (auto-increment IDs, unique names up to 32 characters) and corresponding
+  `quote_*` junction tables with composite primary keys and foreign keys.
+- Catalog sizes are 7 tones, 12 themes, 6 forms, and 11 sources; see README.md
+  for the approved labels. Form excludes Excerpt; Source includes Poem while
+  Form includes Verse. Existing quotes start with no selections.
+- Public GET/HEAD `/api/categories` returns one DTO containing `tones`, `themes`,
+  `forms`, and `sources`, each an array of `{id, name}` sorted by ID.
+  Catalogs have no write endpoints; change options via new migrations.
+- Quote POST/PUT accepts `toneIds`, `themeIds`, `formIds`, and `sourceIds`.
+  CategoryService resolves IDs in their own dimension; unknown, null-element,
+  zero, or negative IDs return 400 with a visible field-specific error.
+  Duplicate IDs are deduplicated.
+- Quote responses expose `tones`, `themes`, `forms`, and `sources` as sorted
+  `{id, name}` DTO arrays, never entities; empty dimensions return `[]`.
+  CategoryMapper handles DTO conversion and QuoteMapper resolves inputs through
+  CategoryService.
+- PUT uses full replacement: omitted, null, or empty category arrays clear
+  selections. Include all selections to retain them.
+- Quote create/update and response mapping run inside transactions to make
+  invalid writes atomic and support lazy category collections without relying
+  on Open Session in View. Batch fetching avoids a category query per quote.
+- Relationships never cascade persistence/removal to catalog entries.
+  Deleting a quote removes only its associations, not categories or its author.
+- Frontend controls are deferred. The existing UI creates uncategorized quotes;
+  its PUT requests omit category IDs and therefore clear existing selections.
+  Use the API for categorized edits until the UI is updated.
+- `seed-data.sh` requires jq and loads `/api/categories` to resolve labels rather
+  than hardcoding IDs. Optional arguments 6-9 to `create_quote` accept tone,
+  theme, form, and source labels separated by `|`; samples include multi-select
+  categories. Do not invent unknown source types.
+- QuoteCategoriesTest covers real H2-backed API writes, replacement, validation,
+  security, and reads with Open Session in View disabled. CategoryMigrationTest
+  executes V6 in H2 MySQL mode; QuoteSearchMySqlTest also verifies V6 during
+  the real MySQL upgrade path when MYSQL_TEST_* variables are set.
+
 ---
 
 ## Build & Runtime

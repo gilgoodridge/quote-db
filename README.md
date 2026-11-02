@@ -90,10 +90,70 @@ unique constraints are already present. See [Database Migrations](#database-migr
 #### Quotes
 - `GET /api/quotes?authorId={id}&query={text}` - List quotes, optionally filtered by author and searched by text
 - `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
-  `date` (`YYYY-MM-DD`), `location`, and `reference`
+  `date` (`YYYY-MM-DD`), `location`, `reference`, `toneIds`, `themeIds`, `formIds`, and `sourceIds`
 - `GET /api/quotes/{id}` - Get a quote
 - `PUT /api/quotes/{id}` - Replace a quote
 - `DELETE /api/quotes/{id}` - Delete a quote
+
+#### Quote categories (backend only)
+
+`GET /api/categories` is public and returns four read-only catalogs:
+`tones`, `themes`, `forms`, and `sources`. Each is an array of
+`{"id": 1, "name": "..."}` objects, ordered by ID. IDs are local to each
+dimension; use the catalog rather than assuming particular ID values.
+There are no category-management endpoints. Change the defined options through
+a new Flyway migration.
+
+| Dimension | Meaning | Defined options |
+|-----------|---------|-----------------|
+| Tone | What it does to the reader | Inspirational, Funny, Insightful, Comforting, Cautionary, Cynical, Provocative |
+| Theme | What it is about | Life & death, Love & connection, Success & failure, Work & ambition, Wisdom & learning, Courage & resolve, Joy & meaning, Time & change, Society & power, Art & beauty, Faith & belief, Human nature |
+| Form | How it is built | Aphorism, Paradox, Metaphor, Retort, Advice, Verse |
+| Source | Where it came from | Movie, Speech, Play, Letter, Book, Article, Poem, Song, Interview, Conversation, Journal |
+
+Every dimension allows **zero or multiple selections**. Source is a type, not
+the precise `location` (page, scene, venue, etc.) or the `reference` URL.
+`Excerpt` is not a form. `Poem` is a source; `Verse` is a form.
+All labels are at most 32 characters.
+
+POST and PUT accept optional arrays of positive category IDs:
+
+```json
+{
+  "text": "An example quotation",
+  "authorId": 1,
+  "toneIds": [1, 3],
+  "themeIds": [5],
+  "formIds": [],
+  "sourceIds": [4]
+}
+```
+
+Look up the IDs first; the numbers above are illustrative. Duplicate IDs are
+deduplicated. Unknown IDs, null elements, zero, and negative IDs return
+**400 Bad Request** with a message identifying the affected field. Invalid
+selections reject the entire write, without partially updating the quote.
+Quote responses on POST, PUT, get-by-ID, lists, and search contain `tones`,
+`themes`, `forms`, and `sources` as arrays of `{id, name}` DTOs, sorted by ID.
+Unassigned dimensions return `[]`.
+
+Omitted, null, and empty arrays mean no selections on POST. On **PUT**, they
+**clear that dimension**, consistent with full replacement of other optional
+fields. Include all selections you want to retain. Quote writes still require
+authentication and CSRF.
+
+**Frontend category controls are deferred.** The current UI does not display or
+submit categories. It can still create uncategorized quotes, but editing a
+categorized quote in that UI clears its categories because PUT is a full
+replacement. Use the API to edit categorized quotes until frontend support
+is added.
+
+Flyway V6 creates separate `tones`, `themes`, `forms`, and `sources` lookup
+tables with auto-increment IDs and unique names, plus `quote_tones`,
+`quote_themes`, `quote_forms`, and `quote_sources` junction tables. Composite
+primary keys prevent duplicate selections; foreign keys enforce valid IDs.
+Deleting a quote removes its junction rows, not its author or catalog entries.
+Existing quotes retain their data and start with no categories.
 
 #### Searching quotes
 
@@ -175,7 +235,7 @@ automatically. A tab-scoped session-storage flag preserves only this intent
 across the redirect, not credentials or quote data. Browser session storage must
 be available to resume the action automatically.
 
-The form includes every POST field: quote text (up to 2,048 characters), an
+The form includes the scalar POST fields: quote text (up to 2,048 characters), an
 existing author selected from a dropdown, date, location, and reference (the
 latter two up to 255 characters each). The currently selected author is
 preselected. **Add new author** opens a separate form without losing your quote
@@ -338,6 +398,8 @@ and Java migrations from `src/main/java/db/migration` before JPA starts.
 `V3` adds the derived `search_text` column, `V4` backfills it with Snowball English
 normalization in batches of 500 using keyset pagination, and `V5` makes it
 NOT NULL and replaces the original index with `ft_quotes_search_text`.
+`V6` adds and populates the four category catalogs and creates their quote
+junction tables; existing quotes remain uncategorized.
 Hibernate uses `spring.jpa.hibernate.ddl-auto=validate`,
 not `update`. Add new migrations for future schema changes; do not edit migrations
 that have already run. The database account needs schema DDL privileges in addition
@@ -346,7 +408,7 @@ to run without its index.
 
 **Upgrade an existing Flyway V2 database (including production):** Back up and
 stop all old backend instances/writers before starting the new JAR. Flyway
-applies V3-V5 automatically, preserving IDs, original text, authors, and all
+applies V3-V6 automatically, preserving IDs, original text, authors, and all
 metadata. No reset, reload, or new baseline is needed. The backfill and index
 creation extend startup time and may lock the table; plan a maintenance window.
 Do not run the old application alongside the upgrade: it cannot maintain the
@@ -366,15 +428,16 @@ or use the reset procedure above; baselining does not repair an old schema.
 For the first startup only, set `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`
 in the backend environment, or pass `--spring.flyway.baseline-on-migrate=true`
 when launching the JAR. Flyway records the existing schema at version 1 without
-recreating tables, then applies V2-V5 while preserving data. Remove this override
+recreating tables, then applies V2-V6 while preserving data. Remove this override
 after successful startup; by default Flyway refuses unversioned nonempty databases
 to avoid silently adopting the wrong database. Do not manually pre-create the index.
 Index creation can take time and require table locks; schedule deployment accordingly.
 Update any server-local `application.properties` override from `ddl-auto=update`
 to `validate` as well.
 
-**MySQL integration tests:** Normal `mvn test` covers HTTP compatibility using mocks
-and other existing tests; H2 cannot validate MySQL FULLTEXT. To include actual
+**MySQL integration tests:** Normal `mvn test` covers HTTP compatibility using mocks,
+category API/persistence with H2, and the V6 catalogs/constraints in H2 MySQL mode.
+H2 cannot validate MySQL FULLTEXT. To include actual
 search and migration tests, set `MYSQL_TEST_URL` to a server-only URL such as
 `jdbc:mysql://localhost:3306/`, plus `MYSQL_TEST_USERNAME` and `MYSQL_TEST_PASSWORD`,
 then run `mvn test`. Use a dedicated local/test MySQL 8.0+ instance, never production.
@@ -442,6 +505,18 @@ for the selected base URL, fetches its CSRF token, and includes both on seed
 requests. Sign into the site first and copy the cookie value from browser
 developer tools; do not save or share it. The session ID is sensitive and
 expires when the session ends.
+
+The seed script also requires **jq** (`sudo apt install jq` on Ubuntu or
+`scoop install jq` on Windows with Scoop). After V6 is deployed, the catalogs
+already exist: the script reads `/api/categories` and resolves labels to IDs
+instead of inserting duplicate catalog entries or assuming fixed IDs.
+It creates 7 authors and 20 quotes with sample tone, theme, form, and known
+source selections, including multiple selections in each dimension. Sources
+not identified by the existing seed metadata are left unassigned rather than
+invented. In `create_quote`, arguments 6-9 are optional tone, theme, form, and
+source labels; separate multiple labels with `|`. Omitting them sends empty
+arrays. Missing/duplicate catalog labels or failed requests stop the script;
+earlier writes are not rolled back. It is not an idempotent import.
 
 `FRONTEND_URL` controls the fixed post-login destination (default
 `http://localhost:5173`; supply an origin without a trailing slash). Production

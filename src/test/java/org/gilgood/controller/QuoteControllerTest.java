@@ -2,7 +2,9 @@ package org.gilgood.controller;
 
 import org.gilgood.entity.Author;
 import org.gilgood.entity.Quote;
+import org.gilgood.entity.Tone;
 import org.gilgood.mapper.AuthorMapper;
+import org.gilgood.mapper.CategoryMapper;
 import org.gilgood.mapper.QuoteMapper;
 import org.gilgood.repository.QuoteRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +22,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -36,6 +39,7 @@ class QuoteControllerTest {
         QuoteController controller = new QuoteController();
         QuoteMapper mapper = Mappers.getMapper(QuoteMapper.class);
         ReflectionTestUtils.setField(mapper, "authorMapper", Mappers.getMapper(AuthorMapper.class));
+        ReflectionTestUtils.setField(mapper, "categoryMapper", Mappers.getMapper(CategoryMapper.class));
         ReflectionTestUtils.setField(controller, "quoteRepository", repository);
         ReflectionTestUtils.setField(controller, "quoteMapper", mapper);
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
@@ -73,6 +77,27 @@ class QuoteControllerTest {
                 .andExpect(jsonPath("$[1].id").value(3));
         verify(repository).search("love life", null);
         verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void searchIncludesCategoryDtosInIdOrder() throws Exception {
+        Tone funny = new Tone();
+        funny.setId(2L);
+        funny.setName("Funny");
+        Tone insightful = new Tone();
+        insightful.setId(3L);
+        insightful.setName("Insightful");
+        Quote match = quote(9L, "A funny observation");
+        match.setTones(Set.of(insightful, funny));
+        when(repository.search("funni", null)).thenReturn(List.of(match));
+        mvc.perform(request("funny"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].tones[0].id").value(2))
+                .andExpect(jsonPath("$[0].tones[0].name").value("Funny"))
+                .andExpect(jsonPath("$[0].tones[1].name").value("Insightful"))
+                .andExpect(jsonPath("$[0].themes").isEmpty())
+                .andExpect(jsonPath("$[0].forms").isEmpty())
+                .andExpect(jsonPath("$[0].sources").isEmpty());
     }
 
     @Test

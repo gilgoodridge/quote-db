@@ -12,6 +12,7 @@ import org.gilgood.mapper.QuoteMapper;
 import org.gilgood.repository.QuoteRepository;
 import org.gilgood.search.QuoteSearchText;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,6 +29,7 @@ public class QuoteController {
     private QuoteMapper quoteMapper;
 
     @GetMapping
+    @Transactional(readOnly = true)
     @Operation(summary = "List quotes with optional filters",
             description = "Optionally filters by author ID and searches quote text using MySQL natural-language " +
                     "FULLTEXT search with Snowball English (Porter2) stemming of quotes and queries. Search results are " +
@@ -53,6 +55,7 @@ public class QuoteController {
     }
 
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     @Operation(summary = "Get a quote by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Quote found"),
@@ -65,7 +68,11 @@ public class QuoteController {
     }
 
     @PostMapping
-    @Operation(summary = "Create new quote")
+    @Transactional
+    @Operation(summary = "Create new quote",
+            description = "Optional toneIds, themeIds, formIds and sourceIds allow multiple selections from " +
+                    "GET /api/categories. Omitted, null or empty arrays leave a dimension unassigned. " +
+                    "Unknown or invalid category IDs return 400.")
     public QuoteResponse addQuote(@RequestBody CreateQuoteRequest request) {
         Quote quote = quoteMapper.toEntity(request);
         Quote saved = quoteRepository.save(quote);
@@ -73,10 +80,13 @@ public class QuoteController {
     }
 
     @PutMapping("/{id}")
+    @Transactional
     @Operation(
             summary = "Replace quote (full update)",
             description = "Replaces the entire quote record. " +
                     "Any optional fields omitted or set to null will be deleted from the database. " +
+                    "This includes toneIds, themeIds, formIds and sourceIds; empty arrays also clear selections. " +
+                    "Unknown or invalid category IDs return 400 without changing the quote. " +
                     "Required fields (text, authorId) must be provided; missing required fields will return 400 Bad Request."
     )
     @ApiResponses({

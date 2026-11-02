@@ -39,6 +39,8 @@ class SecurityConfigTest {
     void anonymousCanBrowseAndCheckSession() throws Exception {
         mvc.perform(get("/api/authors")).andExpect(status().isOk());
         mvc.perform(get("/api/quotes")).andExpect(status().isOk());
+        mvc.perform(get("/api/categories")).andExpect(status().isOk());
+        mvc.perform(head("/api/categories")).andExpect(status().isOk());
         mvc.perform(head("/api/authors/1")).andExpect(status().isOk());
         mvc.perform(head("/api/quotes/1")).andExpect(status().isOk());
         mvc.perform(get("/api/auth/me"))
@@ -132,7 +134,7 @@ class SecurityConfigTest {
 
     @RestController
     static class Resources {
-        @RequestMapping(value = {"/api/authors", "/api/authors/1", "/api/quotes", "/api/quotes/1"},
+        @RequestMapping(value = {"/api/authors", "/api/authors/1", "/api/quotes", "/api/quotes/1", "/api/categories"},
                 produces = MediaType.APPLICATION_JSON_VALUE)
         String resource() {
             return "[]";

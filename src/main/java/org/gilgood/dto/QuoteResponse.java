@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -15,6 +16,10 @@ public class QuoteResponse {
     private String location;
     private String reference;
     private AuthorResponse author;
+    private List<CategoryResponse> tones;
+    private List<CategoryResponse> themes;
+    private List<CategoryResponse> forms;
+    private List<CategoryResponse> sources;
 
     @Schema(description = "The author's age at the time this quote was written or spoken")
     private Integer authorAgeAtQuote;
