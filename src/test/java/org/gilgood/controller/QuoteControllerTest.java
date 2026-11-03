@@ -84,6 +84,7 @@ class QuoteControllerTest {
         Tone funny = new Tone();
         funny.setId(2L);
         funny.setName("Funny");
+        funny.setDescription("Amuses through wit.");
         Tone insightful = new Tone();
         insightful.setId(3L);
         insightful.setName("Insightful");
@@ -94,6 +95,7 @@ class QuoteControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].tones[0].id").value(2))
                 .andExpect(jsonPath("$[0].tones[0].name").value("Funny"))
+                .andExpect(jsonPath("$[0].tones[0].description").value("Amuses through wit."))
                 .andExpect(jsonPath("$[0].tones[1].name").value("Insightful"))
                 .andExpect(jsonPath("$[0].themes").isEmpty())
                 .andExpect(jsonPath("$[0].forms").isEmpty())

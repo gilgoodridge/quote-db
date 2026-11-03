@@ -139,18 +139,20 @@ public List<AuthorResponse> list() {
 - Flyway V6 creates separate `tones`, `themes`, `forms`, and `sources` lookup
   tables (auto-increment IDs, unique names up to 32 characters) and corresponding
   `quote_*` junction tables with composite primary keys and foreign keys.
+- V7 adds required descriptions (up to 255 characters) and backfills all 36
+  options by name, preserving IDs and selections. Keep deployed V6 unchanged.
 - Catalog sizes are 7 tones, 12 themes, 6 forms, and 11 sources; see README.md
   for the approved labels. Form excludes Excerpt; Source includes Poem while
   Form includes Verse. Existing quotes start with no selections.
 - Public GET/HEAD `/api/categories` returns one DTO containing `tones`, `themes`,
-  `forms`, and `sources`, each an array of `{id, name}` sorted by ID.
+  `forms`, and `sources`, each an array of `{id, name, description}` sorted by ID.
   Catalogs have no write endpoints; change options via new migrations.
 - Quote POST/PUT accepts `toneIds`, `themeIds`, `formIds`, and `sourceIds`.
   CategoryService resolves IDs in their own dimension; unknown, null-element,
   zero, or negative IDs return 400 with a visible field-specific error.
   Duplicate IDs are deduplicated.
 - Quote responses expose `tones`, `themes`, `forms`, and `sources` as sorted
-  `{id, name}` DTO arrays, never entities; empty dimensions return `[]`.
+  `{id, name, description}` DTO arrays, never entities; empty dimensions return `[]`.
   CategoryMapper handles DTO conversion and QuoteMapper resolves inputs through
   CategoryService.
 - PUT uses full replacement: omitted, null, or empty category arrays clear
@@ -160,16 +162,31 @@ public List<AuthorResponse> list() {
   on Open Session in View. Batch fetching avoids a category query per quote.
 - Relationships never cascade persistence/removal to catalog entries.
   Deleting a quote removes only its associations, not categories or its author.
-- Frontend controls are deferred. The existing UI creates uncategorized quotes;
-  its PUT requests omit category IDs and therefore clear existing selections.
-  Use the API for categorized edits until the UI is updated.
+- Frontend AddQuoteDialog loads catalogs via `api.categories.list()` and uses
+  QuoteCategoryFields for optional checkbox groups, selection counts, and clear
+  actions. Options/IDs come from the API, never hardcoded frontend catalogs.
+- Checkbox labels and quote tags use backend descriptions as native hover
+  text. Checkboxes associate descriptions via aria-describedby; tags include
+  screen-reader text. Missing descriptions remain compatible with older backends.
+- Quote edit drafts map response category DTOs to IDs in their own dimension.
+  Every create/update submits all four category ID arrays, including empty ones.
+  Scalar-only edits preserve selections; deselecting/clearing intentionally removes them.
+- Catalog errors are visible and retryable without discarding drafts. Save is
+  disabled during loading/failure; never silently save with incomplete controls.
+  Category selections survive author changes, nested author creation, and failed writes.
+- QuotesList shows selected category labels grouped by dimension in expanded
+  details, for anonymous/authenticated browsing and search. Hide empty groups.
+  Controls/tags wrap on narrow screens and use CSS theme variables.
+- `npm test` in frontend runs existing Node API tests and Vitest/jsdom category
+  form/card interaction tests. Keep the Vitest include scoped to `*.test.jsx`
+  so Node's `api.test.js` is not executed by both runners.
 - `seed-data.sh` requires jq and loads `/api/categories` to resolve labels rather
   than hardcoding IDs. Optional arguments 6-9 to `create_quote` accept tone,
   theme, form, and source labels separated by `|`; samples include multi-select
   categories. Do not invent unknown source types.
 - QuoteCategoriesTest covers real H2-backed API writes, replacement, validation,
   security, and reads with Open Session in View disabled. CategoryMigrationTest
-  executes V6 in H2 MySQL mode; QuoteSearchMySqlTest also verifies V6 during
+  executes V6/V7 in H2 MySQL mode; QuoteSearchMySqlTest also verifies V6/V7 during
   the real MySQL upgrade path when MYSQL_TEST_* variables are set.
 
 ---

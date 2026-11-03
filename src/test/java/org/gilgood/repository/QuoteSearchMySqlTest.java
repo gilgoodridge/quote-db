@@ -201,7 +201,7 @@ class QuoteSearchMySqlTest {
             insert.executeBatch();
         }
         flyway = Flyway.configure().dataSource(serverUrl() + LEGACY_DATABASE, username(), password()).load();
-        assertEquals(4, flyway.migrate().migrationsExecuted);
+        assertEquals(5, flyway.migrate().migrationsExecuted);
         assertEquals(0, flyway.migrate().migrationsExecuted);
         try (Connection connection = DriverManager.getConnection(serverUrl() + LEGACY_DATABASE, username(), password());
              var statement = connection.createStatement()) {
@@ -228,7 +228,8 @@ class QuoteSearchMySqlTest {
                 }
             }
             for (String table : List.of("tones", "themes", "forms", "sources")) {
-                try (var results = statement.executeQuery("SELECT COUNT(*) FROM " + table)) {
+                try (var results = statement.executeQuery(
+                        "SELECT COUNT(*) FROM " + table + " WHERE description IS NOT NULL AND LENGTH(description) > 0")) {
                     assertTrue(results.next());
                     assertEquals(switch (table) {
                         case "tones" -> 7;

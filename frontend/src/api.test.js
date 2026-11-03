@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import {afterEach, test} from 'node:test'
 import {api, getGoogleOAuthStartUrl, getLoginReturnState} from './api.js'
 import {clearAddQuoteIntent, hasAddQuoteIntent, saveAddQuoteIntent} from './quoteIntent.js'
+import {categorySelections} from './quoteCategories.js'
 
 const originalFetch = globalThis.fetch
 
@@ -216,6 +217,10 @@ test('quote creation sends all POST fields with session credentials and CSRF', a
     date: '2026-10-17',
     location: 'London',
     reference: 'A book, page 42',
+    toneIds: [101, 103],
+    themeIds: [205],
+    formIds: [],
+    sourceIds: [304, 305],
   }
   const saved = { ...quote, id: 42, author: { id: 12 } }
   globalThis.fetch = async (url, options) => {
@@ -256,6 +261,10 @@ test('quote editing sends a full replacement with credentials and a fresh CSRF t
     date: null,
     location: null,
     reference: 'Updated reference',
+    toneIds: [101, 103],
+    themeIds: [],
+    formIds: [201],
+    sourceIds: [305],
   }
   const saved = { ...replacement, id: 42, author: { id: 12 } }
   globalThis.fetch = async (url, options) => {
@@ -343,4 +352,56 @@ test('intent storage failures propagate so sign-in can show an actionable error'
   assert.throws(() => hasAddQuoteIntent(storage), /Storage blocked/)
   assert.throws(() => saveAddQuoteIntent(storage), /Storage blocked/)
   assert.throws(() => clearAddQuoteIntent(storage), /Storage blocked/)
+})
+
+test('category catalogs use the public endpoint and preserve server IDs and labels', async () => {
+  const catalog = {
+    tones: [{ id: 101, name: 'Funny', description: 'Amuses through wit, irony, absurdity, or playful observation.' }],
+    themes: [{ id: 101, name: 'Human nature' }],
+    forms: [{ id: 301, name: 'Verse' }],
+    sources: [{ id: 401, name: 'Play' }],
+  }
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options })
+    return new Response(JSON.stringify(catalog))
+  }
+  assert.deepEqual(await api.categories.list(), catalog)
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, '/api/categories')
+  assert.equal(calls[0].options.credentials, 'include')
+})
+
+test('category loading surfaces failed requests and malformed catalogs', async () => {
+  globalThis.fetch = async () => new Response('Categories unavailable', { status: 503 })
+  await assert.rejects(api.categories.list(), /Categories unavailable/)
+  globalThis.fetch = async () => new Response('not JSON')
+  await assert.rejects(api.categories.list(), /invalid JSON/)
+  const valid = { tones: [], themes: [], forms: [], sources: [] }
+  for (const invalid of [
+    null, {}, { ...valid, themes: null },
+    { ...valid, tones: [{ id: 0, name: 'Funny' }] },
+    { ...valid, forms: [{ id: 1, name: '' }] },
+    { ...valid, tones: [{ id: 1, name: 'Funny', description: 42 }] },
+    { ...valid, sources: [{ id: 1, name: 'Play' }, { id: 1, name: 'Book' }] },
+  ]) {
+    globalThis.fetch = async () => new Response(JSON.stringify(invalid))
+    await assert.rejects(api.categories.list(), /invalid .* catalog/)
+  }
+})
+
+test('edit selection initialization keeps IDs in their own dimension without sharing arrays', () => {
+  const quote = {
+    tones: [{ id: 101, name: 'Funny' }, { id: 103, name: 'Insightful' }],
+    themes: [{ id: 101, name: 'Human nature' }],
+    forms: [],
+    sources: [{ id: 401, name: 'Play' }],
+  }
+  const selections = categorySelections(quote)
+  assert.deepEqual(selections, {
+    toneIds: [101, 103], themeIds: [101], formIds: [], sourceIds: [401],
+  })
+  selections.toneIds.pop()
+  assert.equal(quote.tones.length, 2)
+  assert.deepEqual(categorySelections(), { toneIds: [], themeIds: [], formIds: [], sourceIds: [] })
 })

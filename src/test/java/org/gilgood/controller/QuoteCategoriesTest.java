@@ -81,6 +81,10 @@ class QuoteCategoriesTest {
                 .andExpect(jsonPath("$.tones.length()").value(2))
                 .andExpect(jsonPath("$.tones[0].id").value(toneIds.getFirst()))
                 .andExpect(jsonPath("$.tones[0].name").value("Funny"))
+                .andExpect(jsonPath("$.tones[0].description").value("Scope of Funny"))
+                .andExpect(jsonPath("$.themes[0].description").value("Scope of Human nature"))
+                .andExpect(jsonPath("$.forms[0].description").value("Scope of Metaphor"))
+                .andExpect(jsonPath("$.sources[0].description").value("Scope of Play"))
                 .andExpect(jsonPath("$.themes[1].name").value("Art & beauty"))
                 .andExpect(jsonPath("$.forms[1].name").value("Verse"))
                 .andExpect(jsonPath("$.sources[1].name").value("Book"));
@@ -96,18 +100,22 @@ class QuoteCategoriesTest {
         long id = created.path("id").asLong();
         for (String dimension : List.of("tones", "themes", "forms", "sources")) {
             assertEquals(2, created.path(dimension).size());
+            assertEquals("Scope of " + created.path(dimension).get(0).path("name").asText(),
+                    created.path(dimension).get(0).path("description").asText());
         }
         mvc.perform(get("/api/quotes/{id}", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tones[0].id").value(toneIds.getFirst()))
                 .andExpect(jsonPath("$.tones[1].name").value("Insightful"))
+                .andExpect(jsonPath("$.tones[1].description").value("Scope of Insightful"))
                 .andExpect(jsonPath("$.themes.length()").value(2))
                 .andExpect(jsonPath("$.forms.length()").value(2))
                 .andExpect(jsonPath("$.sources.length()").value(2))
                 .andExpect(jsonPath("$.searchText").doesNotExist())
                 .andExpect(jsonPath("$.tones[0].quotes").doesNotExist());
         mvc.perform(get("/api/quotes"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$[0].sources.length()").value(2));
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].sources.length()").value(2))
+                .andExpect(jsonPath("$[0].sources[0].description").value("Scope of Play"));
         mvc.perform(get("/api/quotes").param("authorId", authorId.toString()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].tones.length()").value(2));
     }
@@ -147,6 +155,7 @@ class QuoteCategoriesTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tones.length()").value(1))
                 .andExpect(jsonPath("$.tones[0].name").value("Insightful"))
+                .andExpect(jsonPath("$.tones[0].description").value("Scope of Insightful"))
                 .andExpect(jsonPath("$.themes").isEmpty())
                 .andExpect(jsonPath("$.forms").isEmpty())
                 .andExpect(jsonPath("$.sources").isEmpty());
@@ -246,6 +255,7 @@ class QuoteCategoriesTest {
 
     private <T extends QuoteCategory> T named(T category, String name) {
         category.setName(name);
+        category.setDescription("Scope of " + name);
         return category;
     }
 }

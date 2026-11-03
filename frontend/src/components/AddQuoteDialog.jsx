@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import AddAuthorDialog from './AddAuthorDialog'
+import QuoteCategoryFields from './QuoteCategoryFields'
+import {categoryDimensions, categorySelections} from '../quoteCategories'
 import '../styles/AddQuoteDialog.css'
 
 export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthorCreated, initialAuthorId, quote }) {
@@ -15,6 +17,11 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   const [saveError, setSaveError] = useState('')
   const [showAddAuthor, setShowAddAuthor] = useState(false)
   const [authorAdded, setAuthorAdded] = useState(false)
+  const [catalog, setCatalog] = useState(null)
+  const [loadingCategories, setLoadingCategories] = useState(true)
+  const [categoryError, setCategoryError] = useState('')
+  const [categoryLoadAttempt, setCategoryLoadAttempt] = useState(0)
+  const [selections, setSelections] = useState(() => categorySelections(quote))
   const [fields, setFields] = useState({
     text: quote?.text ?? '',
     authorId: String(quote?.author.id ?? initialAuthorId ?? ''),
@@ -45,6 +52,23 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     }
   }, [loadAttempt])
 
+  useEffect(() => {
+    let active = true
+    api.categories.list()
+      .then((data) => {
+        if (active) setCatalog(data)
+      })
+      .catch((error) => {
+        if (active) setCategoryError(`Unable to load categories: ${error.message}`)
+      })
+      .finally(() => {
+        if (active) setLoadingCategories(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [categoryLoadAttempt])
+
   function updateField(event) {
     const { name, value } = event.target
     setFields((current) => ({ ...current, [name]: value }))
@@ -53,6 +77,15 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   async function submit(event) {
     event.preventDefault()
     if (submittingRef.current) return
+    if (loadingCategories || categoryError || !catalog) {
+      setSaveError('Load the category options before saving. Your draft has been kept.')
+      return
+    }
+    if (categoryDimensions.some(({ key, field }) =>
+      selections[field].some((id) => !catalog[key].some((option) => option.id === id)))) {
+      setSaveError('A selected category is no longer in the catalog. Reopen the quote to load its current selections.')
+      return
+    }
     if (!fields.text.trim()) {
       setSaveError('Enter quote text, not just whitespace.')
       return
@@ -73,6 +106,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         date: fields.date || null,
         location: fields.location || null,
         reference: fields.reference || null,
+        ...selections,
       }
       savedQuote = quote
         ? await api.quotes.update(quote.id, request)
@@ -159,11 +193,32 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           <input id="quote-location" name="location" value={fields.location} onChange={updateField} maxLength={255} />
           <label htmlFor="quote-reference">Reference</label>
           <input id="quote-reference" name="reference" value={fields.reference} onChange={updateField} maxLength={255} />
+          {loadingCategories && <p role="status">Loading categories...</p>}
+          {categoryError && (
+            <div className="add-quote-error" role="alert">
+              <p>{categoryError} Your draft has been kept.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoadingCategories(true)
+                  setCategoryError('')
+                  setCategoryLoadAttempt((attempt) => attempt + 1)
+                }}
+              >Retry loading categories</button>
+            </div>
+          )}
+          {!loadingCategories && !categoryError && catalog && (
+            <QuoteCategoryFields
+              catalog={catalog}
+              selections={selections}
+              onChange={(field, ids) => setSelections((current) => ({ ...current, [field]: ids }))}
+            />
+          )}
         </fieldset>
         {saveError && <p className="add-quote-error" role="alert">{saveError}</p>}
         <div className="add-quote-actions">
           <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>
-          <button type="submit" className="add-quote-submit" disabled={saving || loadingAuthors || Boolean(authorError) || authors.length === 0}>
+          <button type="submit" className="add-quote-submit" disabled={saving || loadingAuthors || Boolean(authorError) || authors.length === 0 || loadingCategories || Boolean(categoryError)}>
             {saving ? 'Saving...' : 'Save quote'}
           </button>
         </div>

@@ -1,3 +1,5 @@
+import {validateCategoryCatalog} from './quoteCategories.js'
+
 const API_BASE = (import.meta.env?.VITE_API_URL || '/api').replace(/\/+$/, '')
 
 async function request(path, options = {}) {
@@ -73,6 +75,9 @@ export function getLoginReturnState(href) {
 }
 
 export const api = {
+  categories: {
+    list: async () => validateCategoryCatalog(await requestJson('/categories')),
+  },
   auth: {
     me: () => requestJson('/auth/me'),
     logout: () => requestWithCsrf('/auth/logout', { method: 'POST' }),

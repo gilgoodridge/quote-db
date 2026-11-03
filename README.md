@@ -95,12 +95,13 @@ unique constraints are already present. See [Database Migrations](#database-migr
 - `PUT /api/quotes/{id}` - Replace a quote
 - `DELETE /api/quotes/{id}` - Delete a quote
 
-#### Quote categories (backend only)
+#### Quote categories
 
 `GET /api/categories` is public and returns four read-only catalogs:
 `tones`, `themes`, `forms`, and `sources`. Each is an array of
-`{"id": 1, "name": "..."}` objects, ordered by ID. IDs are local to each
-dimension; use the catalog rather than assuming particular ID values.
+`{"id": 1, "name": "...", "description": "..."}` objects, ordered by ID.
+IDs are local to each dimension. Descriptions explain the scope of each option.
+Use the catalog rather than assuming particular ID values.
 There are no category-management endpoints. Change the defined options through
 a new Flyway migration.
 
@@ -134,7 +135,7 @@ deduplicated. Unknown IDs, null elements, zero, and negative IDs return
 **400 Bad Request** with a message identifying the affected field. Invalid
 selections reject the entire write, without partially updating the quote.
 Quote responses on POST, PUT, get-by-ID, lists, and search contain `tones`,
-`themes`, `forms`, and `sources` as arrays of `{id, name}` DTOs, sorted by ID.
+`themes`, `forms`, and `sources` as arrays of `{id, name, description}` DTOs, sorted by ID.
 Unassigned dimensions return `[]`.
 
 Omitted, null, and empty arrays mean no selections on POST. On **PUT**, they
@@ -142,11 +143,27 @@ Omitted, null, and empty arrays mean no selections on POST. On **PUT**, they
 fields. Include all selections you want to retain. Quote writes still require
 authentication and CSRF.
 
-**Frontend category controls are deferred.** The current UI does not display or
-submit categories. It can still create uncategorized quotes, but editing a
-categorized quote in that UI clears its categories because PUT is a full
-replacement. Use the API to edit categorized quotes until frontend support
-is added.
+The **Add Quote / Edit Quote** dialog loads these catalogs and provides checkbox
+groups for all four dimensions, with selection counts and a **Clear** action
+per group. No selection is required. Editing prefills existing selections;
+saving includes all four ID arrays, so changing text or other metadata does not
+clear categories unintentionally. Unchecking options or clearing a group removes
+those selections on save.
+
+Category loading failures are visible and retryable without discarding the
+draft. Save stays disabled until the catalogs load, to avoid saving with
+incomplete category controls. Write failures likewise keep entered values and
+selections intact. Selected category labels appear under their dimension in
+expanded quote details, including public search results. Empty dimensions are
+not displayed. Category controls and tags wrap on narrow screens and use the
+existing light/dark theme colors. Category filtering is not part of this change;
+search continues to search quote text only.
+
+Hover over a category checkbox label or a selected category tag to read its
+scope description. Checkbox descriptions are also associated with the input
+for screen readers; tag descriptions are included as screen-reader text.
+Descriptions come from the backend, not a second frontend catalog. Older backend
+responses without descriptions still allow selecting and saving categories.
 
 Flyway V6 creates separate `tones`, `themes`, `forms`, and `sources` lookup
 tables with auto-increment IDs and unique names, plus `quote_tones`,
@@ -154,6 +171,11 @@ tables with auto-increment IDs and unique names, plus `quote_tones`,
 primary keys prevent duplicate selections; foreign keys enforce valid IDs.
 Deleting a quote removes its junction rows, not its author or catalog entries.
 Existing quotes retain their data and start with no categories.
+V7 adds a required `description` column (up to 255 characters) to each catalog
+and fills all 36 descriptions without changing category IDs or quote selections.
+V6 is already deployed and is unchanged; deploy the new backend to apply V7
+and provide descriptions to the frontend. Quote requests still accept only
+category IDs, not names or descriptions.
 
 #### Searching quotes
 
@@ -235,9 +257,10 @@ automatically. A tab-scoped session-storage flag preserves only this intent
 across the redirect, not credentials or quote data. Browser session storage must
 be available to resume the action automatically.
 
-The form includes the scalar POST fields: quote text (up to 2,048 characters), an
+The form includes all POST fields: quote text (up to 2,048 characters), an
 existing author selected from a dropdown, date, location, and reference (the
-latter two up to 255 characters each). The currently selected author is
+latter two up to 255 characters each), and optional multi-select Tone, Theme,
+Form, and Source groups. The currently selected author is
 preselected. **Add new author** opens a separate form without losing your quote
 draft. It supports all author POST fields: required full name and birth date,
 optional known-as name, death date, birthplace, nationality, and biography. The known-as name is
@@ -253,7 +276,7 @@ Saving failures leave the form and entered values intact.
 
 Signed-in users see pencil (edit) and X (delete) buttons at the top-right of
 each quote card. Editing opens the same form prefilled with all quote fields,
-including the author. Saving sends a full replacement: clearing an optional
+including the author and category selections. Saving sends a full replacement: clearing an optional
 field removes its value. Results refresh in the current author/search scope,
 so a changed quote may no longer match. Cancel leaves the quote unchanged;
 save failures keep the draft open.
@@ -262,6 +285,10 @@ Delete requires browser confirmation before sending the request. Failures are
 shown without removing the card. Deleting a quote never deletes its author,
 even when it was their last quote. Both actions use the existing
 session-authenticated, CSRF-protected PUT and DELETE endpoints.
+
+From `frontend`, run `npm test` for API contract tests and category form/card
+interaction tests (Vitest, Testing Library, and jsdom), `npm run lint` for
+Oxlint, and `npm run build` for the production bundle.
 
 
 ## Architecture
@@ -400,6 +427,7 @@ normalization in batches of 500 using keyset pagination, and `V5` makes it
 NOT NULL and replaces the original index with `ft_quotes_search_text`.
 `V6` adds and populates the four category catalogs and creates their quote
 junction tables; existing quotes remain uncategorized.
+`V7` adds and populates category scope descriptions, preserving IDs and selections.
 Hibernate uses `spring.jpa.hibernate.ddl-auto=validate`,
 not `update`. Add new migrations for future schema changes; do not edit migrations
 that have already run. The database account needs schema DDL privileges in addition
@@ -408,7 +436,7 @@ to run without its index.
 
 **Upgrade an existing Flyway V2 database (including production):** Back up and
 stop all old backend instances/writers before starting the new JAR. Flyway
-applies V3-V6 automatically, preserving IDs, original text, authors, and all
+applies V3-V7 automatically, preserving IDs, original text, authors, and all
 metadata. No reset, reload, or new baseline is needed. The backfill and index
 creation extend startup time and may lock the table; plan a maintenance window.
 Do not run the old application alongside the upgrade: it cannot maintain the
@@ -428,7 +456,7 @@ or use the reset procedure above; baselining does not repair an old schema.
 For the first startup only, set `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`
 in the backend environment, or pass `--spring.flyway.baseline-on-migrate=true`
 when launching the JAR. Flyway records the existing schema at version 1 without
-recreating tables, then applies V2-V6 while preserving data. Remove this override
+recreating tables, then applies V2-V7 while preserving data. Remove this override
 after successful startup; by default Flyway refuses unversioned nonempty databases
 to avoid silently adopting the wrong database. Do not manually pre-create the index.
 Index creation can take time and require table locks; schedule deployment accordingly.
@@ -436,7 +464,7 @@ Update any server-local `application.properties` override from `ddl-auto=update`
 to `validate` as well.
 
 **MySQL integration tests:** Normal `mvn test` covers HTTP compatibility using mocks,
-category API/persistence with H2, and the V6 catalogs/constraints in H2 MySQL mode.
+category API/persistence with H2, and the V6/V7 catalogs, descriptions, and constraints in H2 MySQL mode.
 H2 cannot validate MySQL FULLTEXT. To include actual
 search and migration tests, set `MYSQL_TEST_URL` to a server-only URL such as
 `jdbc:mysql://localhost:3306/`, plus `MYSQL_TEST_USERNAME` and `MYSQL_TEST_PASSWORD`,

@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import AddQuoteDialog from './AddQuoteDialog'
+import {categoryDimensions} from '../quoteCategories'
 import '../styles/QuotesList.css'
 
 export default function QuotesList({ authorId, query = '', refreshKey = 0, isAuthenticated = false, onAuthorCreated }) {
@@ -241,6 +242,21 @@ export default function QuotesList({ authorId, query = '', refreshKey = 0, isAut
                             <p className="detail-value">{quote.authorAgeAtQuote} years old</p>
                           </div>
                         )}
+                        {categoryDimensions.map(({ key, label }) => quote[key]?.length > 0 && (
+                          <div key={key} className="detail-field">
+                            <span className="detail-label">{label}:</span>
+                            <ul className="quote-category-tags" aria-label={label}>
+                              {quote[key].map((category) => (
+                                <li key={category.id} className="quote-category-tag" title={category.description}>
+                                  {category.name}
+                                  {category.description && (
+                                    <span className="category-description-sr">: {category.description}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </li>

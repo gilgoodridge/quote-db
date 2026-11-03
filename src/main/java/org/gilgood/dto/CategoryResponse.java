@@ -1,4 +1,4 @@
 package org.gilgood.dto;
 
-public record CategoryResponse(Long id, String name) {
+public record CategoryResponse(Long id, String name, String description) {
 }

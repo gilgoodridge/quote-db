@@ -27,7 +27,31 @@ session-cookie based; the frontend does not store credentials or session data
 in local storage. The backend provides `GET /api/auth/me`,
 `GET /api/auth/csrf`, and `POST /api/auth/logout` (204 on success).
 
-Run the API contract tests with `npm test`.
+Run API contract tests and component interaction tests with `npm test`.
+Component tests use Vitest, Testing Library, and jsdom. Run `npm run lint` and
+`npm run build` for linting and the production bundle.
+
+## Quote categories
+
+Add Quote and Edit Quote load `/api/categories` and offer optional multi-select
+checkbox groups for Tone, Theme, Form, and Source. Options use server-provided
+IDs and labels, not a hardcoded catalog. Every group shows its selection count
+and has a Clear action. All groups may be empty.
+
+Editing prefills current categories. Every save submits `toneIds`, `themeIds`,
+`formIds`, and `sourceIds`, preserving selections when other fields change and
+explicitly sending `[]` when a group is cleared. Category loading failures offer
+Retry and keep the draft; Save is disabled until loading succeeds. Write failures
+keep selections and entered values.
+
+Expanded quote details display selected labels grouped by dimension for public
+and signed-in browsing, including search results. Empty groups are hidden.
+Hover over checkbox labels or selected tags for backend-provided scope
+descriptions. These descriptions also support screen readers. Descriptions
+require backend V7; older responses without them still support editing.
+Category controls and tags wrap for mobile widths and use the existing theme
+variables for light and dark modes. Source identifies the origin type, while
+Location remains the precise location. Category filtering is not implemented.
 
 Currently, two official plugins are available:
 
