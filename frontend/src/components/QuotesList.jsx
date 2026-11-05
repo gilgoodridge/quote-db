@@ -4,9 +4,20 @@ import AddQuoteDialog from './AddQuoteDialog'
 import {categoryDimensions} from '../quoteCategories'
 import '../styles/QuotesList.css'
 
-export default function QuotesList({ authorId, query = '', refreshKey = 0, isAuthenticated = false, onAuthorCreated }) {
+const EMPTY_CATEGORY_IDS = { toneIds: [], themeIds: [], formIds: [], sourceIds: [] }
+
+export default function QuotesList({
+  authorId = null,
+  query = '',
+  categoryIds = EMPTY_CATEGORY_IDS,
+  refreshKey = 0,
+  isAuthenticated = false,
+  onAuthorCreated,
+}) {
   const [quotes, setQuotes] = useState([])
-  const [loading, setLoading] = useState(Boolean(authorId || query))
+  const hasCategoryFilters = Object.values(categoryIds).some((ids) => ids?.length > 0)
+  const hasFilters = Boolean(authorId || query || hasCategoryFilters)
+  const [loading, setLoading] = useState(hasFilters)
   const [error, setError] = useState(null)
   const [expandedQuoteId, setExpandedQuoteId] = useState(null)
   const [editingQuote, setEditingQuote] = useState(null)
@@ -20,7 +31,7 @@ export default function QuotesList({ authorId, query = '', refreshKey = 0, isAut
 
   useEffect(() => {
     let active = true
-    if (!authorId && !query) return
+    if (!authorId && !query && !hasCategoryFilters) return
 
     const fetchQuotes = async () => {
       try {
@@ -28,7 +39,7 @@ export default function QuotesList({ authorId, query = '', refreshKey = 0, isAut
         setError(null)
         setQuotes([])
         setExpandedQuoteId(null)
-        const data = await api.quotes.list(authorId, query)
+        const data = await api.quotes.list(authorId, query, categoryIds)
         if (!active) return
         if (!Array.isArray(data)) throw new Error('The quotes endpoint returned an invalid quote list')
         setQuotes(data)
@@ -47,7 +58,7 @@ export default function QuotesList({ authorId, query = '', refreshKey = 0, isAut
     return () => {
       active = false
     }
-  }, [authorId, query, refreshKey, editVersion])
+  }, [authorId, query, categoryIds, hasCategoryFilters, refreshKey, editVersion])
 
   function closeEdit() {
     setEditingQuote(null)
@@ -123,11 +134,11 @@ export default function QuotesList({ authorId, query = '', refreshKey = 0, isAut
           }}
         />
       )}
-      {!authorId && !query ? (
+      {!hasFilters ? (
         <div className="empty-state">
           <div className="empty-icon">📖</div>
           <h2>No Author Selected</h2>
-          <p>Select an author from the left panel or search all quotes above</p>
+          <p>Select an author or category from the left panel, or search all quotes above</p>
         </div>
       ) : (
         <>
@@ -152,7 +163,9 @@ export default function QuotesList({ authorId, query = '', refreshKey = 0, isAut
               <h2>No Quotes Found</h2>
               <p>{query
                 ? 'No quotes match this search. Try different words; common words and words shorter than three characters may be ignored.'
-                : 'This author has no quotes yet'}</p>
+                : hasCategoryFilters
+                  ? 'No quotes match the selected filters'
+                  : 'This author has no quotes yet'}</p>
             </div>
           )}
           {!loading && !error && quotes.length > 0 && (

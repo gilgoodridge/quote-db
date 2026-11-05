@@ -150,6 +150,13 @@ saving includes all four ID arrays, so changing text or other metadata does not
 clear categories unintentionally. Unchecking options or clearing a group removes
 those selections on save.
 
+The left navigation filters quotes by author and optional category checkboxes.
+Select multiple options within a category dimension to match any of those
+options; filters across dimensions are combined with one another, the selected
+author, and text search using **AND**. The author list is height-limited so the
+category filters remain accessible alongside it. **All authors** clears only
+the author filter.
+
 Category loading failures are visible and retryable without discarding the
 draft. Save stays disabled until the catalogs load, to avoid saving with
 incomplete category controls. Write failures likewise keep entered values and

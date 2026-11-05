@@ -115,10 +115,13 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
-    list: (authorId, query = '') => {
+    list: (authorId, query = '', categoryIds = {}) => {
       const params = new URLSearchParams()
       if (authorId != null) params.set('authorId', authorId)
       if (query.trim()) params.set('query', query.trim())
+      for (const field of ['toneIds', 'themeIds', 'formIds', 'sourceIds']) {
+        for (const id of categoryIds[field] ?? []) params.append(field, id)
+      }
       const search = params.toString()
       return requestJson(`/quotes${search ? `?${search}` : ''}`)
     },

@@ -43,6 +43,28 @@ test('quote search encodes plain text and optionally restricts it to an author',
   }
 })
 
+test('quote listing includes repeated category filters with optional author and query', async () => {
+  const calls = []
+  globalThis.fetch = async (url) => {
+    calls.push(url)
+    return new Response('[]')
+  }
+  const categoryIds = { toneIds: [2, 3], themeIds: [5], formIds: [], sourceIds: [9] }
+
+  await api.quotes.list(7, ' love ', categoryIds)
+  await api.quotes.list(null, '', categoryIds)
+  const first = new URL(calls[0], 'http://localhost')
+  const second = new URL(calls[1], 'http://localhost')
+  assert.deepEqual(first.searchParams.getAll('toneIds'), ['2', '3'])
+  assert.equal(first.searchParams.get('themeIds'), '5')
+  assert.equal(first.searchParams.get('sourceIds'), '9')
+  assert.equal(first.searchParams.get('authorId'), '7')
+  assert.equal(first.searchParams.get('query'), 'love')
+  assert.equal(second.searchParams.has('authorId'), false)
+  assert.equal(second.searchParams.has('query'), false)
+  assert.deepEqual(second.searchParams.getAll('toneIds'), ['2', '3'])
+})
+
 test('quote search surfaces backend failures and invalid JSON', async () => {
   globalThis.fetch = async () => new Response('Search unavailable', { status: 503 })
   await assert.rejects(api.quotes.list(null, 'love'), /Request failed \(503\): Search unavailable/)

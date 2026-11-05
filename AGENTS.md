@@ -182,6 +182,10 @@ public List<AuthorResponse> list() {
 - QuotesList shows selected category labels grouped by dimension in expanded
   details, for anonymous/authenticated browsing and search. Hide empty groups.
   Controls/tags wrap on narrow screens and use CSS theme variables.
+- Left navigation provides author selection and optional category checkboxes.
+  Bound the author-list height so it cannot consume the navigation; category
+  selections combine across dimensions and with author/text filters using AND.
+  Category catalog failures must remain visible and retryable.
 - `npm test` in frontend runs existing Node API tests and Vitest/jsdom category
   form/card interaction tests. Keep the Vitest include scoped to `*.test.jsx`
   so Node's `api.test.js` is not executed by both runners.

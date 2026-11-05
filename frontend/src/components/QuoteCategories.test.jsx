@@ -2,6 +2,7 @@ import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {api} from '../api'
 import AddQuoteDialog from './AddQuoteDialog'
+import Sidebar from './Sidebar'
 import QuotesList from './QuotesList'
 
 const catalog = {
@@ -205,6 +206,42 @@ describe('quote category editing', () => {
 })
 
 describe('category display on quote cards', () => {
+  it('lets the sidebar select category filters independently of authors', async () => {
+    const onCategoryIdsChange = vi.fn()
+    const emptySelections = { toneIds: [], themeIds: [], formIds: [], sourceIds: [] }
+    const { rerender } = render(
+      <Sidebar
+        selectedAuthorId={null}
+        selectedCategoryIds={emptySelections}
+        onAuthorSelect={vi.fn()}
+        onCategoryIdsChange={onCategoryIdsChange}
+      />,
+    )
+    fireEvent.click(await screen.findByText('Tone'))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Funny' }))
+    const selected = { ...emptySelections, toneIds: [101] }
+    expect(onCategoryIdsChange).toHaveBeenLastCalledWith(selected)
+    rerender(
+      <Sidebar
+        selectedAuthorId={null}
+        selectedCategoryIds={selected}
+        onAuthorSelect={vi.fn()}
+        onCategoryIdsChange={onCategoryIdsChange}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'All authors' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Test Author' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear tone' }))
+    expect(onCategoryIdsChange).toHaveBeenLastCalledWith(emptySelections)
+  })
+
+  it('loads category-filtered quotes without requiring an author or text query', async () => {
+    const categoryIds = { toneIds: [101], themeIds: [], formIds: [], sourceIds: [] }
+    render(<QuotesList categoryIds={categoryIds} />)
+    await screen.findByRole('button', { name: /A categorized quote/ })
+    expect(api.quotes.list).toHaveBeenCalledWith(null, '', categoryIds)
+  })
+
   it('shows category labels in expanded details for public all-author search results', async () => {
     render(<QuotesList query="categorized" />)
     const row = await screen.findByRole('button', { name: /A categorized quote/ })

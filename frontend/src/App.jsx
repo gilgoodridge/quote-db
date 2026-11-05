@@ -7,6 +7,12 @@ import './App.css'
 
 function App() {
   const [selectedAuthorId, setSelectedAuthorId] = useState(null)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState({
+    toneIds: [],
+    themeIds: [],
+    formIds: [],
+    sourceIds: [],
+  })
   const [quotesVersion, setQuotesVersion] = useState(0)
   const [authorsVersion, setAuthorsVersion] = useState(0)
   const [searchText, setSearchText] = useState('')
@@ -41,7 +47,13 @@ function App() {
       />
       <div className="main-content">
         <aside className="sidebar-left">
-          <Sidebar onAuthorSelect={setSelectedAuthorId} selectedAuthorId={selectedAuthorId} refreshKey={authorsVersion} />
+          <Sidebar
+            onAuthorSelect={setSelectedAuthorId}
+            selectedAuthorId={selectedAuthorId}
+            selectedCategoryIds={selectedCategoryIds}
+            onCategoryIdsChange={setSelectedCategoryIds}
+            refreshKey={authorsVersion}
+          />
         </aside>
         <main className="content-middle">
           <QuotesList
@@ -50,6 +62,7 @@ function App() {
             key={`${selectedAuthorId ?? 'all'}:${searchQuery}`}
             authorId={selectedAuthorId}
             query={searchQuery}
+            categoryIds={selectedCategoryIds}
             refreshKey={quotesVersion}
           />
         </main>
