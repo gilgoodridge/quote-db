@@ -155,6 +155,11 @@ public List<AuthorResponse> list() {
   `{id, name, description}` DTO arrays, never entities; empty dimensions return `[]`.
   CategoryMapper handles DTO conversion and QuoteMapper resolves inputs through
   CategoryService.
+- Public `GET /api/quotes` accepts optional `toneIds`, `themeIds`, `formIds`, and
+  `sourceIds` query parameters for filtering. Repeated IDs match any selected ID
+  within a dimension; selected dimensions combine with each other, `authorId`,
+  and text search using AND. Category filtering also works when `query` is
+  omitted or blank.
 - PUT uses full replacement: omitted, null, or empty category arrays clear
   selections. Include all selections to retain them.
 - Quote create/update and response mapping run inside transactions to make
@@ -187,7 +192,8 @@ public List<AuthorResponse> list() {
 - QuoteCategoriesTest covers real H2-backed API writes, replacement, validation,
   security, and reads with Open Session in View disabled. CategoryMigrationTest
   executes V6/V7 in H2 MySQL mode; QuoteSearchMySqlTest also verifies V6/V7 during
-  the real MySQL upgrade path when MYSQL_TEST_* variables are set.
+  the real MySQL upgrade path and category-filtered text search when MYSQL_TEST_*
+  variables are set.
 
 ---
 

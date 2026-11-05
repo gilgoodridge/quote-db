@@ -88,7 +88,7 @@ birth date and the `uk_author_full_name_birth` / `uk_author_known_as_birth`
 unique constraints are already present. See [Database Migrations](#database-migrations).
 
 #### Quotes
-- `GET /api/quotes?authorId={id}&query={text}` - List quotes, optionally filtered by author and searched by text
+- `GET /api/quotes?authorId={id}&query={text}&toneIds={id}&themeIds={id}&formIds={id}&sourceIds={id}` - List quotes, optionally filtered by author/categories and searched by text
 - `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
   `date` (`YYYY-MM-DD`), `location`, `reference`, `toneIds`, `themeIds`, `formIds`, and `sourceIds`
 - `GET /api/quotes/{id}` - Get a quote
@@ -156,8 +156,8 @@ incomplete category controls. Write failures likewise keep entered values and
 selections intact. Selected category labels appear under their dimension in
 expanded quote details, including public search results. Empty dimensions are
 not displayed. Category controls and tags wrap on narrow screens and use the
-existing light/dark theme colors. Category filtering is not part of this change;
-search continues to search quote text only.
+existing light/dark theme colors. Category filters can be combined with text search; text search itself continues
+to search quote text only.
 
 Hover over a category checkbox label or a selected category tag to read its
 scope description. Checkbox descriptions are also associated with the input
@@ -184,10 +184,15 @@ built-in InnoDB FULLTEXT index and `IN NATURAL LANGUAGE MODE`. No database
 add-ons, embeddings, or external search service are required. Java normalizes
 both quote text and queries with **Snowball English (Porter2)**, via Apache
 Lucene's `SnowballFilter` and `EnglishStemmer`, before
-MySQL searches the derived `quotes.search_text` column. Combine with
-`authorId` to search within an author: `/api/quotes?authorId=1&query=love`.
-The response remains a list of `QuoteResponse` DTOs; no score is exposed.
-Search remains available to anonymous users.
+MySQL searches the derived `quotes.search_text` column. Combine with `authorId` to search within an author:
+`/api/quotes?authorId=1&query=love`. Category IDs can also filter the listing
+or search results, for example
+`/api/quotes?query=love&authorId=1&toneIds=2&toneIds=3&themeIds=5`.
+Use repeated parameters to select multiple IDs in one dimension. A quote
+matches any selected ID within a dimension, while selected dimensions, author,
+and text search are combined with **AND**. Omit a category parameter to leave
+that dimension unrestricted. The response remains a list of `QuoteResponse`
+DTOs; no score is exposed. Search remains available to anonymous users.
 
 - Any searchable word can match; results are sorted by relevance descending,
   then quote ID ascending for ties. Relevance uses the whole quote corpus,

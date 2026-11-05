@@ -3,6 +3,7 @@ package org.gilgood.repository;
 import org.flywaydb.core.Flyway;
 import org.gilgood.entity.Author;
 import org.gilgood.entity.Quote;
+import org.gilgood.entity.Tone;
 import org.gilgood.search.QuoteSearchText;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +42,8 @@ class QuoteSearchMySqlTest {
     private QuoteRepository quotes;
     @Autowired
     private AuthorRepository authors;
+    @Autowired
+    private ToneRepository tones;
     private Author firstAuthor;
     private Quote bestMatch;
     private Quote weakerMatch;
@@ -78,6 +81,29 @@ class QuoteSearchMySqlTest {
         assertTrue(quotes.search("orchard", Long.MAX_VALUE).isEmpty());
         assertEquals(4, quotes.findAll().size());
         assertEquals(3, quotes.findByAuthorId(firstAuthor.getId()).size());
+    }
+
+    @Test
+    void combinesCategoryFiltersWithTextAndAuthorFilters() {
+        Tone tone = new Tone();
+        tone.setName("Test tone");
+        tone.setDescription("A tone used to test quote search filtering.");
+        tone = tones.saveAndFlush(tone);
+        bestMatch.getTones().add(tone);
+        quotes.saveAndFlush(bestMatch);
+
+        assertEquals(List.of(bestMatch.getId()), ids(quotes.search(
+                "orchard", firstAuthor.getId(),
+                true, List.of(tone.getId()),
+                false, List.of(0L),
+                false, List.of(0L),
+                false, List.of(0L))));
+        assertTrue(quotes.search(
+                "orchard", firstAuthor.getId(),
+                true, List.of(Long.MAX_VALUE),
+                false, List.of(0L),
+                false, List.of(0L),
+                false, List.of(0L)).isEmpty());
     }
 
     @Test

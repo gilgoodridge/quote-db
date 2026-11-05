@@ -128,6 +128,61 @@ class QuoteCategoriesTest {
         }
     }
 
+    @Test
+    void quoteListingFiltersByCategoriesAndCombinesDimensionsWithAnd() throws Exception {
+        var toneOnly = baseRequest();
+        toneOnly.put("text", "Tone only");
+        toneOnly.put("toneIds", List.of(toneIds.getFirst()));
+        long toneOnlyId = create(toneOnly).path("id").asLong();
+
+        var toneAndTheme = baseRequest();
+        toneAndTheme.put("text", "Tone and theme");
+        toneAndTheme.put("toneIds", List.of(toneIds.getLast()));
+        toneAndTheme.put("themeIds", List.of(themeIds.getFirst()));
+        long toneAndThemeId = create(toneAndTheme).path("id").asLong();
+
+        Author otherAuthor = new Author("Other Category Test Author");
+        otherAuthor.setDateOfBirth(LocalDate.of(1901, 1, 1));
+        long otherAuthorId = authors.saveAndFlush(otherAuthor).getId();
+        var otherAuthorQuote = baseRequest();
+        otherAuthorQuote.put("authorId", otherAuthorId);
+        otherAuthorQuote.put("text", "Same tone, different author");
+        otherAuthorQuote.put("toneIds", List.of(toneIds.getFirst()));
+        long otherAuthorQuoteId = create(otherAuthorQuote).path("id").asLong();
+
+        mvc.perform(get("/api/quotes").param("toneIds", toneIds.getFirst().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(toneOnlyId));
+        mvc.perform(get("/api/quotes")
+                        .param("toneIds", toneIds.getFirst().toString(), toneIds.getLast().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3));
+        mvc.perform(get("/api/quotes")
+                        .param("toneIds", toneIds.getLast().toString())
+                        .param("themeIds", themeIds.getFirst().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(toneAndThemeId));
+        mvc.perform(get("/api/quotes")
+                        .param("toneIds", toneIds.getFirst().toString())
+                        .param("themeIds", themeIds.getFirst().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+        mvc.perform(get("/api/quotes")
+                        .param("authorId", authorId.toString())
+                        .param("toneIds", toneIds.getFirst().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(toneOnlyId));
+        mvc.perform(get("/api/quotes")
+                        .param("authorId", Long.toString(otherAuthorId))
+                        .param("toneIds", toneIds.getFirst().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(otherAuthorQuoteId));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"null", "[]"})
     void explicitNullOrEmptySelectionsAreOptionalOnCreate(String value) throws Exception {

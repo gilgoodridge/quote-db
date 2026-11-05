@@ -65,7 +65,8 @@ class QuoteControllerTest {
 
     @Test
     void searchPreservesRelevanceOrderAndResponseDtos() throws Exception {
-        when(repository.search("love life", null))
+        when(repository.search("love life", null, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L)))
                 .thenReturn(List.of(quote(9L, "love life"), quote(3L, "life")));
         mvc.perform(request("  love life  "))
                 .andExpect(status().isOk())
@@ -75,7 +76,8 @@ class QuoteControllerTest {
                 .andExpect(jsonPath("$[0].author.fullName").value("Test Author"))
                 .andExpect(jsonPath("$[0].author.quotes").doesNotExist())
                 .andExpect(jsonPath("$[1].id").value(3));
-        verify(repository).search("love life", null);
+        verify(repository).search("love life", null, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L));
         verifyNoMoreInteractions(repository);
     }
 
@@ -90,7 +92,8 @@ class QuoteControllerTest {
         insightful.setName("Insightful");
         Quote match = quote(9L, "A funny observation");
         match.setTones(Set.of(insightful, funny));
-        when(repository.search("funni", null)).thenReturn(List.of(match));
+        when(repository.search("funni", null, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L))).thenReturn(List.of(match));
         mvc.perform(request("funny"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].tones[0].id").value(2))
@@ -104,42 +107,65 @@ class QuoteControllerTest {
 
     @Test
     void combinesSearchWithAuthorAndDoesNotParseConnectors() throws Exception {
-        when(repository.search("love or life", 7L)).thenReturn(List.of());
+        when(repository.search("love or life", 7L, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L))).thenReturn(List.of());
         mvc.perform(request("love OR +life").param("authorId", "7"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
-        verify(repository).search("love or life", 7L);
+        verify(repository).search("love or life", 7L, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L));
         verifyNoMoreInteractions(repository);
     }
 
     @Test
     void normalizesOtherWordFormsBeforeSearching() throws Exception {
-        when(repository.search("hope", null)).thenReturn(List.of(quote(1L, "We hoped for peace.")));
+        when(repository.search("hope", null, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L))).thenReturn(List.of(quote(1L, "We hoped for peace.")));
         mvc.perform(request("HOPING"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].text").value("We hoped for peace."))
                 .andExpect(jsonPath("$[0].searchText").doesNotExist());
-        verify(repository).search("hope", null);
+        verify(repository).search("hope", null, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L));
         verifyNoMoreInteractions(repository);
     }
 
     @Test
     void punctuationOnlyQueryDoesNotFallBackToListing() throws Exception {
-        when(repository.search("", null)).thenReturn(List.of());
+        when(repository.search("", null, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L))).thenReturn(List.of());
         mvc.perform(request("... + !!!"))
                 .andExpect(status().isOk())
                 .andExpect(content().json("[]"));
-        verify(repository).search("", null);
+        verify(repository).search("", null, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L));
         verifyNoMoreInteractions(repository);
     }
 
     @Test
     void preservesQuotedPhraseWhenCombiningWithAuthorFilter() throws Exception {
-        when(repository.search("\"hope for peac\"", 7L)).thenReturn(List.of(quote(1L, "We hoped for peace.")));
+        when(repository.search("\"hope for peac\"", 7L, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L))).thenReturn(List.of(quote(1L, "We hoped for peace.")));
         mvc.perform(request("\"HOPING for peace\"").param("authorId", "7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].text").value("We hoped for peace."));
-        verify(repository).search("\"hope for peac\"", 7L);
+        verify(repository).search("\"hope for peac\"", 7L, false, List.of(0L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L));
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void combinesCategoryFiltersWithTextSearch() throws Exception {
+        when(repository.search("love", 7L, true, List.of(2L, 3L), false, List.of(0L),
+                true, List.of(5L), false, List.of(0L))).thenReturn(List.of());
+        mvc.perform(request("love")
+                        .param("authorId", "7")
+                        .param("toneIds", "2", "3")
+                        .param("formIds", "5"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+        verify(repository).search("love", 7L, true, List.of(2L, 3L), false, List.of(0L),
+                true, List.of(5L), false, List.of(0L));
         verifyNoMoreInteractions(repository);
     }
 

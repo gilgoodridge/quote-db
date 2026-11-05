@@ -31,19 +31,45 @@ public class QuoteController {
     @GetMapping
     @Transactional(readOnly = true)
     @Operation(summary = "List quotes with optional filters",
-            description = "Optionally filters by author ID and searches quote text using MySQL natural-language " +
+            description = "Optionally filters by author and category IDs and searches quote text using MySQL natural-language " +
                     "FULLTEXT search with Snowball English (Porter2) stemming of quotes and queries. Search results are " +
                     "ordered by relevance, then ID. Double quotes preserve phrase matching over stemmed words. " +
-                    "No connector syntax is " +
-                    "parsed. Omitted or blank query preserves normal listing behavior. MySQL stopwords and " +
-                    "minimum indexed word length apply; this is not substring or semantic search.")
+                    "Category dimensions are combined with the author and text filters using AND; multiple IDs in " +
+                    "one dimension match any selected ID. No connector syntax is parsed. Omitted or blank query " +
+                    "preserves normal listing behavior. MySQL stopwords and minimum indexed word length apply; this " +
+                    "is not substring or semantic search.")
     public List<QuoteResponse> listQuotes(
             @RequestParam(required = false) Long authorId,
             @Parameter(description = "Plain-text search terms; any searchable word can match")
-            @RequestParam(required = false) String query) {
+            @RequestParam(required = false) String query,
+            @Parameter(description = "One or more tone IDs; matching any ID")
+            @RequestParam(required = false) List<Long> toneIds,
+            @Parameter(description = "One or more theme IDs; matching any ID")
+            @RequestParam(required = false) List<Long> themeIds,
+            @Parameter(description = "One or more form IDs; matching any ID")
+            @RequestParam(required = false) List<Long> formIds,
+            @Parameter(description = "One or more source IDs; matching any ID")
+            @RequestParam(required = false) List<Long> sourceIds) {
+        boolean filterTones = hasValues(toneIds);
+        boolean filterThemes = hasValues(themeIds);
+        boolean filterForms = hasValues(formIds);
+        boolean filterSources = hasValues(sourceIds);
+        boolean filterCategories = filterTones || filterThemes || filterForms || filterSources;
         List<Quote> quotes;
         if (query != null && !query.isBlank()) {
-            quotes = quoteRepository.search(QuoteSearchText.normalizeQuery(query), authorId);
+            quotes = quoteRepository.search(
+                    QuoteSearchText.normalizeQuery(query), authorId,
+                    filterTones, idsOrSentinel(toneIds),
+                    filterThemes, idsOrSentinel(themeIds),
+                    filterForms, idsOrSentinel(formIds),
+                    filterSources, idsOrSentinel(sourceIds));
+        } else if (filterCategories) {
+            quotes = quoteRepository.filterByCategories(
+                    authorId,
+                    filterTones, idsOrSentinel(toneIds),
+                    filterThemes, idsOrSentinel(themeIds),
+                    filterForms, idsOrSentinel(formIds),
+                    filterSources, idsOrSentinel(sourceIds));
         } else {
             quotes = authorId != null
                     ? quoteRepository.findByAuthorId(authorId)
@@ -52,6 +78,14 @@ public class QuoteController {
         return quotes.stream()
                 .map(quoteMapper::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    private boolean hasValues(List<Long> ids) {
+        return ids != null && !ids.isEmpty();
+    }
+
+    private List<Long> idsOrSentinel(List<Long> ids) {
+        return hasValues(ids) ? ids : List.of(0L);
     }
 
     @GetMapping("/{id}")
