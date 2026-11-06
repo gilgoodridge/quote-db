@@ -1,10 +1,61 @@
 import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import AddQuoteDialog from './AddQuoteDialog'
+import AboutAuthorDialog from './AboutAuthorDialog'
 import {categoryDimensions} from '../quoteCategories'
 import '../styles/QuotesList.css'
 
 const EMPTY_CATEGORY_IDS = { toneIds: [], themeIds: [], formIds: [], sourceIds: [] }
+
+function SelectedAuthorHeading({authorId, updatedAuthor, onAuthorClick}) {
+  const [loadedAuthor, setAuthor] = useState(null)
+  const author = updatedAuthor?.id === authorId ? updatedAuthor : loadedAuthor
+  const [error, setError] = useState(null)
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    async function loadAuthor() {
+      try {
+        setError(null)
+        const data = await api.authors.get(authorId)
+        if (!active) return
+        if (data?.id !== authorId || !data.fullName) {
+          throw new Error('The authors endpoint returned an invalid author')
+        }
+        setAuthor(data)
+      } catch (err) {
+        if (active) setError(`Unable to load author: ${err.message}`)
+      }
+    }
+    loadAuthor()
+    return () => {
+      active = false
+    }
+  }, [authorId, attempt])
+
+  return (
+    <header className="selected-author-header">
+      {author ? (
+        <h2>
+          <button type="button" className="author-details-link" aria-haspopup="dialog" onClick={(event) => onAuthorClick(author.id, event)}>
+            {author.knownAs || author.fullName}
+          </button>
+        </h2>
+      ) : error ? (
+        <div role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={() => {
+            setError(null)
+            setAttempt((value) => value + 1)
+          }}>Retry author</button>
+        </div>
+      ) : (
+        <p role="status">Loading author...</p>
+      )}
+    </header>
+  )
+}
 
 export default function QuotesList({
   authorId = null,
@@ -13,6 +64,7 @@ export default function QuotesList({
   refreshKey = 0,
   isAuthenticated = false,
   onAuthorCreated,
+  onAuthorUpdated,
 }) {
   const [quotes, setQuotes] = useState([])
   const hasCategoryFilters = Object.values(categoryIds).some((ids) => ids?.length > 0)
@@ -25,6 +77,9 @@ export default function QuotesList({
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [editVersion, setEditVersion] = useState(0)
+  const [aboutAuthorId, setAboutAuthorId] = useState(null)
+  const [updatedAuthor, setUpdatedAuthor] = useState(null)
+  const authorButtonRef = useRef(null)
   const deletingRef = useRef(false)
   const editButtonRef = useRef(null)
   const containerRef = useRef(null)
@@ -63,6 +118,18 @@ export default function QuotesList({
   function closeEdit() {
     setEditingQuote(null)
     editButtonRef.current?.focus()
+  }
+
+  function openAuthor(id, event) {
+    authorButtonRef.current = event.currentTarget
+    setAboutAuthorId(id)
+  }
+
+  function closeAuthor() {
+    setAboutAuthorId(null)
+    const target = authorButtonRef.current
+    if (target?.isConnected) target.focus()
+    else containerRef.current?.focus()
   }
 
   async function deleteQuote(quote) {
@@ -118,7 +185,22 @@ export default function QuotesList({
   }
 
   return (
-    <div className="quotes-container" ref={containerRef} tabIndex={-1} aria-label="Quotes">
+    <div className={`quotes-container${authorId ? ' has-selected-author' : ''}`} ref={containerRef} tabIndex={-1} aria-label="Quotes">
+      {authorId && <SelectedAuthorHeading key={authorId} authorId={authorId} updatedAuthor={updatedAuthor} onAuthorClick={openAuthor} />}
+      {aboutAuthorId != null && (
+        <AboutAuthorDialog
+          key={aboutAuthorId}
+          authorId={aboutAuthorId}
+          isAuthenticated={isAuthenticated}
+          onClose={closeAuthor}
+          onUpdated={(author) => {
+            setUpdatedAuthor(author)
+            setQuotes((current) => current.map((quote) => quote.author.id === author.id ? {...quote, author} : quote))
+            setEditVersion((version) => version + 1)
+            onAuthorUpdated?.(author)
+          }}
+        />
+      )}
       {actionError && <p className="quote-action-error" role="alert">{actionError}</p>}
       {actionMessage && <p className="quote-action-message" role="status">{actionMessage}</p>}
       {isAuthenticated && editingQuote && (
@@ -221,7 +303,11 @@ export default function QuotesList({
                     </div>
                     {deletingQuoteId === quote.id && <p className="quote-action-message" role="status">Deleting quote...</p>}
                     {!authorId && (
-                      <p className="quote-author">{quote.author.knownAs || quote.author.fullName}</p>
+                      <p className="quote-author">
+                        <button type="button" className="author-details-link" aria-haspopup="dialog" onClick={(event) => openAuthor(quote.author.id, event)}>
+                          {quote.author.knownAs || quote.author.fullName}
+                        </button>
+                      </p>
                     )}
                     {expandedQuoteId === quote.id && (
                       <div className="quote-details">

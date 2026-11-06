@@ -260,6 +260,25 @@ immediately returns to normal author browsing (or the author-selection prompt).
 Submitting again also retries a failed search. Loading, failures, and no matches
 are displayed separately, and results retain the backend's relevance ordering.
 
+When an author is selected, their known-as name (or full name) appears once as
+a heading above the quotes in the middle panel, including when no quotes match
+or quotes are loading or fail to load. Mixed-author results retain the name
+beneath each quote instead. Author lookup failures are visible with a retry
+action and do not prevent quotes from loading.
+
+Click the author heading or a name beneath a quote to open the read-only
+**About this Author** dialog. It shows the full name, known-as name, birth and
+death dates, birthplace, nationality, biography, and age when available.
+Missing optional details are marked **Not provided**. Details load independently
+with a retry action on failure.
+
+Signed-in users also see a pencil in the dialog's top-right corner. It opens
+the author form prefilled for editing; saving sends a full replacement, so
+clearing optional fields removes them. Failed saves preserve the draft.
+Cancel returns to the unchanged details. A successful save updates the dialog,
+author heading, quote results, and Authors sidebar without changing filters.
+Anonymous users can view all details but cannot edit.
+
 ### Adding a quote in the UI
 
 **Add Quote** is always visible in the right side of the header. **Quote of the

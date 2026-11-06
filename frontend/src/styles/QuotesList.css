@@ -7,6 +7,31 @@
   min-height: 400px;
 }
 
+.quotes-container.has-selected-author {
+  justify-content: flex-start;
+}
+
+.selected-author-header {
+  align-self: stretch;
+  padding: 16px 24px 0;
+  overflow-wrap: anywhere;
+}
+
+.selected-author-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+}
+
+.selected-author-header p {
+  margin: 0 0 12px;
+  color: var(--text-light);
+}
+
+.selected-author-header [role="alert"] p {
+  color: var(--error);
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -77,6 +102,26 @@
   margin: 8px 16px;
   color: var(--text-light);
   font-size: 0.9rem;
+}
+
+.author-details-link {
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.author-details-link:hover {
+  color: var(--accent-hover);
+}
+
+.author-details-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .quotes-list {
@@ -292,6 +337,10 @@
 }
 
 @media (max-width: 768px) {
+  .selected-author-header {
+    padding: 12px 16px 0;
+  }
+
   .quotes-container {
     min-height: 300px;
   }

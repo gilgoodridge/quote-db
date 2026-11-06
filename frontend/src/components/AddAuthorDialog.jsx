@@ -1,21 +1,12 @@
 import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
+import {authorFields} from '../authorFields'
 import '../styles/AddQuoteDialog.css'
 
-const authorFields = [
-  { name: 'fullName', label: 'Full name', required: true },
-  { name: 'knownAs', label: 'Known as' },
-  { name: 'dateOfBirth', label: 'Date of birth', type: 'date', required: true },
-  { name: 'dateOfDeath', label: 'Date of death', type: 'date' },
-  { name: 'placeOfBirth', label: 'Place of birth' },
-  { name: 'nationality', label: 'Nationality' },
-  { name: 'bio', label: 'Biography', multiline: true },
-]
-
-export default function AddAuthorDialog({ onClose, onCreated }) {
+export default function AddAuthorDialog({ author = null, onClose, onCreated, onUpdated }) {
   const dialogRef = useRef(null)
   const submittingRef = useRef(false)
-  const [fields, setFields] = useState(() => Object.fromEntries(authorFields.map(({ name }) => [name, ''])))
+  const [fields, setFields] = useState(() => Object.fromEntries(authorFields.map(({ name }) => [name, author?.[name] ?? ''])))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,22 +33,26 @@ export default function AddAuthorDialog({ onClose, onCreated }) {
     submittingRef.current = true
     setSaving(true)
     setError('')
-    let author
+    let savedAuthor
     try {
-      author = await api.authors.create(Object.fromEntries(
+      const payload = Object.fromEntries(
         authorFields.map(({ name }) => [name, fields[name].trim() || null]),
-      ))
+      )
+      savedAuthor = author
+        ? await api.authors.update(author.id, payload)
+        : await api.authors.create(payload)
     } catch (saveError) {
       setError(saveError.status === 409
         ? 'The author already exists'
-        : `Unable to add author: ${saveError.message}`)
+        : `Unable to ${author ? 'update' : 'add'} author: ${saveError.message}`)
       return
     } finally {
       submittingRef.current = false
       setSaving(false)
     }
     dialogRef.current.close()
-    onCreated(author)
+    if (author) onUpdated(savedAuthor)
+    else onCreated(savedAuthor)
   }
 
   return (
@@ -72,9 +67,11 @@ export default function AddAuthorDialog({ onClose, onCreated }) {
         if (!submittingRef.current) dialogRef.current.close()
       }}
     >
-      <h2 id="add-author-title">New author</h2>
+      <h2 id="add-author-title">{author ? 'Edit author' : 'New author'}</h2>
       <p id="add-author-description" className="add-quote-description">
-        Full name and date of birth are required. Known as is optional and is used as the display name when provided. Saving creates the author immediately, even if you later cancel the quote.
+        Full name and date of birth are required. Known as is optional and is used as the display name when provided. {author
+          ? 'Saving replaces all author details. Clearing an optional field removes its value.'
+          : 'Saving creates the author immediately, even if you later cancel the quote.'}
       </p>
       <form onSubmit={submit} aria-busy={saving}>
         <fieldset disabled={saving}>

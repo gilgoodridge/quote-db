@@ -116,6 +116,7 @@ PUT /api/authors/1
 
 ### Endpoints
 - `GET /api/authors` - Returns `List<AuthorResponse>`
+- `GET /api/authors/{id}` - Returns full `AuthorResponse` details for one author
 - `POST /api/authors` - Accepts `CreateAuthorRequest`, returns `AuthorResponse`
 - `PUT /api/authors/{id}` - Accepts `UpdateAuthorRequest` (full replacement), returns `AuthorResponse`
 - `DELETE /api/authors/{id}` - Deletes author
@@ -186,8 +187,8 @@ public List<AuthorResponse> list() {
   Bound the author-list height so it cannot consume the navigation; category
   selections combine across dimensions and with author/text filters using AND.
   Category catalog failures must remain visible and retryable.
-- `npm test` in frontend runs existing Node API tests and Vitest/jsdom category
-  form/card interaction tests. Keep the Vitest include scoped to `*.test.jsx`
+- `npm test` in frontend runs existing Node API tests and Vitest/jsdom category,
+  author-heading, and author-dialog interaction tests. Keep the Vitest include scoped to `*.test.jsx`
   so Node's `api.test.js` is not executed by both runners.
 - `seed-data.sh` requires jq and loads `/api/categories` to resolve labels rather
   than hardcoding IDs. Optional arguments 6-9 to `create_quote` accept tone,
@@ -239,16 +240,20 @@ frontend/
 │   ├── App.css                   # Layout styles
 │   ├── main.jsx                  # React entry point
 │   ├── api.js                    # Backend API client
+│   ├── authorFields.js           # Shared author field definitions for forms/details
 │   ├── index.css                 # Global styles & theme variables
 │   ├── components/
 │   │   ├── Header.jsx            # Top header with logo, search, menu
 │   │   ├── LoginDialog.jsx       # Optional Google OIDC login dialog
+│   │   ├── AboutAuthorDialog.jsx # Public author details with authenticated edit action
+│   │   ├── AddAuthorDialog.jsx   # Shared author creation/editing form
 │   │   ├── Sidebar.jsx           # Left sidebar: author filter list
 │   │   ├── QuotesList.jsx        # Center content: quotes display
 │   │   └── Placeholder.jsx       # Right sidebar: future feature placeholder
 │   └── styles/
 │       ├── Header.css            # Header styling
 │       ├── LoginDialog.css       # Login modal and Google button styling
+│       ├── AboutAuthorDialog.css # Author details modal styling
 │       ├── Sidebar.css           # Left sidebar styling
 │       ├── QuotesList.css        # Center content styling
 │       └── Placeholder.css       # Right sidebar styling
@@ -275,8 +280,10 @@ frontend/
   - Scrollable if many authors
 
 - **Center Content (50% width)**: Quote display area
-  - Empty state with icon when no author selected ("Select an author from left panel")
-  - Shows placeholder text when author selected (ready for backend quote list integration)
+  - Selection prompt when no author, search query, or category filter is active
+  - Selected author's display name appears once above their quotes, even during loading, failure, or no matches
+  - Mixed-author results show names beneath each quote instead of an author heading
+  - Both author-name placements open the About this Author dialog
   - Scrollable for long quote lists
 
 - **Right Sidebar (25% width)**: Reserved for future features
@@ -351,11 +358,27 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Ready for backend quote filtering
 
 **QuotesList.jsx**
-- Shows an author-selection prompt when neither an author nor a search query is active
+- Shows a selection prompt when no author, search query, or category filter is active
 - Searches all quotes when a query is submitted without an author; otherwise scopes to the selected author
-- Displays author names in all-author results and preserves backend relevance order
+- Uses knownAs when present, otherwise fullName; shows the selected author once as a heading, or per-quote names in mixed-author results
+- Heading loads independently via `api.authors.get(id)`, with visible, retryable failures
+- Both heading and per-quote names are keyboard-accessible buttons opening AboutAuthorDialog without changing filters or expanding a quote
+- Author updates refresh the heading, matching quote authors/results, and Authors sidebar while preserving filters
+- Preserves backend relevance order
 - Shows distinct loading, error, and no-match states; ignores outdated requests after filter changes
 - Scrollable quote display with expandable details
+
+**AboutAuthorDialog.jsx / AddAuthorDialog.jsx**
+- About this Author is a public, read-only native modal that fetches full details through `api.authors.get(id)`; loading failures are visible and retryable
+- Shows full name, known-as name, birth/death dates, birthplace, nationality, biography, and age when available; missing fields display "Not provided"
+- Render date-only author values without timezone shifts and preserve biography line breaks
+- Only authenticated users see the top-right pencil, which opens AddAuthorDialog prefilled for editing
+- Share field definitions through `authorFields.js`; AddAuthorDialog supports both existing creation and full-replacement PUT updates
+- Submit all editable fields, trim text, and send cleared optional fields as null; full name and birth date remain required
+- Preserve drafts on failed saves, including conflicts and expired sessions; prevent duplicate submissions and dismissal while saving
+- Cancel returns to unchanged details; successful saves update the details and notify QuotesList/App to refresh other author surfaces
+- Use native modal keyboard behavior; restore focus to the pencil after editing and to the invoking name after closing About (or the quotes container if that name was removed)
+- Use theme variables and wrapping/scrolling for narrow screens; never expose editing controls to anonymous users
 
 **Placeholder.jsx**
 - Decorative component for right sidebar

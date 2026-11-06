@@ -58,6 +58,7 @@ function App() {
         <main className="content-middle">
           <QuotesList
             isAuthenticated={isAuthenticated}
+            onAuthorUpdated={() => setAuthorsVersion((version) => version + 1)}
             onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
             key={`${selectedAuthorId ?? 'all'}:${searchQuery}`}
             authorId={selectedAuthorId}

@@ -231,6 +231,29 @@ test('author creation sends every POST field with session credentials and CSRF',
   assert.deepEqual(JSON.parse(calls[1].options.body), author)
 })
 
+test('author editing sends a full replacement with session credentials and CSRF', async () => {
+  const calls = []
+  const replacement = {
+    fullName: 'Updated Author', knownAs: null, dateOfBirth: '1950-05-15',
+    dateOfDeath: null, placeOfBirth: null, nationality: 'US', bio: null,
+  }
+  const saved = {...replacement, id: 12}
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return new Response(JSON.stringify(url === '/api/auth/csrf'
+      ? {token: 'author-edit-token', headerName: 'X-CSRF-TOKEN'}
+      : saved))
+  }
+
+  assert.deepEqual(await api.authors.update(12, replacement), saved)
+  assert.equal(calls.length, 2)
+  assert.equal(calls[1].url, '/api/authors/12')
+  assert.equal(calls[1].options.method, 'PUT')
+  assert.equal(calls[1].options.credentials, 'include')
+  assert.equal(calls[1].options.headers['X-CSRF-TOKEN'], 'author-edit-token')
+  assert.deepEqual(JSON.parse(calls[1].options.body), replacement)
+})
+
 test('quote creation sends all POST fields with session credentials and CSRF', async () => {
   const calls = []
   const quote = {

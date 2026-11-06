@@ -27,6 +27,7 @@ const noSelections = { toneIds: [], themeIds: [], formIds: [], sourceIds: [] }
 
 beforeEach(() => {
   vi.spyOn(api.authors, 'list').mockResolvedValue([author])
+  vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   vi.spyOn(api.categories, 'list').mockResolvedValue(catalog)
   vi.spyOn(api.quotes, 'list').mockResolvedValue([quote])
   vi.spyOn(api.quotes, 'create').mockResolvedValue(quote)

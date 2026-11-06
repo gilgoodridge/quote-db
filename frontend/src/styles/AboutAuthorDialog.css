@@ -1,0 +1,40 @@
+.about-author-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.about-author-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--sidebar-bg);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+
+.about-author-edit:hover {
+  background: var(--bg-secondary);
+}
+
+.about-author-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 20px 0;
+  overflow-wrap: anywhere;
+}
+
+.about-author-details dt {
+  font-weight: 600;
+}
+
+.about-author-details dd {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
