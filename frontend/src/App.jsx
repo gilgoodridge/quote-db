@@ -60,7 +60,6 @@ function App() {
             isAuthenticated={isAuthenticated}
             onAuthorUpdated={() => setAuthorsVersion((version) => version + 1)}
             onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
-            key={`${selectedAuthorId ?? 'all'}:${searchQuery}`}
             authorId={selectedAuthorId}
             query={searchQuery}
             categoryIds={selectedCategoryIds}

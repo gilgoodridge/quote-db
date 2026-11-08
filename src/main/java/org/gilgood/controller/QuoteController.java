@@ -12,11 +12,13 @@ import org.gilgood.mapper.QuoteMapper;
 import org.gilgood.repository.QuoteRepository;
 import org.gilgood.search.QuoteSearchText;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PagedModel;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/quotes")
@@ -37,8 +39,9 @@ public class QuoteController {
                     "Category dimensions are combined with the author and text filters using AND; multiple IDs in " +
                     "one dimension match any selected ID. No connector syntax is parsed. Omitted or blank query " +
                     "preserves normal listing behavior. MySQL stopwords and minimum indexed word length apply; this " +
-                    "is not substring or semantic search.")
-    public List<QuoteResponse> listQuotes(
+                    "is not substring or semantic search. Returns a page; page is zero-based (default 0), " +
+                    "size defaults to 20 and must be between 1 and 100. Non-search results are ordered by ID ascending.")
+    public PagedModel<QuoteResponse> listQuotes(
             @RequestParam(required = false) Long authorId,
             @Parameter(description = "Plain-text search terms; any searchable word can match")
             @RequestParam(required = false) String query,
@@ -49,35 +52,36 @@ public class QuoteController {
             @Parameter(description = "One or more form IDs; matching any ID")
             @RequestParam(required = false) List<Long> formIds,
             @Parameter(description = "One or more source IDs; matching any ID")
-            @RequestParam(required = false) List<Long> sourceIds) {
+            @RequestParam(required = false) List<Long> sourceIds,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var pageable = Pagination.request(page, size);
         boolean filterTones = hasValues(toneIds);
         boolean filterThemes = hasValues(themeIds);
         boolean filterForms = hasValues(formIds);
         boolean filterSources = hasValues(sourceIds);
         boolean filterCategories = filterTones || filterThemes || filterForms || filterSources;
-        List<Quote> quotes;
+        Page<Quote> quotes;
         if (query != null && !query.isBlank()) {
             quotes = quoteRepository.search(
                     QuoteSearchText.normalizeQuery(query), authorId,
                     filterTones, idsOrSentinel(toneIds),
                     filterThemes, idsOrSentinel(themeIds),
                     filterForms, idsOrSentinel(formIds),
-                    filterSources, idsOrSentinel(sourceIds));
+                    filterSources, idsOrSentinel(sourceIds), pageable);
         } else if (filterCategories) {
             quotes = quoteRepository.filterByCategories(
                     authorId,
                     filterTones, idsOrSentinel(toneIds),
                     filterThemes, idsOrSentinel(themeIds),
                     filterForms, idsOrSentinel(formIds),
-                    filterSources, idsOrSentinel(sourceIds));
+                    filterSources, idsOrSentinel(sourceIds), pageable);
         } else {
             quotes = authorId != null
-                    ? quoteRepository.findByAuthorId(authorId)
-                    : quoteRepository.findAll();
+                    ? quoteRepository.findByAuthorId(authorId, pageable.withSort(Sort.by("id")))
+                    : quoteRepository.findAll(pageable.withSort(Sort.by("id")));
         }
-        return quotes.stream()
-                .map(quoteMapper::toResponse)
-                .collect(Collectors.toList());
+        return new PagedModel<>(quotes.map(quoteMapper::toResponse));
     }
 
     private boolean hasValues(List<Long> ids) {

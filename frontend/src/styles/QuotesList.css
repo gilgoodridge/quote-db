@@ -7,7 +7,7 @@
   min-height: 400px;
 }
 
-.quotes-container.has-selected-author {
+.quotes-container.has-filters {
   justify-content: flex-start;
 }
 
@@ -63,6 +63,8 @@
 .loading-state,
 .error-state {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
   align-items: center;
   justify-content: center;
   padding: 32px;
@@ -86,9 +88,66 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   padding: 0;
   animation: fadeIn 0.3s ease;
+}
+
+.quote-pagination {
+  align-self: stretch;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.quote-page-navigation,
+.quote-page-size {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.quote-page-link {
+  padding: 4px 0;
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.quote-page-link:hover:not(:disabled) {
+  color: var(--accent-hover);
+  background: transparent;
+}
+
+.quote-page-link:disabled {
+  color: var(--text-light);
+  text-decoration: none;
+}
+
+.quote-page-size select {
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--sidebar-bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.quote-page-link:focus-visible,
+.quote-page-size select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .search-summary {
@@ -337,6 +396,10 @@
 }
 
 @media (max-width: 768px) {
+  .quote-pagination {
+    padding: 12px 16px;
+  }
+
   .selected-author-header {
     padding: 12px 16px 0;
   }

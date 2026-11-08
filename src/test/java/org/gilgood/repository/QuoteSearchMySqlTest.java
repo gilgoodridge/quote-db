@@ -12,6 +12,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -104,6 +106,42 @@ class QuoteSearchMySqlTest {
                 false, List.of(0L),
                 false, List.of(0L),
                 false, List.of(0L)).isEmpty());
+    }
+
+    @Test
+    void paginatesNativeSearchWithFilteredCountsAndRelevanceOrdering() {
+        var first = searchPage("orchard", null, false, List.of(0L), 0);
+        var second = searchPage("orchard", null, false, List.of(0L), 1);
+        assertEquals(List.of(bestMatch.getId()), ids(first.getContent()));
+        assertEquals(List.of(weakerMatch.getId()), ids(second.getContent()));
+        assertEquals(2, first.getTotalElements());
+        assertEquals(2, first.getTotalPages());
+        assertEquals(2, second.getTotalElements());
+        var beyond = searchPage("orchard", null, false, List.of(0L), 2);
+        assertTrue(beyond.isEmpty());
+        assertEquals(2, beyond.getTotalElements());
+        assertEquals(1, searchPage("orchard", firstAuthor.getId(), false, List.of(0L), 0).getTotalElements());
+        assertEquals(0, searchPage("unfindable", null, false, List.of(0L), 0).getTotalElements());
+
+        Tone tone = new Tone();
+        tone.setName("Pagination tone");
+        tone.setDescription("Pagination search test.");
+        tone = tones.saveAndFlush(tone);
+        bestMatch.getTones().add(tone);
+        quotes.saveAndFlush(bestMatch);
+        var filtered = searchPage("orchard", firstAuthor.getId(), true, List.of(tone.getId()), 0);
+        assertEquals(List.of(bestMatch.getId()), ids(filtered.getContent()));
+        assertEquals(1, filtered.getTotalElements());
+        assertEquals(0, searchPage("orchard", firstAuthor.getId(), true, List.of(Long.MAX_VALUE), 0)
+                .getTotalElements());
+        var filteredBeyond = searchPage("orchard", firstAuthor.getId(), true, List.of(tone.getId()), 1);
+        assertTrue(filteredBeyond.isEmpty());
+        assertEquals(1, filteredBeyond.getTotalElements());
+    }
+
+    private Page<Quote> searchPage(String query, Long authorId, boolean filterTones, List<Long> toneIds, int page) {
+        return quotes.search(query, authorId, filterTones, toneIds,
+                false, List.of(0L), false, List.of(0L), false, List.of(0L), PageRequest.of(page, 1));
     }
 
     @Test

@@ -67,6 +67,14 @@ export default function QuotesList({
   onAuthorUpdated,
 }) {
   const [quotes, setQuotes] = useState([])
+  const scope = JSON.stringify([authorId, query, categoryIds])
+  const [pagination, setPagination] = useState({scope, page: 0, size: 20})
+  const page = pagination.scope === scope ? pagination.page : 0
+  const size = pagination.size
+  const [pageInfo, setPageInfo] = useState(null)
+  if (pagination.scope !== scope) {
+    setPagination({...pagination, scope, page: 0})
+  }
   const hasCategoryFilters = Object.values(categoryIds).some((ids) => ids?.length > 0)
   const hasFilters = Boolean(authorId || query || hasCategoryFilters)
   const [loading, setLoading] = useState(hasFilters)
@@ -94,10 +102,17 @@ export default function QuotesList({
         setError(null)
         setQuotes([])
         setExpandedQuoteId(null)
-        const data = await api.quotes.list(authorId, query, categoryIds)
+        const data = await api.quotes.listPage(authorId, query, categoryIds, {page, size})
         if (!active) return
-        if (!Array.isArray(data)) throw new Error('The quotes endpoint returned an invalid quote list')
-        setQuotes(data)
+        if (data.page.number !== page || data.page.size !== size) {
+          throw new Error('The quotes endpoint returned an unexpected page')
+        }
+        if (page > 0 && page >= data.page.totalPages) {
+          setPagination({scope, page: Math.max(0, data.page.totalPages - 1), size})
+          return
+        }
+        setQuotes(data.content)
+        setPageInfo(data.page)
         setError(null)
         setExpandedQuoteId(null)
       } catch (err) {
@@ -113,7 +128,12 @@ export default function QuotesList({
     return () => {
       active = false
     }
-  }, [authorId, query, categoryIds, hasCategoryFilters, refreshKey, editVersion])
+  }, [authorId, query, categoryIds, hasCategoryFilters, refreshKey, editVersion, page, size, scope])
+
+  function changePage(nextPage) {
+    setLoading(true)
+    setPagination({scope, page: nextPage, size})
+  }
 
   function closeEdit() {
     setEditingQuote(null)
@@ -144,6 +164,7 @@ export default function QuotesList({
       setQuotes((current) => current.filter((item) => item.id !== quote.id))
       setExpandedQuoteId((current) => current === quote.id ? null : current)
       setActionMessage('Quote deleted.')
+      setEditVersion((version) => version + 1)
       containerRef.current?.focus()
     } catch (err) {
       setActionError(`Unable to delete quote: ${err.message}`)
@@ -185,7 +206,7 @@ export default function QuotesList({
   }
 
   return (
-    <div className={`quotes-container${authorId ? ' has-selected-author' : ''}`} ref={containerRef} tabIndex={-1} aria-label="Quotes">
+    <div className={`quotes-container${hasFilters ? ' has-filters' : ''}`} ref={containerRef} tabIndex={-1} aria-label="Quotes">
       {authorId && <SelectedAuthorHeading key={authorId} authorId={authorId} updatedAuthor={updatedAuthor} onAuthorClick={openAuthor} />}
       {aboutAuthorId != null && (
         <AboutAuthorDialog
@@ -237,6 +258,7 @@ export default function QuotesList({
           {error && (
             <div className="error-state" role="alert">
               <p>{error}</p>
+              <button type="button" onClick={() => setEditVersion((version) => version + 1)}>Retry quotes</button>
             </div>
           )}
           {!loading && !error && quotes.length === 0 && (
@@ -363,6 +385,43 @@ export default function QuotesList({
               </ul>
             </div>
           )}
+          <nav className="quote-pagination" aria-label="Quote pagination">
+            <div className="quote-page-navigation">
+              <button
+                type="button"
+                className="quote-page-link"
+                disabled={loading || deletingQuoteId !== null || page === 0}
+                onClick={() => changePage(page - 1)}
+              >Previous</button>
+              <span role="status">
+                {loading || error || !pageInfo
+                  ? `Page ${page + 1}`
+                  : pageInfo.totalPages === 0
+                    ? '0 quotes'
+                    : `Page ${page + 1} of ${pageInfo.totalPages}`}
+              </span>
+              <button
+                type="button"
+                className="quote-page-link"
+                disabled={loading || deletingQuoteId !== null || Boolean(error) || !pageInfo || page + 1 >= pageInfo.totalPages}
+                onClick={() => changePage(page + 1)}
+              >Next</button>
+            </div>
+            <label className="quote-page-size">
+              Quotes per page
+              <select
+                value={size}
+                disabled={deletingQuoteId !== null}
+                onChange={(event) => {
+                  setLoading(true)
+                  setPageInfo(null)
+                  setPagination({scope, page: 0, size: Number(event.target.value)})
+                }}
+              >
+                {[10, 20, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </label>
+          </nav>
         </>
       )}
     </div>

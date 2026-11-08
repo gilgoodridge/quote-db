@@ -13,11 +13,15 @@ const author = {
 }
 const quote = {id: 42, text: 'A quote', author}
 
+function quotePage(content) {
+  return {content, page: {number: 0, size: 20, totalElements: content.length, totalPages: content.length ? 1 : 0}}
+}
+
 beforeEach(() => {
   vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   vi.spyOn(api.authors, 'update').mockResolvedValue(author)
   vi.spyOn(api.authors, 'create').mockResolvedValue(author)
-  vi.spyOn(api.quotes, 'list').mockResolvedValue([quote])
+  vi.spyOn(api.quotes, 'listPage').mockResolvedValue(quotePage([quote]))
   HTMLDialogElement.prototype.showModal = function () {
     this.open = true
     this.querySelector('[autofocus], button')?.focus()
@@ -68,17 +72,17 @@ describe('author details', () => {
     await within(dialog).findByText('Samuel Clemens')
     expect(api.authors.get).toHaveBeenCalledWith(7)
     expect(screen.getByRole('button', {name: /A quote/}).getAttribute('aria-expanded')).toBe('false')
-    expect(api.quotes.list).toHaveBeenCalledTimes(1)
+    expect(api.quotes.listPage).toHaveBeenCalledTimes(1)
   })
 
   it('updates every matching name in mixed-author results after editing', async () => {
     const updated = {...author, knownAs: 'Updated Display Name'}
     const onAuthorUpdated = vi.fn()
-    api.quotes.list.mockResolvedValue([quote, {...quote, id: 43, text: 'Another quote'}])
+    api.quotes.listPage.mockResolvedValue(quotePage([quote, {...quote, id: 43, text: 'Another quote'}]))
     api.authors.update.mockImplementation(async () => {
-      api.quotes.list.mockResolvedValue([
+      api.quotes.listPage.mockResolvedValue(quotePage([
         {...quote, author: updated}, {...quote, id: 43, text: 'Another quote', author: updated},
-      ])
+      ]))
       return updated
     })
     render(<QuotesList query="quote" isAuthenticated onAuthorUpdated={onAuthorUpdated} />)
@@ -87,7 +91,7 @@ describe('author details', () => {
     fireEvent.change(screen.getByLabelText('Known as'), {target: {value: updated.knownAs}})
     submitEditor()
     await screen.findByText('Author updated.')
-    await waitFor(() => expect(api.quotes.list).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(api.quotes.listPage).toHaveBeenCalledTimes(2))
     expect(screen.getAllByRole('button', {name: updated.knownAs})).toHaveLength(2)
     expect(onAuthorUpdated).toHaveBeenCalledWith(updated)
     fireEvent.click(screen.getByRole('button', {name: 'Close'}))
@@ -233,7 +237,7 @@ describe('author details', () => {
     vi.spyOn(api.categories, 'list').mockResolvedValue({tones: [], themes: [], forms: [], sources: []})
     api.authors.update.mockImplementation(async () => {
       api.authors.list.mockResolvedValue([updated])
-      api.quotes.list.mockResolvedValue([{...quote, author: updated}])
+      api.quotes.listPage.mockResolvedValue(quotePage([{...quote, author: updated}]))
       return updated
     })
     render(<App />)
@@ -247,7 +251,7 @@ describe('author details', () => {
     await screen.findByRole('heading', {name: updated.knownAs})
     await waitFor(() => expect(screen.getByRole('button', {name: updated.knownAs, pressed: true})).toBeTruthy())
     expect(api.authors.list).toHaveBeenCalledTimes(2)
-    await waitFor(() => expect(api.quotes.list).toHaveBeenCalledTimes(2))
-    expect(api.quotes.list).toHaveBeenLastCalledWith(7, '', {toneIds: [], themeIds: [], formIds: [], sourceIds: []})
+    await waitFor(() => expect(api.quotes.listPage).toHaveBeenCalledTimes(2))
+    expect(api.quotes.listPage).toHaveBeenLastCalledWith(7, '', {toneIds: [], themeIds: [], formIds: [], sourceIds: []}, {page: 0, size: 20})
   })
 })

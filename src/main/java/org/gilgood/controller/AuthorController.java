@@ -11,10 +11,9 @@ import org.gilgood.entity.Author;
 import org.gilgood.mapper.AuthorMapper;
 import org.gilgood.repository.AuthorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PagedModel;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/authors")
@@ -27,12 +26,15 @@ public class AuthorController {
     private AuthorMapper authorMapper;
 
     @GetMapping
-    @Operation(summary = "List all authors")
-    public List<AuthorResponse> listAuthors() {
-        return authorRepository.findAll()
-                .stream()
-                .map(authorMapper::toResponse)
-                .collect(Collectors.toList());
+    @Operation(summary = "List authors",
+            description = "Returns a page ordered by ID ascending. page is zero-based (default 0); " +
+                    "size defaults to 20 and must be between 1 and 100.")
+    public PagedModel<AuthorResponse> listAuthors(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return new PagedModel<>(authorRepository.findAll(
+                Pagination.request(page, size).withSort(Sort.by("id")))
+                .map(authorMapper::toResponse));
     }
 
     @GetMapping("/{id}")

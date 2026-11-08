@@ -31,8 +31,17 @@ Run API contract tests and component interaction tests with `npm test`.
 Component tests use Vitest, Testing Library, and jsdom. Run `npm run lint` and
 `npm run build` for linting and the production bundle.
 
-## Quote categories
+## Quote pagination
 
+The middle panel loads one quote page at a time via `api.quotes.listPage`.
+Previous/Next controls appear at the bottom with one-based page labels.
+Quotes per page offers 10, 20 (default), 50, and 100. Changing the size or
+author/search/category filters resets the API page to 0 and retains the chosen
+size. Failed loads can be retried; outdated responses are ignored. Quote writes
+refresh the current page and totals, moving back if that page no longer exists.
+Author lists still collect all pages and have no pagination controls.
+
+## Quote categories
 Add Quote and Edit Quote load `/api/categories` and offer optional multi-select
 checkbox groups for Tone, Theme, Form, and Source. Options use server-provided
 IDs and labels, not a hardcoded catalog. Every group shows its selection count

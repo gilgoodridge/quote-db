@@ -25,11 +25,15 @@ const allSelections = {
 }
 const noSelections = { toneIds: [], themeIds: [], formIds: [], sourceIds: [] }
 
+function quotePage(content) {
+  return {content, page: {number: 0, size: 20, totalElements: content.length, totalPages: content.length ? 1 : 0}}
+}
+
 beforeEach(() => {
   vi.spyOn(api.authors, 'list').mockResolvedValue([author])
   vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   vi.spyOn(api.categories, 'list').mockResolvedValue(catalog)
-  vi.spyOn(api.quotes, 'list').mockResolvedValue([quote])
+  vi.spyOn(api.quotes, 'listPage').mockResolvedValue(quotePage([quote]))
   vi.spyOn(api.quotes, 'create').mockResolvedValue(quote)
   vi.spyOn(api.quotes, 'update').mockResolvedValue(quote)
   vi.spyOn(api.quotes, 'delete').mockResolvedValue(true)
@@ -240,7 +244,7 @@ describe('category display on quote cards', () => {
     const categoryIds = { toneIds: [101], themeIds: [], formIds: [], sourceIds: [] }
     render(<QuotesList categoryIds={categoryIds} />)
     await screen.findByRole('button', { name: /A categorized quote/ })
-    expect(api.quotes.list).toHaveBeenCalledWith(null, '', categoryIds)
+    expect(api.quotes.listPage).toHaveBeenCalledWith(null, '', categoryIds, {page: 0, size: 20})
   })
 
   it('shows category labels in expanded details for public all-author search results', async () => {
@@ -259,7 +263,7 @@ describe('category display on quote cards', () => {
   })
 
   it('keeps uncategorized quote details free of empty category groups', async () => {
-    api.quotes.list.mockResolvedValue([{ ...quote, tones: [], themes: [], forms: [], sources: [] }])
+    api.quotes.listPage.mockResolvedValue(quotePage([{ ...quote, tones: [], themes: [], forms: [], sources: [] }]))
     render(<QuotesList authorId={7} />)
     fireEvent.click(await screen.findByRole('button', { name: /A categorized quote/ }))
     expect(screen.getByText('Act 1')).toBeTruthy()
@@ -276,6 +280,6 @@ describe('category display on quote cards', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save quote' }))
     await screen.findByText('Quote updated.')
     expect(api.quotes.update).toHaveBeenCalledWith(42, expect.objectContaining(allSelections))
-    await waitFor(() => expect(api.quotes.list).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(api.quotes.listPage).toHaveBeenCalledTimes(2))
   })
 })

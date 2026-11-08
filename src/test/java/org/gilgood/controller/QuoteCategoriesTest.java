@@ -114,10 +114,10 @@ class QuoteCategoriesTest {
                 .andExpect(jsonPath("$.searchText").doesNotExist())
                 .andExpect(jsonPath("$.tones[0].quotes").doesNotExist());
         mvc.perform(get("/api/quotes"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$[0].sources.length()").value(2))
-                .andExpect(jsonPath("$[0].sources[0].description").value("Scope of Play"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].sources.length()").value(2))
+                .andExpect(jsonPath("$.content[0].sources[0].description").value("Scope of Play"));
         mvc.perform(get("/api/quotes").param("authorId", authorId.toString()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$[0].tones.length()").value(2));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].tones.length()").value(2));
     }
 
     @Test
@@ -126,6 +126,79 @@ class QuoteCategoriesTest {
         for (String dimension : List.of("tones", "themes", "forms", "sources")) {
             assertEquals(0, created.path(dimension).size());
         }
+    }
+
+    @Test
+    void paginatesAuthorsAndQuotesWithStableOrderingAndAccurateTotals() throws Exception {
+        for (int index = 1; index <= 21; index++) {
+            Author author = new Author("Pagination Author " + index);
+            author.setDateOfBirth(LocalDate.of(1900, 1, 1));
+            authors.saveAndFlush(author);
+            create(baseRequest());
+        }
+        var authorIds = authors.findAll().stream().map(Author::getId).sorted().toList();
+        var quoteIds = quotes.findAll().stream().map(Quote::getId).sorted().toList();
+        mvc.perform(get("/api/authors"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(20))
+                .andExpect(jsonPath("$.content[0].id").value(authorIds.getFirst()))
+                .andExpect(jsonPath("$.content[0].quotes").doesNotExist())
+                .andExpect(jsonPath("$.page.size").value(20))
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$.page.totalElements").value(22))
+                .andExpect(jsonPath("$.page.totalPages").value(2));
+        mvc.perform(get("/api/authors").param("page", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(authorIds.get(20)));
+        mvc.perform(get("/api/quotes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(20))
+                .andExpect(jsonPath("$.content[0].id").value(quoteIds.getFirst()))
+                .andExpect(jsonPath("$.page.totalElements").value(21))
+                .andExpect(jsonPath("$.page.totalPages").value(2));
+        mvc.perform(get("/api/quotes").param("authorId", authorId.toString())
+                        .param("page", "1").param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(10))
+                .andExpect(jsonPath("$.content[0].id").value(quoteIds.get(10)))
+                .andExpect(jsonPath("$.page.number").value(1))
+                .andExpect(jsonPath("$.page.size").value(10))
+                .andExpect(jsonPath("$.page.totalElements").value(21))
+                .andExpect(jsonPath("$.page.totalPages").value(3));
+        for (String endpoint : List.of("/api/authors", "/api/quotes")) {
+            mvc.perform(get(endpoint).param("page", "100"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isEmpty())
+                    .andExpect(jsonPath("$.page.number").value(100))
+                    .andExpect(jsonPath("$.page.totalElements").value(endpoint.endsWith("authors") ? 22 : 21));
+            mvc.perform(head(endpoint).param("size", "100")).andExpect(status().isOk());
+        }
+        mvc.perform(get("/api/quotes").param("authorId", Long.toString(Long.MAX_VALUE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty())
+                .andExpect(jsonPath("$.page.totalElements").value(0))
+                .andExpect(jsonPath("$.page.totalPages").value(0));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/authors", "/api/quotes"})
+    void invalidPaginationReturnsVisibleBadRequest(String endpoint) throws Exception {
+        for (String page : List.of("-1", "no", "1.5", "2147483647", "2147483648")) {
+            mvc.perform(get(endpoint).param("page", page)).andExpect(status().isBadRequest());
+        }
+        for (String size : List.of("0", "-1", "101", "no", "1.5", "2147483648")) {
+            mvc.perform(get(endpoint).param("size", size)).andExpect(status().isBadRequest());
+        }
+        mvc.perform(get(endpoint).param("page", "-1"))
+                .andExpect(content().string(containsString("page must be")));
+        mvc.perform(get(endpoint).param("size", "101"))
+                .andExpect(content().string(containsString("size must be")));
+        mvc.perform(get(endpoint).param("page", "2147483647").param("size", "100"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(containsString("supported offset")));
+        mvc.perform(get(endpoint).param("size", "1")).andExpect(status().isOk());
+        mvc.perform(get(endpoint).param("size", "100")).andExpect(status().isOk());
     }
 
     @Test
@@ -152,35 +225,52 @@ class QuoteCategoriesTest {
 
         mvc.perform(get("/api/quotes").param("toneIds", toneIds.getFirst().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].id").value(toneOnlyId));
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(toneOnlyId));
         mvc.perform(get("/api/quotes")
                         .param("toneIds", toneIds.getFirst().toString(), toneIds.getLast().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(3));
+                .andExpect(jsonPath("$.content.length()").value(3));
+        mvc.perform(get("/api/quotes")
+                        .param("toneIds", toneIds.getFirst().toString(), toneIds.getLast().toString())
+                        .param("page", "1").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(toneAndThemeId))
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.page.totalPages").value(3));
+        mvc.perform(get("/api/quotes")
+                        .param("authorId", authorId.toString())
+                        .param("toneIds", toneIds.getFirst().toString(), toneIds.getLast().toString())
+                        .param("themeIds", themeIds.getFirst().toString())
+                        .param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(toneAndThemeId))
+                .andExpect(jsonPath("$.page.totalElements").value(1))
+                .andExpect(jsonPath("$.page.totalPages").value(1));
         mvc.perform(get("/api/quotes")
                         .param("toneIds", toneIds.getLast().toString())
                         .param("themeIds", themeIds.getFirst().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(toneAndThemeId));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(toneAndThemeId));
         mvc.perform(get("/api/quotes")
                         .param("toneIds", toneIds.getFirst().toString())
                         .param("themeIds", themeIds.getFirst().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isEmpty());
+                .andExpect(jsonPath("$.content").isEmpty());
         mvc.perform(get("/api/quotes")
                         .param("authorId", authorId.toString())
                         .param("toneIds", toneIds.getFirst().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(toneOnlyId));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(toneOnlyId));
         mvc.perform(get("/api/quotes")
                         .param("authorId", Long.toString(otherAuthorId))
                         .param("toneIds", toneIds.getFirst().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(otherAuthorQuoteId));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(otherAuthorQuoteId));
     }
 
     @ParameterizedTest

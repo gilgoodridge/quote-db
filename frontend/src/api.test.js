@@ -6,11 +6,18 @@ import {categorySelections} from './quoteCategories.js'
 
 const originalFetch = globalThis.fetch
 
+function pageResponse(content = [], number = 0, totalElements = content.length, size = 100) {
+  return new Response(JSON.stringify({
+    content,
+    page: { number, size, totalElements, totalPages: Math.ceil(totalElements / size) },
+  }))
+}
+
 test('quote listing preserves optional author filtering and blank-query behavior', async () => {
   const calls = []
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options })
-    return new Response('[]')
+    return pageResponse()
   }
 
   await api.quotes.list()
@@ -18,7 +25,8 @@ test('quote listing preserves optional author filtering and blank-query behavior
   await api.quotes.list(7, ' \t ')
   await api.quotes.list(null, '')
   assert.deepEqual(calls.map(({ url }) => url),
-    ['/api/quotes', '/api/quotes?authorId=7', '/api/quotes?authorId=7', '/api/quotes'])
+    ['/api/quotes?page=0&size=100', '/api/quotes?authorId=7&page=0&size=100',
+      '/api/quotes?authorId=7&page=0&size=100', '/api/quotes?page=0&size=100'])
   assert.ok(calls.every(({ options }) => options.credentials === 'include'))
 })
 
@@ -27,7 +35,7 @@ test('quote search encodes plain text and optionally restricts it to an author',
   const results = [{ id: 9, text: 'Love life' }, { id: 3, text: 'Life' }]
   globalThis.fetch = async (url, options) => {
     calls.push({ url, options })
-    return new Response(JSON.stringify(results))
+    return pageResponse(results)
   }
   const query = '  love OR +life & café?  '
   assert.deepEqual(await api.quotes.list(null, query), results)
@@ -38,7 +46,7 @@ test('quote search encodes plain text and optionally restricts it to an author',
     assert.equal(url.pathname, '/api/quotes')
     assert.equal(url.searchParams.get('query'), query.trim())
     assert.equal(url.searchParams.get('authorId'), index === 0 ? null : '7')
-    assert.equal([...url.searchParams.keys()].length, index === 0 ? 1 : 2)
+    assert.equal([...url.searchParams.keys()].length, index === 0 ? 3 : 4)
     assert.equal(call.options.credentials, 'include')
   }
 })
@@ -47,7 +55,7 @@ test('quote listing includes repeated category filters with optional author and 
   const calls = []
   globalThis.fetch = async (url) => {
     calls.push(url)
-    return new Response('[]')
+    return pageResponse()
   }
   const categoryIds = { toneIds: [2, 3], themeIds: [5], formIds: [], sourceIds: [9] }
 
@@ -70,6 +78,52 @@ test('quote search surfaces backend failures and invalid JSON', async () => {
   await assert.rejects(api.quotes.list(null, 'love'), /Request failed \(503\): Search unavailable/)
   globalThis.fetch = async () => new Response('not JSON')
   await assert.rejects(api.quotes.list(7, 'love'), /returned invalid JSON/)
+})
+
+test('page clients return content and metadata and send page and size', async () => {
+  const calls = []
+  globalThis.fetch = async (url) => {
+    calls.push(url)
+    return pageResponse([{id: 9}], 2, 31, 10)
+  }
+  const authors = await api.authors.listPage({page: 2, size: 10})
+  const quotes = await api.quotes.listPage(7, 'love', {toneIds: [2]}, {page: 2, size: 10})
+  assert.equal(authors.page.totalPages, 4)
+  assert.deepEqual(quotes.content, [{id: 9}])
+  assert.deepEqual(calls, [
+    '/api/authors?page=2&size=10',
+    '/api/quotes?authorId=7&query=love&toneIds=2&page=2&size=10',
+  ])
+})
+
+test('existing list clients collect successive pages without losing filters or order', async () => {
+  const calls = []
+  const first = Array.from({length: 100}, (_, index) => ({id: index + 1}))
+  globalThis.fetch = async (url) => {
+    calls.push(url)
+    const number = Number(new URL(url, 'http://localhost').searchParams.get('page'))
+    return pageResponse(number === 0 ? first : [{id: 101}], number, 101)
+  }
+  assert.deepEqual(await api.authors.list(), [...first, {id: 101}])
+  assert.deepEqual(await api.quotes.list(7, 'love', {toneIds: [2, 3]}), [...first, {id: 101}])
+  assert.deepEqual(calls, [
+    '/api/authors?page=0&size=100',
+    '/api/authors?page=1&size=100',
+    '/api/quotes?authorId=7&query=love&toneIds=2&toneIds=3&page=0&size=100',
+    '/api/quotes?authorId=7&query=love&toneIds=2&toneIds=3&page=1&size=100',
+  ])
+})
+
+test('pagination failures are visible rather than returning partial lists', async () => {
+  let call = 0
+  globalThis.fetch = async () => ++call === 1
+    ? pageResponse(Array.from({length: 100}, (_, id) => ({id})), 0, 101)
+    : new Response('Page unavailable', {status: 503})
+  await assert.rejects(api.authors.list(), /Page unavailable/)
+  globalThis.fetch = async () => new Response('[]')
+  await assert.rejects(api.quotes.list(), /invalid paginated response/)
+  globalThis.fetch = async () => pageResponse([], 1)
+  await assert.rejects(api.authors.list(), /unexpected page number/)
 })
 
 afterEach(() => {

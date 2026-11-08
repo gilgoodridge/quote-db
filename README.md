@@ -49,7 +49,7 @@ established name rules from editorial policies still to be defined.
 ### Available Endpoints
 
 #### Authors
-- `GET /api/authors` - List all authors
+- `GET /api/authors?page=0&size=20` - List a page of authors
 - `POST /api/authors` - Create author
   ```json
   {
@@ -88,12 +88,60 @@ birth date and the `uk_author_full_name_birth` / `uk_author_known_as_birth`
 unique constraints are already present. See [Database Migrations](#database-migrations).
 
 #### Quotes
-- `GET /api/quotes?authorId={id}&query={text}&toneIds={id}&themeIds={id}&formIds={id}&sourceIds={id}` - List quotes, optionally filtered by author/categories and searched by text
+- `GET /api/quotes?page=0&size=20&authorId={id}&query={text}&toneIds={id}&themeIds={id}&formIds={id}&sourceIds={id}` - List a page of quotes, optionally filtered by author/categories and searched by text
 - `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
   `date` (`YYYY-MM-DD`), `location`, `reference`, `toneIds`, `themeIds`, `formIds`, and `sourceIds`
 - `GET /api/quotes/{id}` - Get a quote
 - `PUT /api/quotes/{id}` - Replace a quote
 - `DELETE /api/quotes/{id}` - Delete a quote
+
+#### List pagination
+
+Author and quote list endpoints use Spring Data's page-number convention:
+`page` is **zero-based** (default `0`), and `size` defaults to `20` (allowed
+range `1`-`100`). For example, `/api/authors?page=1&size=20` returns the second
+page. Negative pages, out-of-range sizes, non-integer values, and page/size
+combinations exceeding the JPA offset limit (`2,147,483,647`) return **400**.
+
+Both endpoints return Spring Data's stable `PagedModel` JSON envelope, not
+a bare array (a breaking change for external clients):
+
+```json
+{
+  "content": [{"id": 1, "fullName": "Example Author"}],
+  "page": {
+    "size": 20,
+    "number": 0,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+`content` contains the existing response DTOs. Totals reflect **all active
+filters**, not the whole table. An empty result or a page beyond the last page
+returns **200** with `content: []` and the actual totals. An empty result has
+`totalPages: 0`. Fetch subsequent pages until `page.number + 1 >= page.totalPages`,
+keeping the same filters and size.
+
+Authors and non-search quotes are ordered by ID ascending; quote searches
+remain ordered by relevance descending, then ID ascending. Custom sorting is
+not supported. Pagination uses database-level offset/limit and count queries;
+concurrent writes can shift page boundaries, so pages are not a snapshot.
+Single-resource endpoints and `/api/categories` are unchanged.
+
+The frontend's `api.authors.list()` collects successive pages to preserve
+complete author pickers. Quote browsing requests only the current page and
+provides Previous/Next controls at the bottom of the middle panel. Page labels
+are one-based; API page numbers remain zero-based. Quotes per page offers
+10, 20 (default), 50, and 100. Changing the size or author/search/category
+filters resets to API page 0 while retaining the selected size.
+Failed page loads are visible and retryable; deleting the last quote on a
+page returns to the last remaining page.
+`api.authors.listPage({page, size})` and
+`api.quotes.listPage(authorId, query, categoryIds, {page, size})` return a single
+page with metadata. `api.quotes.list(...)` remains an all-pages helper, but is
+not used for quote browsing. Author pagination controls are not introduced.
 
 #### Quote categories
 

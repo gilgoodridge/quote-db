@@ -115,7 +115,7 @@ PUT /api/authors/1
 ```
 
 ### Endpoints
-- `GET /api/authors` - Returns `List<AuthorResponse>`
+- `GET /api/authors` - Returns `PagedModel<AuthorResponse>`
 - `GET /api/authors/{id}` - Returns full `AuthorResponse` details for one author
 - `POST /api/authors` - Accepts `CreateAuthorRequest`, returns `AuthorResponse`
 - `PUT /api/authors/{id}` - Accepts `UpdateAuthorRequest` (full replacement), returns `AuthorResponse`
@@ -124,13 +124,25 @@ PUT /api/authors/1
 ### Implementation Pattern
 ```java
 @GetMapping
-public List<AuthorResponse> list() {
-    return repository.findAll()
-        .stream()
-        .map(mapper::toResponse)  // Entity → DTO
-        .collect(Collectors.toList());
+public PagedModel<AuthorResponse> list(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size) {
+    return new PagedModel<>(repository.findAll(
+        Pagination.request(page, size).withSort(Sort.by("id")))
+        .map(mapper::toResponse));
 }
 ```
+
+Author and quote lists use zero-based `page` (default 0) and `size` (default 20,
+1-100); invalid values return 400. Return Spring Data's stable `PagedModel`
+envelope (`content` and `page` metadata), not raw `PageImpl` or entities.
+Paginate/count in the database with all filters applied. List ordering is ID
+ascending, except text search uses relevance descending then ID ascending.
+Frontend `listPage` methods expose pages; existing `list` helpers collect all
+pages for complete author pickers. QuotesList uses `quotes.listPage` with bottom
+Previous/Next controls, one-based labels, and sizes 10/20/50/100 (default 20).
+Size and filter changes reset API page to 0, retaining size. Failures are
+retryable; writes refresh totals and recover pages that no longer exist.
 
 ### Quote Categorization
 

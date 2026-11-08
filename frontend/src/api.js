@@ -33,6 +33,35 @@ async function requestJson(path, options) {
   }
 }
 
+function validatePage(result) {
+  const page = result?.page
+  if (
+    !Array.isArray(result?.content) ||
+    !Number.isSafeInteger(page?.number) || page.number < 0 ||
+    !Number.isSafeInteger(page?.size) || page.size < 1 ||
+    !Number.isSafeInteger(page?.totalElements) || page.totalElements < 0 ||
+    !Number.isSafeInteger(page?.totalPages) || page.totalPages < 0
+  ) {
+    throw new Error('The list endpoint returned an invalid paginated response')
+  }
+  return result
+}
+
+async function listAll(fetchPage) {
+  const items = []
+  let number = 0
+  let result
+  do {
+    result = await fetchPage(number)
+    if (result.page.number !== number) {
+      throw new Error('The list endpoint returned an unexpected page number')
+    }
+    items.push(...result.content)
+    number += 1
+  } while (number < result.page.totalPages)
+  return items
+}
+
 async function requestWithCsrf(path, { method, headers = {}, body } = {}) {
   const csrfResponse = await request('/auth/csrf')
   const csrf = await csrfResponse.json()
@@ -83,7 +112,9 @@ export const api = {
     logout: () => requestWithCsrf('/auth/logout', { method: 'POST' }),
   },
   authors: {
-    list: () => requestJson('/authors'),
+    list: () => listAll((page) => api.authors.listPage({ page, size: 100 })),
+    listPage: async ({ page = 0, size = 20 } = {}) =>
+      validatePage(await requestJson(`/authors?${new URLSearchParams({ page, size })}`)),
     get: (id) => requestJson(`/authors/${id}`),
     create: (data) => requestJson('/authors', {
       method: 'POST',
@@ -115,15 +146,19 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
-    list: (authorId, query = '', categoryIds = {}) => {
+    list: (authorId, query = '', categoryIds = {}) =>
+      listAll((page) => api.quotes.listPage(authorId, query, categoryIds, { page, size: 100 })),
+    listPage: async (authorId, query = '', categoryIds = {}, { page = 0, size = 20 } = {}) => {
       const params = new URLSearchParams()
       if (authorId != null) params.set('authorId', authorId)
       if (query.trim()) params.set('query', query.trim())
       for (const field of ['toneIds', 'themeIds', 'formIds', 'sourceIds']) {
         for (const id of categoryIds[field] ?? []) params.append(field, id)
       }
+      params.set('page', page)
+      params.set('size', size)
       const search = params.toString()
-      return requestJson(`/quotes${search ? `?${search}` : ''}`)
+      return validatePage(await requestJson(`/quotes?${search}`))
     },
   },
 }
