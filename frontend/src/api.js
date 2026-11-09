@@ -112,9 +112,14 @@ export const api = {
     logout: () => requestWithCsrf('/auth/logout', { method: 'POST' }),
   },
   authors: {
-    list: () => listAll((page) => api.authors.listPage({ page, size: 100 })),
-    listPage: async ({ page = 0, size = 20 } = {}) =>
-      validatePage(await requestJson(`/authors?${new URLSearchParams({ page, size })}`)),
+    list: (query = '') => listAll((page) => api.authors.listPage({ query, page, size: 100 })),
+    listPage: async ({ query = '', page = 0, size = 20 } = {}) => {
+      const params = new URLSearchParams()
+      if (query.trim()) params.set('query', query.trim())
+      params.set('page', page)
+      params.set('size', size)
+      return validatePage(await requestJson(`/authors?${params}`))
+    },
     get: (id) => requestJson(`/authors/${id}`),
     create: (data) => requestJson('/authors', {
       method: 'POST',

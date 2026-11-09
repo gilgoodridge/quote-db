@@ -1,6 +1,7 @@
 package org.gilgood.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -27,14 +28,20 @@ public class AuthorController {
 
     @GetMapping
     @Operation(summary = "List authors",
-            description = "Returns a page ordered by ID ascending. page is zero-based (default 0); " +
+            description = "Optionally searches fullName using case-insensitive substring matching. " +
+                    "Omitted or blank query preserves normal listing behavior. " +
+                    "Returns a page ordered by ID ascending. page is zero-based (default 0); " +
                     "size defaults to 20 and must be between 1 and 100.")
     public PagedModel<AuthorResponse> listAuthors(
+            @Parameter(description = "Plain-text partial name; searches fullName only")
+            @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return new PagedModel<>(authorRepository.findAll(
-                Pagination.request(page, size).withSort(Sort.by("id")))
-                .map(authorMapper::toResponse));
+        var pageable = Pagination.request(page, size).withSort(Sort.by("id"));
+        var authors = query != null && !query.isBlank()
+                ? authorRepository.findByFullNameContainingIgnoreCase(query.trim(), pageable)
+                : authorRepository.findAll(pageable);
+        return new PagedModel<>(authors.map(authorMapper::toResponse));
     }
 
     @GetMapping("/{id}")

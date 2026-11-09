@@ -49,7 +49,7 @@ established name rules from editorial policies still to be defined.
 ### Available Endpoints
 
 #### Authors
-- `GET /api/authors?page=0&size=20` - List a page of authors
+- `GET /api/authors?page=0&size=20&query={text}` - List a page of authors, optionally searched by full name
 - `POST /api/authors` - Create author
   ```json
   {
@@ -68,6 +68,29 @@ established name rules from editorial policies still to be defined.
   }
   ```
 - `DELETE /api/authors/{id}` - Delete author
+
+The optional `query` searches **fullName only** using case-insensitive substring
+matching; for example, `/api/authors?query=shake` finds William Shakespeare.
+Leading/trailing whitespace is trimmed; an omitted or blank query lists all
+authors. The query is literal text (`%`, `_`, and `\` are not wildcards).
+Unlike quote FULLTEXT search, author search has no stemming, relevance ordering,
+or whole-word/minimum-word-length restriction. Results remain ID ascending,
+with pagination and totals computed in the database after filtering.
+
+The Authors section has a compact search field above its list. Press **Enter**
+or click the search icon to submit immediately; otherwise search runs after a
+**500 ms pause in typing**. Further typing restarts the delay,
+and clearing the field immediately restores the first unfiltered page. The list
+requests and shows **10 authors initially**; **More authors** at its bottom
+appends the next 10, disappearing when all matches have been loaded. Loading,
+no-match, and retryable error states are visible; outdated responses are ignored.
+Author creation/updates refresh the first page with its current query intact.
+New searches and clearing reset to page 0. Loading more preserves the existing
+authors; failures are retryable on the same page without losing loaded results.
+Searching the author list does not change the selected author or quote
+text/category filters, even when the selected author is hidden by the search.
+**All authors** still clears only the selected author. Display labels continue
+to prefer `knownAs`, but matching uses `fullName`, not the displayed alias.
 
 Creating or replacing an author requires both `fullName` and `dateOfBirth`
 (`YYYY-MM-DD`); missing either returns **400 Bad Request**. Authors with the same
@@ -130,18 +153,21 @@ not supported. Pagination uses database-level offset/limit and count queries;
 concurrent writes can shift page boundaries, so pages are not a snapshot.
 Single-resource endpoints and `/api/categories` are unchanged.
 
-The frontend's `api.authors.list()` collects successive pages to preserve
-complete author pickers. Quote browsing requests only the current page and
+The frontend's `api.authors.list(query = '')` collects successive pages with the
+same query; calls without a query preserve complete author pickers.
+Quote browsing requests only the current page and
 provides Previous/Next controls at the bottom of the middle panel. Page labels
 are one-based; API page numbers remain zero-based. Quotes per page offers
 10, 20 (default), 50, and 100. Changing the size or author/search/category
 filters resets to API page 0 while retaining the selected size.
 Failed page loads are visible and retryable; deleting the last quote on a
 page returns to the last remaining page.
-`api.authors.listPage({page, size})` and
+`api.authors.listPage({query, page, size})` and
 `api.quotes.listPage(authorId, query, categoryIds, {page, size})` return a single
 page with metadata. `api.quotes.list(...)` remains an all-pages helper, but is
-not used for quote browsing. Author pagination controls are not introduced.
+not used for quote browsing. The Authors sidebar uses `authors.listPage` with
+size 10 and a **More authors** action instead of collecting every page upfront.
+Complete author pickers elsewhere continue to use `authors.list()`.
 
 #### Quote categories
 

@@ -233,10 +233,14 @@ describe('author details', () => {
   it('refreshes the heading, sidebar, and quote results after saving without changing filters', async () => {
     const updated = {...author, knownAs: 'Updated Display Name'}
     vi.spyOn(api.auth, 'me').mockResolvedValue({authenticated: true, name: 'Editor'})
-    vi.spyOn(api.authors, 'list').mockResolvedValue([author])
+    vi.spyOn(api.authors, 'listPage').mockResolvedValue({
+      content: [author], page: {number: 0, size: 10, totalElements: 1, totalPages: 1},
+    })
     vi.spyOn(api.categories, 'list').mockResolvedValue({tones: [], themes: [], forms: [], sources: []})
     api.authors.update.mockImplementation(async () => {
-      api.authors.list.mockResolvedValue([updated])
+      api.authors.listPage.mockResolvedValue({
+        content: [updated], page: {number: 0, size: 10, totalElements: 1, totalPages: 1},
+      })
       api.quotes.listPage.mockResolvedValue(quotePage([{...quote, author: updated}]))
       return updated
     })
@@ -250,7 +254,7 @@ describe('author details', () => {
     await screen.findByText('Author updated.')
     await screen.findByRole('heading', {name: updated.knownAs})
     await waitFor(() => expect(screen.getByRole('button', {name: updated.knownAs, pressed: true})).toBeTruthy())
-    expect(api.authors.list).toHaveBeenCalledTimes(2)
+    expect(api.authors.listPage).toHaveBeenCalledTimes(2)
     await waitFor(() => expect(api.quotes.listPage).toHaveBeenCalledTimes(2))
     expect(api.quotes.listPage).toHaveBeenLastCalledWith(7, '', {toneIds: [], themeIds: [], formIds: [], sourceIds: []}, {page: 0, size: 20})
   })

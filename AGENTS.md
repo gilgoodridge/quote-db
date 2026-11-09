@@ -115,7 +115,7 @@ PUT /api/authors/1
 ```
 
 ### Endpoints
-- `GET /api/authors` - Returns `PagedModel<AuthorResponse>`
+- `GET /api/authors` - Returns `PagedModel<AuthorResponse>`; optional `query` searches fullName only
 - `GET /api/authors/{id}` - Returns full `AuthorResponse` details for one author
 - `POST /api/authors` - Accepts `CreateAuthorRequest`, returns `AuthorResponse`
 - `PUT /api/authors/{id}` - Accepts `UpdateAuthorRequest` (full replacement), returns `AuthorResponse`
@@ -125,11 +125,14 @@ PUT /api/authors/1
 ```java
 @GetMapping
 public PagedModel<AuthorResponse> list(
+        @RequestParam(required = false) String query,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size) {
-    return new PagedModel<>(repository.findAll(
-        Pagination.request(page, size).withSort(Sort.by("id")))
-        .map(mapper::toResponse));
+    var pageable = Pagination.request(page, size).withSort(Sort.by("id"));
+    var authors = query != null && !query.isBlank()
+        ? repository.findByFullNameContainingIgnoreCase(query.trim(), pageable)
+        : repository.findAll(pageable);
+    return new PagedModel<>(authors.map(mapper::toResponse));
 }
 ```
 
@@ -137,12 +140,45 @@ Author and quote lists use zero-based `page` (default 0) and `size` (default 20,
 1-100); invalid values return 400. Return Spring Data's stable `PagedModel`
 envelope (`content` and `page` metadata), not raw `PageImpl` or entities.
 Paginate/count in the database with all filters applied. List ordering is ID
-ascending, except text search uses relevance descending then ID ascending.
+ascending, except quote text search uses relevance descending then ID ascending.
 Frontend `listPage` methods expose pages; existing `list` helpers collect all
 pages for complete author pickers. QuotesList uses `quotes.listPage` with bottom
 Previous/Next controls, one-based labels, and sizes 10/20/50/100 (default 20).
 Size and filter changes reset API page to 0, retaining size. Failures are
 retryable; writes refresh totals and recover pages that no longer exist.
+
+### Author Search
+
+- Public GET/HEAD `/api/authors` accepts only the new optional `query` filter.
+  Trim nonblank queries; omitted/blank queries preserve normal listing.
+- Use `AuthorRepository.findByFullNameContainingIgnoreCase` for case-insensitive
+  substring matching on fullName only, with database pagination/counting and ID
+  ascending order. Spring Data escapes LIKE wildcards; treat `%`, `_`, and `\`
+  literally. Do not search knownAs or reuse quote FULLTEXT stemming/relevance.
+- `api.authors.list(query = '')` collects every matching page with the same
+  query. `api.authors.listPage({query, page, size})` returns one page.
+  No-query calls must still load complete author pickers.
+- Sidebar uses `authors.listPage` with size 10, initially requesting page 0.
+  More authors at the bottom appends the next 10 matches with the same query;
+  hide it after the last page. Keep loaded authors visible during more-page
+  loading/failure, prevent duplicate loads, and retry the same failed page.
+  Searches, clearing, and refreshes reset to page 0; ignore outdated more-page
+  responses as well as initial-page responses. Other pickers keep `authors.list()`.
+- Sidebar owns independent draft/submitted author search state. Submit immediately
+  via Enter or the search icon, or automatically after a 500 ms typing pause.
+  Further typing restarts the delay; submission, clearing, and unmount cancel
+  pending searches. Clearing restores the first unfiltered page immediately. Keep query on
+  author refresh and retry/resubmission.
+- Search narrows the author list only, never clears the selected author (even
+  when hidden) or changes quote text/category filters. All authors still clears
+  only the selected author. Labels continue to prefer knownAs over fullName.
+- Keep the field compact above the list, keyboard accessible, and theme-aware.
+  Show loading, no matches, and visible retryable errors separately; clear stale
+  results on first-page reload, retain results on more-page failure, and ignore outdated requests.
+- AuthorControllerTest and AuthorRepositoryTest cover query/blank handling,
+  pagination, fullName-only matching, case-insensitive substrings, and literal
+  wildcards. API and Sidebar tests cover encoding, all-pages query retention,
+  submission/clearing, retry, refresh, filter independence, and stale responses.
 
 ### Quote Categorization
 
@@ -364,10 +400,12 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Uses theme variables for light/dark mode, with fixed Google brand colors defined in index.css
 
 **Sidebar.jsx**
-- Fetches authors from `GET /api/authors` on mount
-- Shows loading/error states
+- Fetches authors from `GET /api/authors` on mount and on submitted author query/refresh
+- Compact fullName search submits optional `query` with Enter/search icon or after a 500 ms typing pause; clearing restores the first unfiltered page
+- Loads 10 authors initially with More authors to append further pages; searches and refreshes reset to page 0
+- Shows loading/no-match/retryable error states and ignores outdated author responses
 - Button-based author selection with active state styling
-- Ready for backend quote filtering
+- Author list search preserves author selection and quote text/category filters
 
 **QuotesList.jsx**
 - Shows a selection prompt when no author, search query, or category filter is active

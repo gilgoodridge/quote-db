@@ -39,7 +39,38 @@ Quotes per page offers 10, 20 (default), 50, and 100. Changing the size or
 author/search/category filters resets the API page to 0 and retains the chosen
 size. Failed loads can be retried; outdated responses are ignored. Quote writes
 refresh the current page and totals, moving back if that page no longer exists.
-Author lists still collect all pages and have no pagination controls.
+The Authors sidebar loads 10 authors at a time with a More authors action.
+Author pickers elsewhere still collect all pages.
+
+## Author search
+
+The Authors section has a compact search field above the author list. Press
+Enter or click its search icon to submit immediately, or pause typing for
+**500 ms** to search automatically. Further typing restarts the delay;
+clearing the field immediately restores the first unfiltered page. The backend's optional
+`query` parameter performs case-insensitive substring matching on **fullName
+only**, not `knownAs`, with trimmed, literal text (no wildcard syntax or quote
+FULLTEXT stemming). Labels still prefer `knownAs`; results remain ID ascending.
+
+`api.authors.list(query = '')` collects all matching pages, retaining the query
+on every request. `api.authors.listPage({query, page, size})` returns a single
+page with filtered totals. Existing author pickers call `list()` without a query
+and still load the complete catalog.
+
+The sidebar uses `api.authors.listPage({query, page: 0, size: 10})` initially.
+**More authors** at the bottom of the list appends the next 10 matches, retaining
+the query, and disappears after the last page. Loading more keeps existing
+authors visible, disables duplicate requests, and offers retry for failures on
+the same page. Searches, clearing, and author refreshes reset to the first page;
+outdated initial and more-page responses cannot populate a newer search.
+
+Search only narrows this list: it does not change the selected author or quote
+text/category filters, even if the selected author is no longer visible.
+All authors still clears only the author selection. Creation and editing
+refreshes preserve the author query while resetting the list to its first page. Loading and no-match states are distinct
+from visible failures; Retry or resubmission retries the current query without
+losing the field text. Outdated responses are ignored. The field uses theme
+variables for light/dark mode and fits narrow sidebar widths.
 
 ## Quote categories
 Add Quote and Edit Quote load `/api/categories` and offer optional multi-select

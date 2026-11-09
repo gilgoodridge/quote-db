@@ -30,6 +30,39 @@ test('quote listing preserves optional author filtering and blank-query behavior
   assert.ok(calls.every(({ options }) => options.credentials === 'include'))
 })
 
+test('author listing omits blank queries and encodes a trimmed full-name query', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return pageResponse()
+  }
+  await api.authors.list()
+  await api.authors.list(' \t ')
+  await api.authors.listPage({query: '  Shake & café?  ', page: 2, size: 10})
+  assert.deepEqual(calls.slice(0, 2).map(({url}) => url), [
+    '/api/authors?page=0&size=100', '/api/authors?page=0&size=100',
+  ])
+  const params = new URL(calls[2].url, 'http://localhost').searchParams
+  assert.deepEqual([...params], [['query', 'Shake & café?'], ['page', '2'], ['size', '10']])
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+})
+
+test('author search retains its query across all pages and surfaces failures', async () => {
+  const calls = []
+  const first = Array.from({length: 100}, (_, id) => ({id}))
+  globalThis.fetch = async (url) => {
+    calls.push(url)
+    const number = Number(new URL(url, 'http://localhost').searchParams.get('page'))
+    return pageResponse(number === 0 ? first : [{id: 100}], number, 101)
+  }
+  assert.deepEqual(await api.authors.list(' shake '), [...first, {id: 100}])
+  assert.deepEqual(calls, [
+    '/api/authors?query=shake&page=0&size=100', '/api/authors?query=shake&page=1&size=100',
+  ])
+  globalThis.fetch = async () => new Response('Search unavailable', {status: 503})
+  await assert.rejects(api.authors.list('shake'), /Search unavailable/)
+})
+
 test('quote search encodes plain text and optionally restricts it to an author', async () => {
   const calls = []
   const results = [{ id: 9, text: 'Love life' }, { id: 3, text: 'Life' }]

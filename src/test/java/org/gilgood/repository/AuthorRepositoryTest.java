@@ -7,8 +7,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -74,6 +77,35 @@ class AuthorRepositoryTest {
         author.setBio("Updated biography");
         repository.saveAndFlush(author);
         assertEquals(1, repository.count());
+    }
+
+    @Test
+    void searchMatchesFullNameSubstringsIgnoringCaseAndCountsOnlyMatches() {
+        Author first = repository.saveAndFlush(author("William Shakespeare", null, BIRTH_DATE));
+        Author second = repository.saveAndFlush(author("Another SHAKESPEARE", null, BIRTH_DATE));
+        repository.saveAndFlush(author("Samuel Clemens", "Shakespeare", BIRTH_DATE));
+        repository.saveAndFlush(author("Unrelated Author", null, BIRTH_DATE));
+
+        var firstPage = repository.findByFullNameContainingIgnoreCase(
+                "sHaKe", PageRequest.of(0, 1, Sort.by("id")));
+        var secondPage = repository.findByFullNameContainingIgnoreCase(
+                "sHaKe", PageRequest.of(1, 1, Sort.by("id")));
+
+        assertEquals(List.of(first), firstPage.getContent());
+        assertEquals(List.of(second), secondPage.getContent());
+        assertEquals(2, firstPage.getTotalElements());
+        assertEquals(2, firstPage.getTotalPages());
+        assertEquals(0, repository.findByFullNameContainingIgnoreCase(
+                "missing", PageRequest.of(0, 20)).getTotalElements());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"%", "_", "\\"})
+    void searchTreatsLikeWildcardsAsLiteralCharacters(String query) {
+        Author match = repository.saveAndFlush(author("Name " + query + " literal", null, BIRTH_DATE));
+        repository.saveAndFlush(author("Name without special characters", null, BIRTH_DATE));
+        assertEquals(List.of(match), repository.findByFullNameContainingIgnoreCase(
+                query, PageRequest.of(0, 20)).getContent());
     }
 
     @Test

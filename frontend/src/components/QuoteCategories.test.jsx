@@ -31,6 +31,9 @@ function quotePage(content) {
 
 beforeEach(() => {
   vi.spyOn(api.authors, 'list').mockResolvedValue([author])
+  vi.spyOn(api.authors, 'listPage').mockResolvedValue({
+    content: [author], page: {number: 0, size: 10, totalElements: 1, totalPages: 1},
+  })
   vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   vi.spyOn(api.categories, 'list').mockResolvedValue(catalog)
   vi.spyOn(api.quotes, 'listPage').mockResolvedValue(quotePage([quote]))

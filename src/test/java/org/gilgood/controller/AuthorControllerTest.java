@@ -15,6 +15,9 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
@@ -25,13 +28,16 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -122,6 +128,43 @@ class AuthorControllerTest {
                     .andExpect(jsonPath("$.quotes").doesNotExist());
         }
         assertNull(existing.getBio());
+    }
+
+    @Test
+    void searchesOnlyFullNameWithTrimmedQueryAndPreservesPagination() throws Exception {
+        var pageable = PageRequest.of(1, 1, Sort.by("id"));
+        Author author = new Author("William Shakespeare");
+        author.setId(7L);
+        when(repository.findByFullNameContainingIgnoreCase("sHaKe", pageable))
+                .thenReturn(new PageImpl<>(List.of(author), pageable, 3));
+
+        mvc.perform(get("/api/authors").param("query", "  sHaKe  ").param("page", "1").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].fullName").value("William Shakespeare"))
+                .andExpect(jsonPath("$.content[0].quotes").doesNotExist())
+                .andExpect(jsonPath("$.page.number").value(1))
+                .andExpect(jsonPath("$.page.totalElements").value(3));
+        verify(repository).findByFullNameContainingIgnoreCase("sHaKe", pageable);
+    }
+
+    @Test
+    void omittedAndBlankQueryListAllAuthors() throws Exception {
+        var pageable = PageRequest.of(0, 20, Sort.by("id"));
+        when(repository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(), pageable, 0));
+        mvc.perform(get("/api/authors")).andExpect(status().isOk());
+        mvc.perform(get("/api/authors").param("query", " \t "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty())
+                .andExpect(jsonPath("$.page.totalElements").value(0));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"page=-1", "size=0", "size=101", "page=invalid"})
+    void searchRetainsPaginationValidation(String invalidParameter) throws Exception {
+        String[] parts = invalidParameter.split("=");
+        mvc.perform(get("/api/authors").param("query", "Jane").param(parts[0], parts[1]))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(repository);
     }
 
     @Test

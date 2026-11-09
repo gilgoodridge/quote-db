@@ -38,6 +38,48 @@
   padding-bottom: 8px;
 }
 
+.author-search {
+  display: flex;
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.author-search:focus-within {
+  border-color: var(--accent);
+}
+
+.author-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.author-search input::placeholder {
+  color: var(--text-light);
+}
+
+.author-search button {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.author-search button:hover {
+  background: var(--bg-secondary);
+}
+
 .authors-list,
 .category-options {
   list-style: none;
