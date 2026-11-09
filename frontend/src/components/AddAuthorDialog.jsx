@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import {authorFields} from '../authorFields'
+import DialogHeader from './DialogHeader'
 import '../styles/AddQuoteDialog.css'
 
 export default function AddAuthorDialog({ author = null, onClose, onCreated, onUpdated }) {
@@ -67,7 +68,16 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
         if (!submittingRef.current) dialogRef.current.close()
       }}
     >
-      <h2 id="add-author-title">{author ? 'Edit author' : 'New author'}</h2>
+      <DialogHeader
+        titleId="add-author-title"
+        title={author ? 'Edit author' : 'New author'}
+        closeLabel="Close author form"
+        disabled={saving}
+        onClose={() => {
+          if (!submittingRef.current) dialogRef.current.close()
+        }}
+      />
+      <div className="dialog-body">
       <p id="add-author-description" className="add-quote-description">
         Full name and date of birth are required. Known as is optional and is used as the display name when provided. {author
           ? 'Saving replaces all author details. Clearing an optional field removes its value.'
@@ -114,6 +124,7 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
         </div>
         {saving && <p role="status">Saving author...</p>}
       </form>
+      </div>
     </dialog>
   )
 }

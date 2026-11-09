@@ -391,7 +391,7 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Quote of the Day button placeholder
 
 **LoginDialog.jsx**
-- Native modal dialog with "Continue with Google" and "Keep browsing" actions
+- Native modal dialog with "Continue with Google" and a top-right close icon
 - Login is optional; anonymous browsing remains available
 - Google button navigates to the backend `/oauth2/authorization/google` endpoint
 - Spring Security handles OIDC and stores authentication in the server session, not browser storage

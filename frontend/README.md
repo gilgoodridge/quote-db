@@ -6,7 +6,7 @@ This template provides a minimal setup to get React working in Vite with HMR and
 
 The header hamburger menu includes **Login** above **About** when signed out and
 shows the signed-in account with **Logout** when authenticated. The native login
-dialog offers **Continue with Google** and **Keep browsing**; public browsing
+dialog offers **Continue with Google** and a top-right **×** to close; public browsing
 remains available if session checks or logout fail. The dialog supports Escape,
 keeps keyboard focus within the modal, and returns focus to the hamburger button
 when closed.

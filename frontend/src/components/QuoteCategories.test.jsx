@@ -211,6 +211,36 @@ describe('quote category editing', () => {
     expect(quote.tones).toHaveLength(2)
     expect(api.quotes.update).not.toHaveBeenCalled()
   })
+
+  it('closes from the header without saving the draft', async () => {
+    const callbacks = renderForm({quote})
+    await ready()
+    const close = screen.getByRole('button', {name: 'Close quote form'})
+    expect(close.closest('.dialog-header')).toBeTruthy()
+    expect(close.title).toBe('Close quote form')
+    fireEvent.click(close)
+    expect(callbacks.onClose).toHaveBeenCalledTimes(1)
+    expect(api.quotes.update).not.toHaveBeenCalled()
+  })
+
+  it('disables header closing while saving and while a nested author form is open', async () => {
+    let resolveSave
+    api.quotes.update.mockReturnValueOnce(new Promise((resolve) => { resolveSave = resolve }))
+    const callbacks = renderForm({quote})
+    await ready()
+    const close = screen.getByRole('button', {name: 'Close quote form'})
+    fireEvent.click(screen.getByRole('button', {name: 'Add new author'}))
+    expect(close.disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
+    expect(close.disabled).toBe(false)
+    expect(callbacks.onClose).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
+    expect(close.disabled).toBe(true)
+    fireEvent.click(close)
+    expect(callbacks.onClose).not.toHaveBeenCalled()
+    await act(async () => resolveSave(quote))
+    expect(callbacks.onUpdated).toHaveBeenCalledWith(quote)
+  })
 })
 
 describe('category display on quote cards', () => {

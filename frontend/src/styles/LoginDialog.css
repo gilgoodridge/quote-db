@@ -1,33 +1,22 @@
 .login-dialog {
   width: min(420px, calc(100% - 32px));
   max-height: calc(100dvh - 32px);
-  padding: 56px 28px 28px;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--bg);
   color: var(--text);
   text-align: center;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.login-dialog[open] {
+  display: flex;
+  flex-direction: column;
 }
 
 .login-dialog::backdrop {
   background: var(--modal-backdrop);
-}
-
-.login-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: flex;
-  padding: 8px;
-  background: transparent;
-  color: var(--text-light);
-}
-
-.login-close:hover,
-.login-browse-btn:hover {
-  background: var(--bg-secondary);
-  color: var(--accent);
 }
 
 .login-description {
@@ -64,12 +53,6 @@
 .google-green { fill: var(--google-green); }
 .google-yellow { fill: var(--google-yellow); }
 .google-red { fill: var(--google-red); }
-
-.login-browse-btn {
-  margin-top: 16px;
-  background: transparent;
-  color: var(--text-light);
-}
 
 .login-dialog button:focus-visible {
   outline: 2px solid var(--accent);

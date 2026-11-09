@@ -38,7 +38,10 @@ afterEach(() => {
 })
 
 async function openEditor() {
-  fireEvent.click(await screen.findByRole('button', {name: 'Edit author'}))
+  const edit = await screen.findByRole('button', {name: 'Edit author'})
+  expect(edit.textContent.trim()).toBe('Edit')
+  expect(edit.closest('.dialog-header-title').querySelector('h2').textContent).toBe('About this Author')
+  fireEvent.click(edit)
   return screen.getByRole('dialog', {name: 'Edit author'})
 }
 
@@ -60,7 +63,11 @@ describe('author details', () => {
     expect(within(dialog).getByText('Age at death')).toBeTruthy()
     expect(within(dialog).queryByRole('textbox')).toBeNull()
     expect(within(dialog).queryByRole('button', {name: 'Edit author'})).toBeNull()
-    fireEvent.click(within(dialog).getByRole('button', {name: 'Close'}))
+    const closeButton = within(dialog).getByRole('button', {name: 'Close author details'})
+    expect(closeButton.title).toBe('Close author details')
+    expect(closeButton.closest('.dialog-header')).toBeTruthy()
+    expect(dialog.querySelector('.dialog-body').contains(closeButton)).toBe(false)
+    fireEvent.click(closeButton)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(trigger)
   })
@@ -94,7 +101,7 @@ describe('author details', () => {
     await waitFor(() => expect(api.quotes.listPage).toHaveBeenCalledTimes(2))
     expect(screen.getAllByRole('button', {name: updated.knownAs})).toHaveLength(2)
     expect(onAuthorUpdated).toHaveBeenCalledWith(updated)
-    fireEvent.click(screen.getByRole('button', {name: 'Close'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Close author details'}))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect([
       ...screen.getAllByRole('button', {name: updated.knownAs}),
@@ -125,6 +132,24 @@ describe('author details', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Retry author details'}))
     await screen.findByText('Samuel Clemens')
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('can close from the header while details are loading or have failed', async () => {
+    api.authors.get.mockReturnValueOnce(new Promise(() => {}))
+    const onClose = vi.fn()
+    const {unmount} = render(<AboutAuthorDialog authorId={7} onClose={onClose} />)
+    const close = screen.getByRole('button', {name: 'Close author details'})
+    expect(document.activeElement).toBe(close)
+    fireEvent.click(close)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    unmount()
+
+    api.authors.get.mockRejectedValueOnce(new Error('Offline'))
+    render(<AboutAuthorDialog authorId={7} onClose={onClose} />)
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', {name: 'Close author details'}))
+    expect(onClose).toHaveBeenCalledTimes(2)
+    expect(api.authors.update).not.toHaveBeenCalled()
   })
 
   it('prefills all editable fields and saves a full replacement, returning to refreshed details', async () => {
@@ -172,7 +197,7 @@ describe('author details', () => {
     render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={onClose} onUpdated={vi.fn()} />)
     await openEditor()
     fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: 'Unsaved'}})
-    fireEvent.click(screen.getByRole('button', {name: 'Cancel'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     expect(screen.getByText('Samuel Clemens')).toBeTruthy()
     expect(document.activeElement).toBe(screen.getByRole('button', {name: 'Edit author'}))
     await openEditor()
@@ -216,6 +241,10 @@ describe('author details', () => {
     fireEvent.keyDown(document, {key: 'Escape'})
     expect(screen.getByRole('dialog', {name: 'Edit author'})).toBeTruthy()
     expect(screen.getByRole('button', {name: 'Cancel'}).disabled).toBe(true)
+    const closeButton = screen.getByRole('button', {name: 'Close author form'})
+    expect(closeButton.disabled).toBe(true)
+    fireEvent.click(closeButton)
+    expect(screen.getByRole('dialog', {name: 'Edit author'})).toBeTruthy()
     expect(api.authors.update).toHaveBeenCalledTimes(1)
     await act(async () => resolveSave(author))
     expect(screen.getByText('Author updated.')).toBeTruthy()

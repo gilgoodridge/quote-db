@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import AddAuthorDialog from './AddAuthorDialog'
 import QuoteCategoryFields from './QuoteCategoryFields'
+import DialogHeader from './DialogHeader'
 import {categoryDimensions, categorySelections} from '../quoteCategories'
 import '../styles/AddQuoteDialog.css'
 
@@ -138,7 +139,16 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         if (submittingRef.current || showAddAuthor) event.preventDefault()
       }}
     >
-      <h2 id="add-quote-title">{quote ? 'Edit Quote' : 'Add Quote'}</h2>
+      <DialogHeader
+        titleId="add-quote-title"
+        title={quote ? 'Edit Quote' : 'Add Quote'}
+        closeLabel="Close quote form"
+        disabled={saving || showAddAuthor}
+        onClose={() => {
+          if (!submittingRef.current && !showAddAuthor) dialogRef.current.close()
+        }}
+      />
+      <div className="dialog-body">
       <p className="add-quote-description">Quote text and author are required. Other fields are optional.</p>
       <form onSubmit={submit} aria-busy={saving}>
         <fieldset disabled={saving}>
@@ -224,6 +234,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         </div>
         {saving && <p role="status">Saving quote...</p>}
       </form>
+      </div>
     </dialog>
     {showAddAuthor && (
       <AddAuthorDialog

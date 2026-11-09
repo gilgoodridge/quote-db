@@ -346,7 +346,16 @@ death dates, birthplace, nationality, biography, and age when available.
 Missing optional details are marked **Not provided**. Details load independently
 with a retry action on failure.
 
-Signed-in users also see a pencil in the dialog's top-right corner. It opens
+Dialogs use the shared `DialogHeader` with a neutral **×** close
+button in the top-right corner, separate from the scrolling content. Its
+accessible label and hover tooltip identify it as a close action, not the red
+quote-delete action; closing author details never deletes the author. Use this
+header for future dialogs too. The icon has no surrounding border or background;
+keyboard focus retains a visible outline for accessibility.
+Form close buttons are disabled while saving.
+
+Signed-in users also see an unboxed **Edit** action with a small pencil beside
+the title, separate from the close button. It opens
 the author form prefilled for editing; saving sends a full replacement, so
 clearing optional fields removes them. Failed saves preserve the draft.
 Cancel returns to the unchanged details. A successful save updates the dialog,

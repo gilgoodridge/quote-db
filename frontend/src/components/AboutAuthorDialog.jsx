@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import {authorFields} from '../authorFields'
 import AddAuthorDialog from './AddAuthorDialog'
+import DialogHeader from './DialogHeader'
 import '../styles/AboutAuthorDialog.css'
 
 function formatAuthorDate(value) {
@@ -59,8 +60,14 @@ export default function AboutAuthorDialog({authorId, isAuthenticated, onClose, o
         if (!editing || !isAuthenticated) dialogRef.current.close()
       }}
     >
-      <div className="about-author-header">
-        <h2 id="about-author-title">About this Author</h2>
+      <DialogHeader
+        titleId="about-author-title"
+        title="About this Author"
+        closeLabel="Close author details"
+        onClose={() => dialogRef.current.close()}
+        disabled={editing && isAuthenticated}
+        autoFocus
+      >
         {author && isAuthenticated && (
           <button
             ref={editButtonRef}
@@ -77,9 +84,11 @@ export default function AboutAuthorDialog({authorId, isAuthenticated, onClose, o
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="m16 3 5 5M3 21l5-1L21 7a2 2 0 0 0-5-5L3 15z" />
             </svg>
+            Edit
           </button>
         )}
-      </div>
+      </DialogHeader>
+      <div className="dialog-body">
       {error ? (
         <div className="add-quote-error" role="alert">
           <p>{error}</p>
@@ -107,10 +116,6 @@ export default function AboutAuthorDialog({authorId, isAuthenticated, onClose, o
         </dl>
       )}
       {message && <p role="status">{message}</p>}
-      <div className="add-quote-actions">
-        <button type="button" className="add-quote-cancel" autoFocus onClick={() => dialogRef.current.close()}>
-          Close
-        </button>
       </div>
     </dialog>
       {editing && isAuthenticated && (

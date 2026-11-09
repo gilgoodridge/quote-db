@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react'
+import DialogHeader from './DialogHeader'
 import '../styles/LoginDialog.css'
 
 export default function LoginDialog({ onClose, onGoogleLogin, forAddQuote = false, error = '' }) {
@@ -16,18 +17,14 @@ export default function LoginDialog({ onClose, onGoogleLogin, forAddQuote = fals
       aria-describedby="login-description"
       onClose={onClose}
     >
-      <button
-        type="button"
-        className="login-close"
-        aria-label="Close login"
-        onClick={() => dialogRef.current.close()}
+      <DialogHeader
+        titleId="login-title"
+        title="Log in to Quotes DB"
+        closeLabel="Close login"
+        onClose={() => dialogRef.current.close()}
         autoFocus
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </button>
-      <h2 id="login-title">Log in to Quotes DB</h2>
+      />
+      <div className="dialog-body">
       <p id="login-description" className="login-description">
         {forAddQuote
           ? 'Please log in to add a quote. After signing in with Google, the Add Quote form will open.'
@@ -43,9 +40,7 @@ export default function LoginDialog({ onClose, onGoogleLogin, forAddQuote = fals
         </svg>
         Continue with Google
       </button>
-      <button type="button" className="login-browse-btn" onClick={() => dialogRef.current.close()}>
-        Keep browsing
-      </button>
+      </div>
     </dialog>
   )
 }
