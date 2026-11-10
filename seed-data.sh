@@ -149,6 +149,14 @@ create_author() {
         }" "author $known_as"
 }
 
+create_character() {
+    local json
+    json=$(jq -n --arg fullName "$1" --arg knownAs "$2" \
+        --arg description "$3" --arg workTitle "$4" \
+        '{fullName: $fullName, knownAs: $knownAs, description: $description, workTitle: $workTitle}')
+    create_resource "characters" "$json" "character $1"
+}
+
 # Helper function to create a quote
 create_quote() {
     local text="$1"
@@ -156,6 +164,7 @@ create_quote() {
     local date="$3"
     local location="$4"
     local reference="$5"
+    local character_id="${10:-}"
     # Optional category labels, separated by | for multiple selections.
     local tone_ids theme_ids form_ids source_ids
     tone_ids=$(category_ids tones "${6:-}")
@@ -167,6 +176,10 @@ create_quote() {
         echo "Error creating quote: invalid author ID '$author_id'." >&2
         return 1
     fi
+    if [[ -n "$character_id" && ! "$character_id" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error creating quote: invalid character ID '$character_id'." >&2
+        return 1
+    fi
     
     local json="{
         \"text\": \"$text\",
@@ -175,6 +188,10 @@ create_quote() {
         \"themeIds\": $theme_ids,
         \"formIds\": $form_ids,
         \"sourceIds\": $source_ids"
+
+    if [ -n "$character_id" ]; then
+        json="$json, \"characterId\": $character_id"
+    fi
     
     if [ -n "$date" ]; then
         json="$json, \"date\": \"$date\""
@@ -217,6 +234,16 @@ echo "✓ William Shakespeare (ID: $SHAKESPEARE_ID)"
 
 JOBS_ID=$(create_author "Steven Paul Jobs" "Steve Jobs" "1955-02-24" "2011-10-05" "American")
 echo "✓ Steve Jobs (ID: $JOBS_ID)"
+
+echo ""
+echo "Creating characters..."
+echo "----------------------------------------"
+
+HAMLET_ID=$(create_character "Hamlet" "Prince Hamlet" "Prince of Denmark, son of the late King Hamlet." "Hamlet")
+echo "✓ Prince Hamlet (ID: $HAMLET_ID)"
+
+JAQUES_ID=$(create_character "Jaques" "Jaques" "A melancholy nobleman attending the exiled Duke Senior." "As You Like It")
+echo "✓ Jaques (ID: $JAQUES_ID)"
 
 echo ""
 echo "Creating quotes..."
@@ -285,11 +312,11 @@ echo "✓ Darwin quote 2"
 
 # Shakespeare quotes
 create_quote "All the world's a stage, and all the men and women merely players." "$SHAKESPEARE_ID" "" "As You Like It" "" \
-    "Insightful" "Life & death|Human nature" "Metaphor|Verse" "Play|Book"
+    "Insightful" "Life & death|Human nature" "Metaphor|Verse" "Play|Book" "$JAQUES_ID"
 echo "✓ Shakespeare quote 1"
 
 create_quote "To be, or not to be, that is the question." "$SHAKESPEARE_ID" "" "Hamlet" "" \
-    "Provocative" "Life & death|Joy & meaning" "Verse" "Play"
+    "Provocative" "Life & death|Joy & meaning" "Verse" "Play" "$HAMLET_ID"
 echo "✓ Shakespeare quote 2"
 
 create_quote "Some Cupid kills with arrows, some with traps." "$SHAKESPEARE_ID" "" "Much Ado About Nothing" "" \
@@ -315,4 +342,5 @@ echo "✓ Database seeded successfully!"
 echo ""
 echo "Summary:"
 echo "  - 7 authors created"
+echo "  - 2 characters created and linked to their Shakespeare quotes"
 echo "  - 20 quotes created with optional category selections"

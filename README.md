@@ -110,23 +110,68 @@ quotes attached. Before baselining an existing database, verify the required
 birth date and the `uk_author_full_name_birth` / `uk_author_known_as_birth`
 unique constraints are already present. See [Database Migrations](#database-migrations).
 
+#### Characters
+
+Characters are fictional speakers in books, movies or plays. They **do not
+replace authors**: a quote always has an author (the writer), and may optionally
+have a character. Narration can leave the character unassigned.
+
+- `GET /api/characters?page=0&size=20&query={text}` - List characters
+- `GET /api/characters/{id}` - Get a character
+- `POST /api/characters` - Create a character
+- `PUT /api/characters/{id}` - Full replacement; omitted/null optional fields are cleared
+- `DELETE /api/characters/{id}` - Delete an unlinked character
+
+Example create or replacement body:
+
+```json
+{
+  "fullName": "Hamlet",
+  "knownAs": "Prince Hamlet",
+  "description": "Prince of Denmark",
+  "workTitle": "Hamlet"
+}
+```
+
+`id` is generated and response-only. `fullName` is required and nonblank (maximum
+255 characters). `knownAs` and `workTitle` are optional (255 characters each);
+`description` is optional (1024 characters). Blank `knownAs` is stored as null.
+Names are not unique: different works may have characters with the same name.
+The optional `query` follows author search: trimmed, case-insensitive literal
+substring matching on **fullName only**, with ID-ascending database pagination.
+GET/HEAD is public; writes require authentication and CSRF. Invalid fields
+return **400**; missing characters return **404**. Deleting a character linked
+to quotes returns **409 Conflict**; unlink it from those quotes first.
+
+Quote POST/PUT accepts optional `characterId`. Unknown, zero or negative IDs
+return **400** without saving any changes. `authorId` is still required.
+Omitted/null `characterId` leaves a new quote unassigned and **clears it on PUT**.
+Quote responses include `character` as `{id, fullName, knownAs, description,
+workTitle}` when assigned; null fields are omitted under the existing JSON
+policy. Deleting a quote never deletes its character or author. Character
+assignment does not depend on category selections.
+
+This feature is backend-only for now. **Existing frontend quote edits do not
+send characterId, so saving them clears any character assigned through the
+API.** API clients must include characterId on PUT to retain the association.
+
 #### Quotes
 - `GET /api/quotes?page=0&size=20&authorId={id}&query={text}&toneIds={id}&themeIds={id}&formIds={id}&sourceIds={id}` - List a page of quotes, optionally filtered by author/categories and searched by text
 - `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
-  `date` (`YYYY-MM-DD`), `location`, `reference`, `toneIds`, `themeIds`, `formIds`, and `sourceIds`
+  `characterId`, `date` (`YYYY-MM-DD`), `location`, `reference`, `toneIds`, `themeIds`, `formIds`, and `sourceIds`
 - `GET /api/quotes/{id}` - Get a quote
 - `PUT /api/quotes/{id}` - Replace a quote
 - `DELETE /api/quotes/{id}` - Delete a quote
 
 #### List pagination
 
-Author and quote list endpoints use Spring Data's page-number convention:
+Author, character and quote list endpoints use Spring Data's page-number convention:
 `page` is **zero-based** (default `0`), and `size` defaults to `20` (allowed
 range `1`-`100`). For example, `/api/authors?page=1&size=20` returns the second
 page. Negative pages, out-of-range sizes, non-integer values, and page/size
 combinations exceeding the JPA offset limit (`2,147,483,647`) return **400**.
 
-Both endpoints return Spring Data's stable `PagedModel` JSON envelope, not
+These endpoints return Spring Data's stable `PagedModel` JSON envelope, not
 a bare array (a breaking change for external clients):
 
 ```json
@@ -147,7 +192,7 @@ returns **200** with `content: []` and the actual totals. An empty result has
 `totalPages: 0`. Fetch subsequent pages until `page.number + 1 >= page.totalPages`,
 keeping the same filters and size.
 
-Authors and non-search quotes are ordered by ID ascending; quote searches
+Authors, characters and non-search quotes are ordered by ID ascending; quote searches
 remain ordered by relevance descending, then ID ascending. Custom sorting is
 not supported. Pagination uses database-level offset/limit and count queries;
 concurrent writes can shift page boundaries, so pages are not a snapshot.
@@ -542,6 +587,9 @@ NOT NULL and replaces the original index with `ft_quotes_search_text`.
 `V6` adds and populates the four category catalogs and creates their quote
 junction tables; existing quotes remain uncategorized.
 `V7` adds and populates category scope descriptions, preserving IDs and selections.
+`V8` creates characters and adds an optional, indexed character foreign key to
+quotes. Existing quotes retain their authors and start without a character;
+linked characters cannot be deleted until explicitly unlinked.
 Hibernate uses `spring.jpa.hibernate.ddl-auto=validate`,
 not `update`. Add new migrations for future schema changes; do not edit migrations
 that have already run. The database account needs schema DDL privileges in addition
@@ -550,7 +598,7 @@ to run without its index.
 
 **Upgrade an existing Flyway V2 database (including production):** Back up and
 stop all old backend instances/writers before starting the new JAR. Flyway
-applies V3-V7 automatically, preserving IDs, original text, authors, and all
+applies V3-V8 automatically, preserving IDs, original text, authors, and all
 metadata. No reset, reload, or new baseline is needed. The backfill and index
 creation extend startup time and may lock the table; plan a maintenance window.
 Do not run the old application alongside the upgrade: it cannot maintain the
@@ -570,7 +618,7 @@ or use the reset procedure above; baselining does not repair an old schema.
 For the first startup only, set `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`
 in the backend environment, or pass `--spring.flyway.baseline-on-migrate=true`
 when launching the JAR. Flyway records the existing schema at version 1 without
-recreating tables, then applies V2-V7 while preserving data. Remove this override
+recreating tables, then applies V2-V8 while preserving data. Remove this override
 after successful startup; by default Flyway refuses unversioned nonempty databases
 to avoid silently adopting the wrong database. Do not manually pre-create the index.
 Index creation can take time and require table locks; schedule deployment accordingly.
@@ -578,7 +626,8 @@ Update any server-local `application.properties` override from `ddl-auto=update`
 to `validate` as well.
 
 **MySQL integration tests:** Normal `mvn test` covers HTTP compatibility using mocks,
-category API/persistence with H2, and the V6/V7 catalogs, descriptions, and constraints in H2 MySQL mode.
+category and character API/persistence with H2, and the V6-V8 catalogs,
+descriptions, character relationships and constraints in H2 MySQL mode.
 H2 cannot validate MySQL FULLTEXT. To include actual
 search and migration tests, set `MYSQL_TEST_URL` to a server-only URL such as
 `jdbc:mysql://localhost:3306/`, plus `MYSQL_TEST_USERNAME` and `MYSQL_TEST_PASSWORD`,
@@ -609,7 +658,7 @@ full suite, replace the Maven command with `mvn clean install`.
 
 ### Google login
 
-Browsing authors and quotes is public. Creating, updating, or deleting either
+Browsing authors, characters and quotes is public. Creating, updating, or deleting any
 resource now requires a Google-authenticated session and a valid CSRF token.
 Any signed-in Google user can write; there are no editor/admin roles yet.
 
@@ -652,13 +701,23 @@ The seed script also requires **jq** (`sudo apt install jq` on Ubuntu or
 `scoop install jq` on Windows with Scoop). After V6 is deployed, the catalogs
 already exist: the script reads `/api/categories` and resolves labels to IDs
 instead of inserting duplicate catalog entries or assuming fixed IDs.
-It creates 7 authors and 20 quotes with sample tone, theme, form, and known
+Deploy V8 before seeding characters. The script creates Prince Hamlet (`Hamlet`)
+and Jaques (`As You Like It`) and links them to the existing "To be, or not to be"
+and "All the world's a stage" seed quotes respectively, keeping Shakespeare as
+their author. Other seed quotes omit the optional character association.
+This only affects newly seeded data; it does not update quotes already in the database.
+It creates 7 authors, 2 characters and 20 quotes with sample tone, theme, form, and known
 source selections, including multiple selections in each dimension. Sources
 not identified by the existing seed metadata are left unassigned rather than
 invented. In `create_quote`, arguments 6-9 are optional tone, theme, form, and
 source labels; separate multiple labels with `|`. Omitting them sends empty
-arrays. Missing/duplicate catalog labels or failed requests stop the script;
+arrays. Optional argument 10 is a positive character ID returned by character
+creation; omit it for quotes without a character. Missing/duplicate catalog
+labels or failed requests stop the script;
 earlier writes are not rolled back. It is not an idempotent import.
+
+Run `bash tests/seed-data.test.sh` in Bash to check seed payloads and character
+creation failure handling with mocked HTTP requests; it does not contact a database.
 
 `FRONTEND_URL` controls the fixed post-login destination (default
 `http://localhost:5173`; supply an origin without a trailing slash). Production

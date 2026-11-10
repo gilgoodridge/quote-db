@@ -1,11 +1,13 @@
 package org.gilgood.controller;
 
 import org.gilgood.entity.Author;
+import org.gilgood.entity.Character;
 import org.gilgood.entity.Quote;
 import org.gilgood.entity.Tone;
 import org.gilgood.exception.GlobalExceptionHandler;
 import org.gilgood.mapper.AuthorMapper;
 import org.gilgood.mapper.CategoryMapper;
+import org.gilgood.mapper.CharacterMapper;
 import org.gilgood.mapper.QuoteMapper;
 import org.gilgood.repository.QuoteRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +46,7 @@ class QuoteControllerTest {
         QuoteMapper mapper = Mappers.getMapper(QuoteMapper.class);
         ReflectionTestUtils.setField(mapper, "authorMapper", Mappers.getMapper(AuthorMapper.class));
         ReflectionTestUtils.setField(mapper, "categoryMapper", Mappers.getMapper(CategoryMapper.class));
+        ReflectionTestUtils.setField(mapper, "characterMapper", Mappers.getMapper(CharacterMapper.class));
         ReflectionTestUtils.setField(controller, "quoteRepository", repository);
         ReflectionTestUtils.setField(controller, "quoteMapper", mapper);
         mvc = MockMvcBuilders.standaloneSetup(controller)
@@ -71,9 +74,12 @@ class QuoteControllerTest {
 
     @Test
     void searchPreservesRelevanceOrderAndResponseDtos() throws Exception {
+        Character character = new Character(4L, "Hamlet", "Prince Hamlet", "Prince of Denmark", "Hamlet");
+        Quote attributed = quote(9L, "love life");
+        attributed.setCharacter(character);
         when(repository.search("love life", null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20)))
-                .thenReturn(new PageImpl<>(List.of(quote(9L, "love life"), quote(3L, "life"))));
+                .thenReturn(new PageImpl<>(List.of(attributed, quote(3L, "life"))));
         mvc.perform(request("  love life  "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(9))
@@ -81,6 +87,10 @@ class QuoteControllerTest {
                 .andExpect(jsonPath("$.content[0].searchText").doesNotExist())
                 .andExpect(jsonPath("$.content[0].author.fullName").value("Test Author"))
                 .andExpect(jsonPath("$.content[0].author.quotes").doesNotExist())
+                .andExpect(jsonPath("$.content[0].character.id").value(4))
+                .andExpect(jsonPath("$.content[0].character.fullName").value("Hamlet"))
+                .andExpect(jsonPath("$.content[0].character.workTitle").value("Hamlet"))
+                .andExpect(jsonPath("$.content[0].character.quotes").doesNotExist())
                 .andExpect(jsonPath("$.content[1].id").value(3));
         verify(repository).search("love life", null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20));

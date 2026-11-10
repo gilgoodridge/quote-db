@@ -16,6 +16,7 @@ public class QuoteResponse {
     private String location;
     private String reference;
     private AuthorResponse author;
+    private CharacterResponse character;
     private List<CategoryResponse> tones;
     private List<CategoryResponse> themes;
     private List<CategoryResponse> forms;

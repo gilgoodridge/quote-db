@@ -30,6 +30,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @EnabledIfEnvironmentVariable(named = "MYSQL_TEST_URL", matches = ".+")
@@ -265,7 +267,7 @@ class QuoteSearchMySqlTest {
             insert.executeBatch();
         }
         flyway = Flyway.configure().dataSource(serverUrl() + LEGACY_DATABASE, username(), password()).load();
-        assertEquals(5, flyway.migrate().migrationsExecuted);
+        assertEquals(6, flyway.migrate().migrationsExecuted);
         assertEquals(0, flyway.migrate().migrationsExecuted);
         try (Connection connection = DriverManager.getConnection(serverUrl() + LEGACY_DATABASE, username(), password());
              var statement = connection.createStatement()) {
@@ -284,7 +286,17 @@ class QuoteSearchMySqlTest {
                 assertEquals("1950-01-02", results.getString("date"));
                 assertEquals("Old location", results.getString("location"));
                 assertEquals("Old reference", results.getString("reference"));
+                assertNull(results.getObject("character_id"));
             }
+            statement.executeUpdate("""
+                    INSERT INTO characters (full_name, known_as, description, work_title)
+                    VALUES ('Hamlet', 'Prince Hamlet', 'Prince of Denmark', 'Hamlet')
+                    """);
+            statement.executeUpdate("UPDATE quotes SET character_id = 1 WHERE id = 1");
+            assertThrows(SQLException.class,
+                    () -> statement.executeUpdate("DELETE FROM characters WHERE id = 1"));
+            statement.executeUpdate("UPDATE quotes SET character_id = NULL WHERE id = 1");
+            statement.executeUpdate("DELETE FROM characters WHERE id = 1");
             for (String table : List.of("quote_tones", "quote_themes", "quote_forms", "quote_sources")) {
                 try (var results = statement.executeQuery("SELECT COUNT(*) FROM " + table)) {
                     assertTrue(results.next());

@@ -31,6 +31,10 @@ public class GlobalExceptionHandler {
         for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
             if (cause instanceof ConstraintViolationException violation) {
                 String name = violation.getConstraintName();
+                if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("fk_quote_character")) {
+                    return ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body("The character is linked to quotes; unlink it before deleting");
+                }
                 if (name != null && (name.equals("uk_author_full_name_birth")
                         || name.endsWith(".uk_author_full_name_birth")
                         || name.equals("uk_author_known_as_birth")

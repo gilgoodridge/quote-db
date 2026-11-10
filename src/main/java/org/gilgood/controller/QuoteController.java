@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.validation.Valid;
 import org.gilgood.dto.CreateQuoteRequest;
 import org.gilgood.dto.QuoteResponse;
 import org.gilgood.dto.UpdateQuoteRequest;
@@ -108,10 +109,12 @@ public class QuoteController {
     @PostMapping
     @Transactional
     @Operation(summary = "Create new quote",
-            description = "Optional toneIds, themeIds, formIds and sourceIds allow multiple selections from " +
+            description = "authorId is required even when optional characterId identifies a fictional speaker. " +
+                    "Omitted or null characterId leaves the quote without a character; unknown or nonpositive IDs return 400. " +
+                    "Optional toneIds, themeIds, formIds and sourceIds allow multiple selections from " +
                     "GET /api/categories. Omitted, null or empty arrays leave a dimension unassigned. " +
                     "Unknown or invalid category IDs return 400.")
-    public QuoteResponse addQuote(@RequestBody CreateQuoteRequest request) {
+    public QuoteResponse addQuote(@Valid @RequestBody CreateQuoteRequest request) {
         Quote quote = quoteMapper.toEntity(request);
         Quote saved = quoteRepository.save(quote);
         return quoteMapper.toResponse(saved);
@@ -123,6 +126,8 @@ public class QuoteController {
             summary = "Replace quote (full update)",
             description = "Replaces the entire quote record. " +
                     "Any optional fields omitted or set to null will be deleted from the database. " +
+                    "Omitted or null characterId clears the fictional speaker; authorId remains required. " +
+                    "Unknown or nonpositive characterId returns 400 without changing the quote. " +
                     "This includes toneIds, themeIds, formIds and sourceIds; empty arrays also clear selections. " +
                     "Unknown or invalid category IDs return 400 without changing the quote. " +
                     "Required fields (text, authorId) must be provided; missing required fields will return 400 Bad Request."
@@ -132,7 +137,7 @@ public class QuoteController {
             @ApiResponse(responseCode = "400", description = "Missing required fields"),
             @ApiResponse(responseCode = "404", description = "Quote not found")
     })
-    public QuoteResponse updateQuote(@PathVariable Long id, @RequestBody UpdateQuoteRequest request) {
+    public QuoteResponse updateQuote(@PathVariable Long id, @Valid @RequestBody UpdateQuoteRequest request) {
         Quote quote = quoteRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Quote not found with ID: " + id));
         quoteMapper.updateEntity(request, quote);

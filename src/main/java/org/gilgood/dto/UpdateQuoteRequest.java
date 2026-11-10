@@ -1,5 +1,6 @@
 package org.gilgood.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -13,7 +14,9 @@ public class UpdateQuoteRequest {
     private LocalDate date;
     private String location;
     private String reference;
+    @NotNull
     private Long authorId;
+    private Long characterId;
     private Set<Long> toneIds;
     private Set<Long> themeIds;
     private Set<Long> formIds;

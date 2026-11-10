@@ -136,7 +136,7 @@ public PagedModel<AuthorResponse> list(
 }
 ```
 
-Author and quote lists use zero-based `page` (default 0) and `size` (default 20,
+Author, character and quote lists use zero-based `page` (default 0) and `size` (default 20,
 1-100); invalid values return 400. Return Spring Data's stable `PagedModel`
 envelope (`content` and `page` metadata), not raw `PageImpl` or entities.
 Paginate/count in the database with all filters applied. List ordering is ID
@@ -179,6 +179,41 @@ retryable; writes refresh totals and recover pages that no longer exist.
   pagination, fullName-only matching, case-insensitive substrings, and literal
   wildcards. API and Sidebar tests cover encoding, all-pages query retention,
   submission/clearing, retry, refresh, filter independence, and stale responses.
+
+### Characters
+
+- Characters are fictional speakers, not authors. Every quote still requires an
+  author (the writer); its character is optional, including for narration.
+- Character fields are generated `id`, required nonblank `fullName` (255 max),
+  optional `knownAs` (255), `description` (1024), and `workTitle` (255).
+  Names are not unique; distinct works can have identically named characters.
+  Blank known-as names normalize to null, as for authors.
+- Backend-only CRUD at `/api/characters` follows AuthorController:
+  CharacterRepository, MapStruct CharacterMapper, separate create/update request
+  DTOs and CharacterResponse. Never accept client IDs or expose entities.
+  PUT replaces all editable fields and clears omitted/null optional fields.
+- GET/HEAD list and single-character endpoints are public; all writes require
+  authentication and CSRF. List uses the same pagination validation as authors,
+  ID ascending, and optional trimmed, case-insensitive literal fullName-only
+  substring `query`, with database filtering/counting.
+- Flyway V8 creates `characters` and nullable indexed `quotes.character_id`,
+  leaving existing quotes unassigned. Keep V1-V7 unchanged. The foreign key
+  restricts deletion; deleting a linked character returns visible 409 until
+  quotes are explicitly unlinked. Missing characters return 404 on CRUD.
+- Quote POST/PUT accepts optional `characterId`; null/omitted means unassigned
+  (and clears on PUT). Unknown/nonpositive IDs return field-specific 400 and
+  reject the entire write. `authorId` remains required even with a character.
+  Responses include a CharacterResponse when assigned, otherwise omit the field
+  under the existing non-null JSON policy. No cascade to characters or authors.
+- Do not infer or require a character from Source categories. There is no
+  frontend character UI yet. Existing frontend quote PUTs omit characterId and
+  therefore clear it, consistent with full replacement; API clients retaining
+  the character must send characterId.
+- CharacterControllerTest covers CRUD, validation, search/pagination, security,
+  quote reads/replacement, atomic invalid writes and deletion conflicts with
+  Open Session in View disabled. CharacterMigrationTest exercises V8 constraints
+  and data preservation in H2 MySQL mode; QuoteSearchMySqlTest also covers V8 on
+  the real MySQL upgrade path when MYSQL_TEST_* variables are set.
 
 ### Quote Categorization
 
@@ -242,6 +277,10 @@ retryable; writes refresh totals and recover pages that no longer exist.
   than hardcoding IDs. Optional arguments 6-9 to `create_quote` accept tone,
   theme, form, and source labels separated by `|`; samples include multi-select
   categories. Do not invent unknown source types.
+- `seed-data.sh` creates Prince Hamlet and Jaques through `/api/characters` and
+  passes returned IDs as optional argument 10 to `create_quote` for the existing
+  Hamlet and As You Like It quotes. Keep Shakespeare as author; other samples
+  omit characterId. Requires V8; the seed script does not update existing rows.
 - QuoteCategoriesTest covers real H2-backed API writes, replacement, validation,
   security, and reads with Open Session in View disabled. CategoryMigrationTest
   executes V6/V7 in H2 MySQL mode; QuoteSearchMySqlTest also verifies V6/V7 during
@@ -482,7 +521,7 @@ npm run dev
 - Local Google callback: `http://localhost:8080/login/oauth2/code/google`
 - `FRONTEND_URL` sets the fixed post-login origin, default `http://localhost:5173` (no trailing slash)
 - `SecurityConfig` integrates Spring Security with the existing credentialed MVC CORS configuration
-- Anonymous GET/HEAD browsing of authors and quotes is allowed; all API writes require authentication and CSRF
+- Anonymous GET/HEAD browsing of authors, characters and quotes is allowed; all API writes require authentication and CSRF
 - Every authenticated Google user can write; editor/admin roles are not implemented
 - AuthController returns minimal DTOs from `/api/auth/me` and `/api/auth/csrf`, with `Cache-Control: no-store`
 - `/api/auth/logout` is a CSRF-protected POST that invalidates the session and clears its cookie

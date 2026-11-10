@@ -41,6 +41,10 @@ public class Quote {
     @JoinColumn(name = "author_id", nullable = false)
     private Author author;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "character_id", foreignKey = @ForeignKey(name = "fk_quote_character"))
+    private Character character;
+
     @ManyToMany
     @JoinTable(name = "quote_tones", joinColumns = @JoinColumn(name = "quote_id"),
             inverseJoinColumns = @JoinColumn(name = "tone_id"))

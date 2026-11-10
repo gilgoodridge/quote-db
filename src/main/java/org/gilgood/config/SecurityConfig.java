@@ -23,9 +23,11 @@ public class SecurityConfig {
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me", "/api/auth/csrf",
                                 "/api/authors", "/api/authors/**", "/api/quotes", "/api/quotes/**", "/api/categories",
+                                "/api/characters", "/api/characters/**",
                                 "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/api/authors", "/api/authors/**",
-                                "/api/quotes", "/api/quotes/**", "/api/categories").permitAll()
+                                "/api/quotes", "/api/quotes/**", "/api/categories",
+                                "/api/characters", "/api/characters/**").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 .requestCache(cache -> cache.disable())

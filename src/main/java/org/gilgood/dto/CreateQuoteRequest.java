@@ -1,5 +1,6 @@
 package org.gilgood.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -11,7 +12,9 @@ public class CreateQuoteRequest {
     private LocalDate date;
     private String location;
     private String reference;
+    @NotNull
     private Long authorId;
+    private Long characterId;
     private Set<Long> toneIds;
     private Set<Long> themeIds;
     private Set<Long> formIds;
