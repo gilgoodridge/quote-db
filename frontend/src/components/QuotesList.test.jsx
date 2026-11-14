@@ -1,4 +1,4 @@
-import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {api} from '../api'
 import QuotesList from './QuotesList'
@@ -144,36 +144,44 @@ describe('quote pagination', () => {
   })
 })
 
-describe('selected author heading', () => {
-  it('shows the display name once above filtered quotes for anonymous and signed-in users', async () => {
+describe('per-quote author attribution', () => {
+  it('shows the author beneath every filtered quote for anonymous and signed-in users', async () => {
+    api.quotes.listPage.mockResolvedValue(quotePage([quote, {...quote, id: 43, text: 'Another quote'}]))
     const {rerender} = render(<QuotesList authorId={7} />)
     await screen.findByText(quote.text)
-    await screen.findByRole('heading', {name: 'Mark Twain'})
-    expect(screen.getAllByText('Mark Twain')).toHaveLength(1)
-    expect(api.authors.get).toHaveBeenCalledWith(7)
+    expect(screen.getAllByRole('button', {name: 'Mark Twain'})).toHaveLength(2)
+    expect(screen.queryByRole('heading', {name: 'Mark Twain'})).toBeNull()
+    expect(api.authors.get).not.toHaveBeenCalled()
     rerender(<QuotesList authorId={7} isAuthenticated />)
-    expect(screen.getAllByText('Mark Twain')).toHaveLength(1)
+    expect(screen.getAllByRole('button', {name: 'Mark Twain'})).toHaveLength(2)
   })
 
-  it('falls back to the full name and remains visible when search and category filters have no matches', async () => {
-    api.authors.get.mockResolvedValue({...author, knownAs: null})
-    api.quotes.listPage.mockResolvedValue(quotePage([]))
-    render(<QuotesList authorId={7} query="missing" categoryIds={{toneIds: [1]}} />)
-    await screen.findByRole('heading', {name: 'Samuel Clemens'})
-    await screen.findByRole('heading', {name: 'No Quotes Found'})
+  it('falls back to the full name in the quote response', async () => {
+    api.quotes.listPage.mockResolvedValue(quotePage([{...quote, author: {...author, knownAs: null}}]))
+    render(<QuotesList authorId={7} />)
+    const link = await screen.findByRole('button', {name: 'Samuel Clemens'})
+    expect(link.closest('.quote-author').textContent).toBe('Samuel Clemens')
     expect(screen.queryByText('Mark Twain')).toBeNull()
   })
 
-  it('shows the heading independently of quote loading and failures', async () => {
+  it('does not show an author heading when there are no matching quotes', async () => {
+    api.quotes.listPage.mockResolvedValue(quotePage([]))
+    render(<QuotesList authorId={7} query="missing" categoryIds={{toneIds: [1]}} />)
+    await screen.findByRole('heading', {name: 'No Quotes Found'})
+    expect(screen.queryByText('Mark Twain')).toBeNull()
+    expect(api.authors.get).not.toHaveBeenCalled()
+  })
+
+  it('does not fetch or show a selected author heading during quote loading or failures', async () => {
     let rejectQuotes
     api.quotes.listPage.mockReturnValue(new Promise((resolve, reject) => { rejectQuotes = reject }))
     vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<QuotesList authorId={7} />)
-    await screen.findByRole('heading', {name: 'Mark Twain'})
     expect(screen.getByText('Loading quotes...')).toBeTruthy()
     await act(async () => rejectQuotes(new Error('Offline')))
-    expect(screen.getByRole('heading', {name: 'Mark Twain'})).toBeTruthy()
+    expect(screen.queryByText('Mark Twain')).toBeNull()
     expect(screen.getByRole('alert').textContent).toContain('Offline')
+    expect(api.authors.get).not.toHaveBeenCalled()
   })
 
   it('keeps individual author names in mixed-author results without fetching an author', async () => {
@@ -183,29 +191,15 @@ describe('selected author heading', () => {
     expect(api.authors.get).not.toHaveBeenCalled()
   })
 
-  it('makes author lookup failures retryable without blocking quotes', async () => {
-    api.authors.get.mockRejectedValueOnce(new Error('Offline'))
-    render(<QuotesList authorId={7} />)
-    await screen.findByText(quote.text)
-    expect((await screen.findByRole('alert')).textContent).toContain('Unable to load author: Offline')
-    fireEvent.click(screen.getByRole('button', {name: 'Retry author'}))
-    await screen.findByRole('heading', {name: 'Mark Twain'})
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(api.quotes.listPage).toHaveBeenCalledTimes(1)
-  })
-
-  it('ignores outdated author responses after the selection changes', async () => {
+  it('ignores outdated quote attributions after the author selection changes', async () => {
     let resolveFirst
-    api.authors.get.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
-    api.authors.get.mockResolvedValueOnce({id: 8, fullName: 'Jane Doe'})
+    api.quotes.listPage.mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
+    api.quotes.listPage.mockResolvedValueOnce(quotePage([{...quote, author: {id: 8, fullName: 'Jane Doe'}}]))
     const {rerender} = render(<QuotesList authorId={7} />)
-    expect(screen.getByText('Loading author...')).toBeTruthy()
     rerender(<QuotesList authorId={8} />)
-    await screen.findByRole('heading', {name: 'Jane Doe'})
-    await act(async () => resolveFirst(author))
+    await screen.findByRole('button', {name: 'Jane Doe'})
+    await act(async () => resolveFirst(quotePage()))
     expect(screen.queryByText('Mark Twain')).toBeNull()
-    expect(screen.getByRole('heading', {name: 'Jane Doe'})).toBeTruthy()
-    rerender(<QuotesList query="quote" />)
-    await waitFor(() => expect(screen.queryByRole('heading', {name: 'Jane Doe'})).toBeNull())
+    expect(screen.getByRole('button', {name: 'Jane Doe'})).toBeTruthy()
   })
 })

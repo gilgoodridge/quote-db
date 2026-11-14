@@ -19,6 +19,7 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
             SELECT DISTINCT q
             FROM Quote q
             WHERE (:authorId IS NULL OR q.author.id = :authorId)
+              AND (:characterId IS NULL OR q.character.id = :characterId)
               AND (:filterTones = false OR EXISTS (
                   SELECT tone.id
                   FROM Quote categorizedQuote JOIN categorizedQuote.tones tone
@@ -43,6 +44,7 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
             """)
     Page<Quote> filterByCategories(
             @Param("authorId") Long authorId,
+            @Param("characterId") Long characterId,
             @Param("filterTones") boolean filterTones, @Param("toneIds") List<Long> toneIds,
             @Param("filterThemes") boolean filterThemes, @Param("themeIds") List<Long> themeIds,
             @Param("filterForms") boolean filterForms, @Param("formIds") List<Long> formIds,
@@ -55,6 +57,7 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
             FROM quotes q
             WHERE MATCH(q.search_text) AGAINST (:query IN NATURAL LANGUAGE MODE) > 0
               AND (:authorId IS NULL OR q.author_id = :authorId)
+              AND (:characterId IS NULL OR q.character_id = :characterId)
               AND (:filterTones = false OR EXISTS (
                   SELECT 1 FROM quote_tones qt WHERE qt.quote_id = q.id AND qt.tone_id IN (:toneIds)
               ))
@@ -73,6 +76,7 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
             FROM quotes q
             WHERE MATCH(q.search_text) AGAINST (:query IN NATURAL LANGUAGE MODE) > 0
               AND (:authorId IS NULL OR q.author_id = :authorId)
+              AND (:characterId IS NULL OR q.character_id = :characterId)
               AND (:filterTones = false OR EXISTS (
                   SELECT 1 FROM quote_tones qt WHERE qt.quote_id = q.id AND qt.tone_id IN (:toneIds)
               ))
@@ -89,6 +93,7 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
     Page<Quote> search(
             @Param("query") String query,
             @Param("authorId") Long authorId,
+            @Param("characterId") Long characterId,
             @Param("filterTones") boolean filterTones, @Param("toneIds") List<Long> toneIds,
             @Param("filterThemes") boolean filterThemes, @Param("themeIds") List<Long> themeIds,
             @Param("filterForms") boolean filterForms, @Param("formIds") List<Long> formIds,
@@ -100,7 +105,7 @@ public interface QuoteRepository extends JpaRepository<Quote, Long> {
                                boolean filterThemes, List<Long> themeIds,
                                boolean filterForms, List<Long> formIds,
                                boolean filterSources, List<Long> sourceIds) {
-        return search(query, authorId, filterTones, toneIds, filterThemes, themeIds,
+        return search(query, authorId, null, filterTones, toneIds, filterThemes, themeIds,
                 filterForms, formIds, filterSources, sourceIds, Pageable.unpaged()).getContent();
     }
 

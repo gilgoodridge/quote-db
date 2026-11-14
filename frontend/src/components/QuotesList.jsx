@@ -2,60 +2,11 @@ import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import AddQuoteDialog from './AddQuoteDialog'
 import AboutAuthorDialog from './AboutAuthorDialog'
+import AboutCharacterDialog from './AboutCharacterDialog'
 import {categoryDimensions} from '../quoteCategories'
 import '../styles/QuotesList.css'
 
 const EMPTY_CATEGORY_IDS = { toneIds: [], themeIds: [], formIds: [], sourceIds: [] }
-
-function SelectedAuthorHeading({authorId, updatedAuthor, onAuthorClick}) {
-  const [loadedAuthor, setAuthor] = useState(null)
-  const author = updatedAuthor?.id === authorId ? updatedAuthor : loadedAuthor
-  const [error, setError] = useState(null)
-  const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    let active = true
-    async function loadAuthor() {
-      try {
-        setError(null)
-        const data = await api.authors.get(authorId)
-        if (!active) return
-        if (data?.id !== authorId || !data.fullName) {
-          throw new Error('The authors endpoint returned an invalid author')
-        }
-        setAuthor(data)
-      } catch (err) {
-        if (active) setError(`Unable to load author: ${err.message}`)
-      }
-    }
-    loadAuthor()
-    return () => {
-      active = false
-    }
-  }, [authorId, attempt])
-
-  return (
-    <header className="selected-author-header">
-      {author ? (
-        <h2>
-          <button type="button" className="author-details-link" aria-haspopup="dialog" onClick={(event) => onAuthorClick(author.id, event)}>
-            {author.knownAs || author.fullName}
-          </button>
-        </h2>
-      ) : error ? (
-        <div role="alert">
-          <p>{error}</p>
-          <button type="button" onClick={() => {
-            setError(null)
-            setAttempt((value) => value + 1)
-          }}>Retry author</button>
-        </div>
-      ) : (
-        <p role="status">Loading author...</p>
-      )}
-    </header>
-  )
-}
 
 export default function QuotesList({
   authorId = null,
@@ -65,9 +16,12 @@ export default function QuotesList({
   isAuthenticated = false,
   onAuthorCreated,
   onAuthorUpdated,
+  characterId = null,
+  charactersRefreshKey = 0,
+  onCharacterChanged,
 }) {
   const [quotes, setQuotes] = useState([])
-  const scope = JSON.stringify([authorId, query, categoryIds])
+  const scope = JSON.stringify([authorId, characterId, query, categoryIds])
   const [pagination, setPagination] = useState({scope, page: 0, size: 20})
   const page = pagination.scope === scope ? pagination.page : 0
   const size = pagination.size
@@ -76,7 +30,7 @@ export default function QuotesList({
     setPagination({...pagination, scope, page: 0})
   }
   const hasCategoryFilters = Object.values(categoryIds).some((ids) => ids?.length > 0)
-  const hasFilters = Boolean(authorId || query || hasCategoryFilters)
+  const hasFilters = Boolean(authorId || characterId || query || hasCategoryFilters)
   const [loading, setLoading] = useState(hasFilters)
   const [error, setError] = useState(null)
   const [expandedQuoteId, setExpandedQuoteId] = useState(null)
@@ -86,7 +40,8 @@ export default function QuotesList({
   const [actionMessage, setActionMessage] = useState('')
   const [editVersion, setEditVersion] = useState(0)
   const [aboutAuthorId, setAboutAuthorId] = useState(null)
-  const [updatedAuthor, setUpdatedAuthor] = useState(null)
+  const [aboutCharacterId, setAboutCharacterId] = useState(null)
+  const characterButtonRef = useRef(null)
   const authorButtonRef = useRef(null)
   const deletingRef = useRef(false)
   const editButtonRef = useRef(null)
@@ -94,7 +49,7 @@ export default function QuotesList({
 
   useEffect(() => {
     let active = true
-    if (!authorId && !query && !hasCategoryFilters) return
+    if (!hasFilters) return
 
     const fetchQuotes = async () => {
       try {
@@ -102,7 +57,9 @@ export default function QuotesList({
         setError(null)
         setQuotes([])
         setExpandedQuoteId(null)
-        const data = await api.quotes.listPage(authorId, query, categoryIds, {page, size})
+        const data = await api.quotes.listPage(authorId, query, categoryIds, {
+          page, size, ...(characterId == null ? {} : {characterId}),
+        })
         if (!active) return
         if (data.page.number !== page || data.page.size !== size) {
           throw new Error('The quotes endpoint returned an unexpected page')
@@ -128,7 +85,7 @@ export default function QuotesList({
     return () => {
       active = false
     }
-  }, [authorId, query, categoryIds, hasCategoryFilters, refreshKey, editVersion, page, size, scope])
+  }, [authorId, characterId, query, categoryIds, hasFilters, refreshKey, charactersRefreshKey, editVersion, page, size, scope])
 
   function changePage(nextPage) {
     setLoading(true)
@@ -149,6 +106,17 @@ export default function QuotesList({
     setAboutAuthorId(null)
     const target = authorButtonRef.current
     if (target?.isConnected) target.focus()
+    else containerRef.current?.focus()
+  }
+
+  function openCharacter(id, event) {
+    characterButtonRef.current = event.currentTarget
+    setAboutCharacterId(id)
+  }
+
+  function closeCharacter() {
+    setAboutCharacterId(null)
+    if (characterButtonRef.current?.isConnected) characterButtonRef.current.focus()
     else containerRef.current?.focus()
   }
 
@@ -207,7 +175,14 @@ export default function QuotesList({
 
   return (
     <div className={`quotes-container${hasFilters ? ' has-filters' : ''}`} ref={containerRef} tabIndex={-1} aria-label="Quotes">
-      {authorId && <SelectedAuthorHeading key={authorId} authorId={authorId} updatedAuthor={updatedAuthor} onAuthorClick={openAuthor} />}
+      {aboutCharacterId != null && (
+        <AboutCharacterDialog key={aboutCharacterId} characterId={aboutCharacterId} isAuthenticated={isAuthenticated}
+          onClose={closeCharacter} onUpdated={(character) => {
+            setQuotes((current) => current.map((quote) => quote.character?.id === character.id ? {...quote, character} : quote))
+            setEditVersion((version) => version + 1)
+            onCharacterChanged?.(character)
+          }} />
+      )}
       {aboutAuthorId != null && (
         <AboutAuthorDialog
           key={aboutAuthorId}
@@ -215,7 +190,6 @@ export default function QuotesList({
           isAuthenticated={isAuthenticated}
           onClose={closeAuthor}
           onUpdated={(author) => {
-            setUpdatedAuthor(author)
             setQuotes((current) => current.map((quote) => quote.author.id === author.id ? {...quote, author} : quote))
             setEditVersion((version) => version + 1)
             onAuthorUpdated?.(author)
@@ -229,6 +203,7 @@ export default function QuotesList({
           quote={editingQuote}
           onClose={closeEdit}
           onAuthorCreated={onAuthorCreated}
+          onCharacterCreated={onCharacterChanged}
           onUpdated={() => {
             setEditingQuote(null)
             setActionMessage('Quote updated.')
@@ -240,14 +215,14 @@ export default function QuotesList({
       {!hasFilters ? (
         <div className="empty-state">
           <div className="empty-icon">📖</div>
-          <h2>No Author Selected</h2>
-          <p>Select an author or category from the left panel, or search all quotes above</p>
+          <h2>No Filters Selected</h2>
+          <p>Select an author, character or category from the left panel, or search all quotes above</p>
         </div>
       ) : (
         <>
           {query && (
             <p className="search-summary" role="status">
-              Results for “{query}” {authorId ? 'within the selected author' : 'across all authors'}
+              Results for “{query}” {characterId ? 'within the selected character and other filters' : authorId ? 'within the selected author' : 'across all authors'}
             </p>
           )}
           {loading && (
@@ -267,7 +242,7 @@ export default function QuotesList({
               <h2>No Quotes Found</h2>
               <p>{query
                 ? 'No quotes match this search. Try different words; common words and words shorter than three characters may be ignored.'
-                : hasCategoryFilters
+                : hasCategoryFilters || characterId
                   ? 'No quotes match the selected filters'
                   : 'This author has no quotes yet'}</p>
             </div>
@@ -324,13 +299,21 @@ export default function QuotesList({
                       )}
                     </div>
                     {deletingQuoteId === quote.id && <p className="quote-action-message" role="status">Deleting quote...</p>}
-                    {!authorId && (
-                      <p className="quote-author">
-                        <button type="button" className="author-details-link" aria-haspopup="dialog" onClick={(event) => openAuthor(quote.author.id, event)}>
-                          {quote.author.knownAs || quote.author.fullName}
-                        </button>
-                      </p>
-                    )}
+                    <p className="quote-author">
+                      {quote.character && (
+                        <>
+                          <button type="button" className="author-details-link" aria-haspopup="dialog"
+                            onClick={(event) => openCharacter(quote.character.id, event)}>
+                            {quote.character.knownAs || quote.character.fullName}
+                          </button>
+                          {quote.character.workTitle && <> in <i>{quote.character.workTitle}</i></>}
+                          {' by '}
+                        </>
+                      )}
+                      <button type="button" className="author-details-link" aria-haspopup="dialog" onClick={(event) => openAuthor(quote.author.id, event)}>
+                        {quote.author.knownAs || quote.author.fullName}
+                      </button>
+                    </p>
                     {expandedQuoteId === quote.id && (
                       <div className="quote-details">
                         <div className="detail-field">

@@ -6,6 +6,8 @@ import org.gilgood.entity.Author;
 import org.gilgood.repository.AuthorRepository;
 import org.gilgood.repository.CharacterRepository;
 import org.gilgood.repository.QuoteRepository;
+import org.gilgood.repository.ToneRepository;
+import org.gilgood.entity.Tone;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -45,6 +47,7 @@ class CharacterControllerTest {
     @Autowired private CharacterRepository characters;
     @Autowired private QuoteRepository quotes;
     @Autowired private AuthorRepository authors;
+    @Autowired private ToneRepository tones;
     private Long authorId;
 
     @BeforeEach
@@ -207,6 +210,52 @@ class CharacterControllerTest {
                 .andExpect(status().isOk());
         assertTrue(characters.existsById(characterId));
         assertTrue(authors.existsById(authorId));
+    }
+
+    @Test
+    void filtersQuotesByCharacterWithAuthorCategoriesAndAccuratePageCounts() throws Exception {
+        long first = createCharacter(Map.of("fullName", "Hamlet")).path("id").asLong();
+        long second = createCharacter(Map.of("fullName", "Ophelia")).path("id").asLong();
+        Tone tone = new Tone();
+        tone.setName("Character filter tone");
+        tone.setDescription("Character filter test");
+        tone = tones.saveAndFlush(tone);
+        var request = quoteRequest();
+        request.put("characterId", first);
+        request.put("toneIds", java.util.List.of(tone.getId()));
+        long firstQuote = createQuote(request).path("id").asLong();
+        long nextQuote = createQuote(request).path("id").asLong();
+        request.put("characterId", second);
+        createQuote(request);
+        request.remove("characterId");
+        createQuote(request);
+        Author otherAuthor = new Author("Another writer");
+        otherAuthor.setDateOfBirth(LocalDate.of(1900, 1, 1));
+        request.put("authorId", authors.saveAndFlush(otherAuthor).getId());
+        request.put("characterId", first);
+        createQuote(request);
+        mvc.perform(get("/api/quotes").param("characterId", String.valueOf(first)).param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(firstQuote))
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.page.totalPages").value(3));
+        for (String query : new String[]{"", "  "}) {
+            mvc.perform(get("/api/quotes").param("characterId", String.valueOf(first))
+                            .param("authorId", String.valueOf(authorId)).param("toneIds", String.valueOf(tone.getId()))
+                            .param("query", query).param("page", "1").param("size", "1"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].id").value(nextQuote))
+                    .andExpect(jsonPath("$.page.totalElements").value(2));
+        }
+        mvc.perform(get("/api/quotes").param("characterId", String.valueOf(Long.MAX_VALUE)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page.totalElements").value(0));
+        mvc.perform(get("/api/quotes").param("characterId", String.valueOf(first))
+                        .param("toneIds", String.valueOf(Long.MAX_VALUE)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+        // Category-only filtering must still include narration with a null character.
+        mvc.perform(get("/api/quotes").param("toneIds", String.valueOf(tone.getId())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page.totalElements").value(5));
+        mvc.perform(head("/api/quotes").param("characterId", String.valueOf(first))).andExpect(status().isOk());
     }
 
     @Test

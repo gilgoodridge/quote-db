@@ -30,6 +30,10 @@ function quotePage(content) {
 }
 
 beforeEach(() => {
+  vi.spyOn(api.characters, 'list').mockResolvedValue([])
+  vi.spyOn(api.characters, 'listPage').mockResolvedValue({
+    content: [], page: {number: 0, size: 10, totalElements: 0, totalPages: 0},
+  })
   vi.spyOn(api.authors, 'list').mockResolvedValue([author])
   vi.spyOn(api.authors, 'listPage').mockResolvedValue({
     content: [author], page: {number: 0, size: 10, totalElements: 1, totalPages: 1},
@@ -101,7 +105,7 @@ describe('quote category editing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save quote' }))
     await waitFor(() => expect(callbacks.onCreated).toHaveBeenCalledWith(quote))
     expect(api.quotes.create).toHaveBeenCalledWith({
-      text: 'New quote', authorId: 7, date: null, location: null, reference: null, ...allSelections,
+      text: 'New quote', authorId: 7, characterId: null, date: null, location: null, reference: null, ...allSelections,
     })
     expect(api.quotes.update).not.toHaveBeenCalled()
   })
@@ -122,7 +126,7 @@ describe('quote category editing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save quote' }))
     await waitFor(() => expect(callbacks.onUpdated).toHaveBeenCalledWith(quote))
     expect(api.quotes.update).toHaveBeenCalledWith(42, {
-      text: quote.text, authorId: 7, date: quote.date, location: 'Act 2', reference: quote.reference,
+      text: quote.text, authorId: 7, characterId: null, date: quote.date, location: 'Act 2', reference: quote.reference,
       ...allSelections,
     })
   })

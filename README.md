@@ -151,12 +151,33 @@ workTitle}` when assigned; null fields are omitted under the existing JSON
 policy. Deleting a quote never deletes its character or author. Character
 assignment does not depend on category selections.
 
-This feature is backend-only for now. **Existing frontend quote edits do not
-send characterId, so saving them clears any character assigned through the
-API.** API clients must include characterId on PUT to retain the association.
+The left filter panel includes independent author and character searches, each
+loading 10 names at a time with **More** paging and a 500 ms search delay.
+Character selection combines with author, category and quote-text filters using
+AND. Searching either list does not clear a selection or change other filters.
+Character labels prefer known-as names and include the work title, when available,
+to distinguish identically named speakers.
+
+Character names on quotes and **Info** buttons in the filter panel open public
+character details. Quotes with characters use one
+attribution line: character in *work title* by author, with clickable character
+and author names. If no work title is available, the "in work title" phrase is
+omitted. Quotes without characters show the author beneath the quote. Attribution
+is the same whether or not an author or character is selected in the filters;
+neither selection adds a heading above the results.
+Signed-in users can create characters from the panel or quote
+form and edit them from their details. Optional cleared fields are sent as null;
+failed saves keep the draft. Changes refresh the character list and quote results
+without clearing filters. Character deletion is not exposed in the frontend.
+
+Quote forms include an optional character picker, prefilled from the selected
+filter or existing quote. Saving always sends `characterId`, preserving the
+assignment unless **No character / narration** is selected. Loading errors are
+visible and retryable; saving is blocked until the character options load.
+API clients must also include `characterId` on PUT to retain the association.
 
 #### Quotes
-- `GET /api/quotes?page=0&size=20&authorId={id}&query={text}&toneIds={id}&themeIds={id}&formIds={id}&sourceIds={id}` - List a page of quotes, optionally filtered by author/categories and searched by text
+- `GET /api/quotes?page=0&size=20&authorId={id}&characterId={id}&query={text}&toneIds={id}&themeIds={id}&formIds={id}&sourceIds={id}` - List a page of quotes, optionally filtered by author/character/categories and searched by text
 - `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
   `characterId`, `date` (`YYYY-MM-DD`), `location`, `reference`, `toneIds`, `themeIds`, `formIds`, and `sourceIds`
 - `GET /api/quotes/{id}` - Get a quote
@@ -349,7 +370,7 @@ DTOs; no score is exposed. Search remains available to anonymous users.
   or longer than 84 characters. A nonblank query with no indexed/matching terms
   returns `[]`; it does not fall back to listing everything.
 - Omitted, empty, or whitespace-only `query` preserves the original listing
-  behavior (including `authorId` filtering and existing unsorted order).
+  behavior (including author, character and category filters, with ID-ascending order).
 - JPA `@PrePersist` / `@PreUpdate` callbacks regenerate `search_text` on quote
   saves; MySQL maintains its index on creates, updates, and deletes. Query
   words use that same helper through `QuoteSearchText.normalizeQuery`, which
@@ -371,21 +392,19 @@ See [MySQL natural-language full-text search](https://docs.oracle.com/cd/E17952_
 for matching and relevance details.
 
 In the header, type a query and press **Enter** (or click the search icon).
-If an author is selected, only that author's quotes are searched; otherwise,
-all quotes are searched and each result displays its author. Changing or
-deselecting the author reruns the submitted search in the new scope.
+Selected author, character and category filters also constrain the search;
+without filters all quotes are searched. Mixed-author results display each
+quote's author. Changing or clearing a filter reruns the submitted search in the new scope.
 Editing nonblank text does not search until submission; clearing the box
-immediately returns to normal author browsing (or the author-selection prompt).
+immediately returns to browsing with the remaining filters (or the selection prompt).
 Submitting again also retries a failed search. Loading, failures, and no matches
 are displayed separately, and results retain the backend's relevance ordering.
 
-When an author is selected, their known-as name (or full name) appears once as
-a heading above the quotes in the middle panel, including when no quotes match
-or quotes are loading or fail to load. Mixed-author results retain the name
-beneath each quote instead. Author lookup failures are visible with a retry
-action and do not prevent quotes from loading.
+Every quote displays its author beneath the quote, using the known-as name
+or full name from the quote response. Selecting an author filters results without
+adding an author heading or changing attribution.
 
-Click the author heading or a name beneath a quote to open the read-only
+Click an author name beneath a quote to open the read-only
 **About this Author** dialog. It shows the full name, known-as name, birth and
 death dates, birthplace, nationality, biography, and age when available.
 Missing optional details are marked **Not provided**. Details load independently
@@ -404,7 +423,7 @@ the title, separate from the close button. It opens
 the author form prefilled for editing; saving sends a full replacement, so
 clearing optional fields removes them. Failed saves preserve the draft.
 Cancel returns to the unchanged details. A successful save updates the dialog,
-author heading, quote results, and Authors sidebar without changing filters.
+quote attribution, quote results, and Authors sidebar without changing filters.
 Anonymous users can view all details but cannot edit.
 
 ### Adding a quote in the UI
@@ -417,9 +436,9 @@ across the redirect, not credentials or quote data. Browser session storage must
 be available to resume the action automatically.
 
 The form includes all POST fields: quote text (up to 2,048 characters), an
-existing author selected from a dropdown, date, location, and reference (the
+existing author and optional character selected from dropdowns, date, location, and reference (the
 latter two up to 255 characters each), and optional multi-select Tone, Theme,
-Form, and Source groups. The currently selected author is
+Form, and Source groups. The currently selected author and character are
 preselected. **Add new author** opens a separate form without losing your quote
 draft. It supports all author POST fields: required full name and birth date,
 optional known-as name, death date, birthplace, nationality, and biography. The known-as name is
@@ -435,7 +454,7 @@ Saving failures leave the form and entered values intact.
 
 Signed-in users see pencil (edit) and X (delete) buttons at the top-right of
 each quote card. Editing opens the same form prefilled with all quote fields,
-including the author and category selections. Saving sends a full replacement: clearing an optional
+including the author, character and category selections. Saving sends a full replacement: clearing an optional
 field removes its value. Results refresh in the current author/search scope,
 so a changed quote may no longer match. Cancel leaves the quote unchanged;
 save failures keep the draft open.

@@ -8,6 +8,7 @@ import '../styles/Header.css'
 export default function Header({
   onQuoteCreated, onAuthorCreated, selectedAuthorId, searchText, onSearchTextChange, onSearch,
   onAuthenticationChange,
+  selectedCharacterId, onCharacterCreated,
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLogin, setShowLogin] = useState(false)
@@ -160,8 +161,8 @@ export default function Header({
         }}>
           <input
             type="search"
-            aria-label={selectedAuthorId ? 'Search quotes by the selected author' : 'Search all quotes'}
-            placeholder={selectedAuthorId ? 'Search this author (Enter)...' : 'Search all quotes (Enter)...'}
+            aria-label={selectedCharacterId ? 'Search quotes within selected filters' : selectedAuthorId ? 'Search quotes by the selected author' : 'Search all quotes'}
+            placeholder={selectedCharacterId ? 'Search filtered quotes (Enter)...' : selectedAuthorId ? 'Search this author (Enter)...' : 'Search all quotes (Enter)...'}
             className="search-input"
             value={searchText}
             onChange={(event) => onSearchTextChange(event.target.value)}
@@ -261,6 +262,8 @@ export default function Header({
       {showAddQuote && (
         <AddQuoteDialog
           initialAuthorId={selectedAuthorId}
+          initialCharacterId={selectedCharacterId}
+          onCharacterCreated={onCharacterCreated}
           onAuthorCreated={onAuthorCreated}
           onClose={closeAddQuote}
           onCreated={(quote) => {

@@ -111,6 +111,27 @@ export const api = {
     me: () => requestJson('/auth/me'),
     logout: () => requestWithCsrf('/auth/logout', { method: 'POST' }),
   },
+  characters: {
+    list: (query = '') => listAll((page) => api.characters.listPage({query, page, size: 100})),
+    listPage: async ({query = '', page = 0, size = 20} = {}) => {
+      const params = new URLSearchParams()
+      if (query.trim()) params.set('query', query.trim())
+      params.set('page', page)
+      params.set('size', size)
+      return validatePage(await requestJson(`/characters?${params}`))
+    },
+    get: (id) => requestJson(`/characters/${id}`),
+    create: (data) => requestJson('/characters', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    }),
+    update: (id, data) => requestJson(`/characters/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    }),
+  },
   authors: {
     list: (query = '') => listAll((page) => api.authors.listPage({ query, page, size: 100 })),
     listPage: async ({ query = '', page = 0, size = 20 } = {}) => {
@@ -151,11 +172,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
-    list: (authorId, query = '', categoryIds = {}) =>
-      listAll((page) => api.quotes.listPage(authorId, query, categoryIds, { page, size: 100 })),
-    listPage: async (authorId, query = '', categoryIds = {}, { page = 0, size = 20 } = {}) => {
+    list: (authorId, query = '', categoryIds = {}, {characterId = null} = {}) =>
+      listAll((page) => api.quotes.listPage(authorId, query, categoryIds, { page, size: 100, characterId })),
+    listPage: async (authorId, query = '', categoryIds = {}, { page = 0, size = 20, characterId = null } = {}) => {
       const params = new URLSearchParams()
       if (authorId != null) params.set('authorId', authorId)
+      if (characterId != null) params.set('characterId', characterId)
       if (query.trim()) params.set('query', query.trim())
       for (const field of ['toneIds', 'themeIds', 'formIds', 'sourceIds']) {
         for (const id of categoryIds[field] ?? []) params.append(field, id)

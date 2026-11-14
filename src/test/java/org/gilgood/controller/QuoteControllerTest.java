@@ -77,7 +77,7 @@ class QuoteControllerTest {
         Character character = new Character(4L, "Hamlet", "Prince Hamlet", "Prince of Denmark", "Hamlet");
         Quote attributed = quote(9L, "love life");
         attributed.setCharacter(character);
-        when(repository.search("love life", null, false, List.of(0L), false, List.of(0L),
+        when(repository.search("love life", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(attributed, quote(3L, "life"))));
         mvc.perform(request("  love life  "))
@@ -92,7 +92,7 @@ class QuoteControllerTest {
                 .andExpect(jsonPath("$.content[0].character.workTitle").value("Hamlet"))
                 .andExpect(jsonPath("$.content[0].character.quotes").doesNotExist())
                 .andExpect(jsonPath("$.content[1].id").value(3));
-        verify(repository).search("love life", null, false, List.of(0L), false, List.of(0L),
+        verify(repository).search("love life", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20));
         verifyNoMoreInteractions(repository);
     }
@@ -108,7 +108,7 @@ class QuoteControllerTest {
         insightful.setName("Insightful");
         Quote match = quote(9L, "A funny observation");
         match.setTones(Set.of(insightful, funny));
-        when(repository.search("funni", null, false, List.of(0L), false, List.of(0L),
+        when(repository.search("funni", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20))).thenReturn(new PageImpl<>(List.of(match)));
         mvc.perform(request("funny"))
                 .andExpect(status().isOk())
@@ -123,56 +123,56 @@ class QuoteControllerTest {
 
     @Test
     void combinesSearchWithAuthorAndDoesNotParseConnectors() throws Exception {
-        when(repository.search("love or life", 7L, false, List.of(0L), false, List.of(0L),
+        when(repository.search("love or life", 7L, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20))).thenReturn(new PageImpl<>(List.of()));
         mvc.perform(request("love OR +life").param("authorId", "7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty());
-        verify(repository).search("love or life", 7L, false, List.of(0L), false, List.of(0L),
+        verify(repository).search("love or life", 7L, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20));
         verifyNoMoreInteractions(repository);
     }
 
     @Test
     void normalizesOtherWordFormsBeforeSearching() throws Exception {
-        when(repository.search("hope", null, false, List.of(0L), false, List.of(0L),
+        when(repository.search("hope", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20))).thenReturn(new PageImpl<>(List.of(quote(1L, "We hoped for peace."))));
         mvc.perform(request("HOPING"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].text").value("We hoped for peace."))
                 .andExpect(jsonPath("$.content[0].searchText").doesNotExist());
-        verify(repository).search("hope", null, false, List.of(0L), false, List.of(0L),
+        verify(repository).search("hope", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20));
         verifyNoMoreInteractions(repository);
     }
 
     @Test
     void punctuationOnlyQueryDoesNotFallBackToListing() throws Exception {
-        when(repository.search("", null, false, List.of(0L), false, List.of(0L),
+        when(repository.search("", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20))).thenReturn(new PageImpl<>(List.of()));
         mvc.perform(request("... + !!!"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty());
-        verify(repository).search("", null, false, List.of(0L), false, List.of(0L),
+        verify(repository).search("", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20));
         verifyNoMoreInteractions(repository);
     }
 
     @Test
     void preservesQuotedPhraseWhenCombiningWithAuthorFilter() throws Exception {
-        when(repository.search("\"hope for peac\"", 7L, false, List.of(0L), false, List.of(0L),
+        when(repository.search("\"hope for peac\"", 7L, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20))).thenReturn(new PageImpl<>(List.of(quote(1L, "We hoped for peace."))));
         mvc.perform(request("\"HOPING for peace\"").param("authorId", "7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].text").value("We hoped for peace."));
-        verify(repository).search("\"hope for peac\"", 7L, false, List.of(0L), false, List.of(0L),
+        verify(repository).search("\"hope for peac\"", 7L, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20));
         verifyNoMoreInteractions(repository);
     }
 
     @Test
     void combinesCategoryFiltersWithTextSearch() throws Exception {
-        when(repository.search("love", 7L, true, List.of(2L, 3L), false, List.of(0L),
+        when(repository.search("love", 7L, null, true, List.of(2L, 3L), false, List.of(0L),
                 true, List.of(5L), false, List.of(0L), PageRequest.of(0, 20))).thenReturn(new PageImpl<>(List.of()));
         mvc.perform(request("love")
                         .param("authorId", "7")
@@ -180,9 +180,24 @@ class QuoteControllerTest {
                         .param("formIds", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isEmpty());
-        verify(repository).search("love", 7L, true, List.of(2L, 3L), false, List.of(0L),
+        verify(repository).search("love", 7L, null, true, List.of(2L, 3L), false, List.of(0L),
                 true, List.of(5L), false, List.of(0L), PageRequest.of(0, 20));
         verifyNoMoreInteractions(repository);
+    }
+
+    @Test
+    void combinesCharacterWithSearchAuthorCategoriesAndPagination() throws Exception {
+        var pageable = PageRequest.of(1, 1);
+        when(repository.search("love", 7L, 4L, true, List.of(2L), false, List.of(0L),
+                false, List.of(0L), false, List.of(0L), pageable))
+                .thenReturn(new PageImpl<>(List.of(quote(3L, "love")), pageable, 3));
+        mvc.perform(request("love").param("authorId", "7").param("characterId", "4").param("toneIds", "2")
+                        .param("page", "1").param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(3))
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.page.totalPages").value(3));
+        mvc.perform(request(null).param("characterId", "invalid")).andExpect(status().isBadRequest());
     }
 
     @Test
@@ -195,7 +210,7 @@ class QuoteControllerTest {
     @Test
     void passesRequestedPageToFilteredSearchAndReturnsMatchingTotals() throws Exception {
         var pageable = PageRequest.of(2, 1);
-        when(repository.search("love", 7L, true, List.of(2L), false, List.of(0L),
+        when(repository.search("love", 7L, null, true, List.of(2L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), pageable))
                 .thenReturn(new PageImpl<>(List.of(quote(3L, "love")), pageable, 5));
         mvc.perform(request("love").param("authorId", "7").param("toneIds", "2")
@@ -206,7 +221,7 @@ class QuoteControllerTest {
                 .andExpect(jsonPath("$.page.size").value(1))
                 .andExpect(jsonPath("$.page.totalElements").value(5))
                 .andExpect(jsonPath("$.page.totalPages").value(5));
-        verify(repository).search("love", 7L, true, List.of(2L), false, List.of(0L),
+        verify(repository).search("love", 7L, null, true, List.of(2L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), pageable);
         verifyNoMoreInteractions(repository);
     }

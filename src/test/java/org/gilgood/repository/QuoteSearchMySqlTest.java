@@ -2,6 +2,7 @@ package org.gilgood.repository;
 
 import org.flywaydb.core.Flyway;
 import org.gilgood.entity.Author;
+import org.gilgood.entity.Character;
 import org.gilgood.entity.Quote;
 import org.gilgood.entity.Tone;
 import org.gilgood.search.QuoteSearchText;
@@ -48,6 +49,8 @@ class QuoteSearchMySqlTest {
     private AuthorRepository authors;
     @Autowired
     private ToneRepository tones;
+    @Autowired
+    private CharacterRepository characters;
     private Author firstAuthor;
     private Quote bestMatch;
     private Quote weakerMatch;
@@ -85,6 +88,29 @@ class QuoteSearchMySqlTest {
         assertTrue(quotes.search("orchard", Long.MAX_VALUE).isEmpty());
         assertEquals(4, quotes.findAll().size());
         assertEquals(3, quotes.findByAuthorId(firstAuthor.getId()).size());
+    }
+
+    @Test
+    void combinesCharacterWithNativeSearchFiltersAndCounts() {
+        Character character = characters.saveAndFlush(new Character(null, "Hamlet", null, null, "Hamlet"));
+        bestMatch.setCharacter(character);
+        bestMatch = quotes.saveAndFlush(bestMatch);
+        weakerMatch.setCharacter(character);
+        weakerMatch = quotes.saveAndFlush(weakerMatch);
+        var result = quotes.search("orchard", null, character.getId(),
+                false, List.of(0L), false, List.of(0L), false, List.of(0L), false, List.of(0L),
+                PageRequest.of(1, 1));
+        assertEquals(List.of(weakerMatch.getId()), ids(result.getContent()));
+        assertEquals(2, result.getTotalElements());
+        assertEquals(2, result.getTotalPages());
+        var filtered = quotes.search("orchard", firstAuthor.getId(), character.getId(),
+                false, List.of(0L), false, List.of(0L), false, List.of(0L), false, List.of(0L),
+                PageRequest.of(0, 1));
+        assertEquals(List.of(bestMatch.getId()), ids(filtered.getContent()));
+        assertEquals(1, filtered.getTotalElements());
+        assertTrue(quotes.search("orchard", null, Long.MAX_VALUE,
+                false, List.of(0L), false, List.of(0L), false, List.of(0L), false, List.of(0L),
+                PageRequest.of(0, 1)).isEmpty());
     }
 
     @Test
@@ -142,7 +168,7 @@ class QuoteSearchMySqlTest {
     }
 
     private Page<Quote> searchPage(String query, Long authorId, boolean filterTones, List<Long> toneIds, int page) {
-        return quotes.search(query, authorId, filterTones, toneIds,
+        return quotes.search(query, authorId, null, filterTones, toneIds,
                 false, List.of(0L), false, List.of(0L), false, List.of(0L), PageRequest.of(page, 1));
     }
 

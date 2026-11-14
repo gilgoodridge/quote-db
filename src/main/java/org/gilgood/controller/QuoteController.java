@@ -34,16 +34,17 @@ public class QuoteController {
     @GetMapping
     @Transactional(readOnly = true)
     @Operation(summary = "List quotes with optional filters",
-            description = "Optionally filters by author and category IDs and searches quote text using MySQL natural-language " +
+            description = "Optionally filters by author, character and category IDs and searches quote text using MySQL natural-language " +
                     "FULLTEXT search with Snowball English (Porter2) stemming of quotes and queries. Search results are " +
                     "ordered by relevance, then ID. Double quotes preserve phrase matching over stemmed words. " +
-                    "Category dimensions are combined with the author and text filters using AND; multiple IDs in " +
+                    "Category dimensions are combined with the author, character and text filters using AND; multiple IDs in " +
                     "one dimension match any selected ID. No connector syntax is parsed. Omitted or blank query " +
                     "preserves normal listing behavior. MySQL stopwords and minimum indexed word length apply; this " +
                     "is not substring or semantic search. Returns a page; page is zero-based (default 0), " +
                     "size defaults to 20 and must be between 1 and 100. Non-search results are ordered by ID ascending.")
     public PagedModel<QuoteResponse> listQuotes(
             @RequestParam(required = false) Long authorId,
+            @RequestParam(required = false) Long characterId,
             @Parameter(description = "Plain-text search terms; any searchable word can match")
             @RequestParam(required = false) String query,
             @Parameter(description = "One or more tone IDs; matching any ID")
@@ -65,14 +66,14 @@ public class QuoteController {
         Page<Quote> quotes;
         if (query != null && !query.isBlank()) {
             quotes = quoteRepository.search(
-                    QuoteSearchText.normalizeQuery(query), authorId,
+                    QuoteSearchText.normalizeQuery(query), authorId, characterId,
                     filterTones, idsOrSentinel(toneIds),
                     filterThemes, idsOrSentinel(themeIds),
                     filterForms, idsOrSentinel(formIds),
                     filterSources, idsOrSentinel(sourceIds), pageable);
-        } else if (filterCategories) {
+        } else if (filterCategories || characterId != null) {
             quotes = quoteRepository.filterByCategories(
-                    authorId,
+                    authorId, characterId,
                     filterTones, idsOrSentinel(toneIds),
                     filterThemes, idsOrSentinel(themeIds),
                     filterForms, idsOrSentinel(formIds),

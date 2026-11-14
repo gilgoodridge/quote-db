@@ -50,7 +50,7 @@ function submitEditor() {
 }
 
 describe('author details', () => {
-  it('opens from the selected heading, shows all details read-only, and restores focus on close', async () => {
+  it('opens from quote attribution, shows all details read-only, and restores focus on close', async () => {
     render(<QuotesList authorId={7} />)
     const trigger = await screen.findByRole('button', {name: 'Mark Twain'})
     fireEvent.click(trigger)
@@ -259,7 +259,7 @@ describe('author details', () => {
     expect(api.authors.update).not.toHaveBeenCalled()
   })
 
-  it('refreshes the heading, sidebar, and quote results after saving without changing filters', async () => {
+  it('refreshes quote attribution and the sidebar after saving without changing filters', async () => {
     const updated = {...author, knownAs: 'Updated Display Name'}
     vi.spyOn(api.auth, 'me').mockResolvedValue({authenticated: true, name: 'Editor'})
     vi.spyOn(api.authors, 'listPage').mockResolvedValue({
@@ -275,13 +275,13 @@ describe('author details', () => {
     })
     render(<App />)
     fireEvent.click(await screen.findByRole('button', {name: 'Mark Twain'}))
-    const heading = await screen.findByRole('heading', {name: 'Mark Twain'})
-    fireEvent.click(within(heading).getByRole('button'))
+    const quotes = screen.getByRole('main')
+    fireEvent.click(await within(quotes).findByRole('button', {name: 'Mark Twain'}))
     await openEditor()
     fireEvent.change(screen.getByLabelText('Known as'), {target: {value: updated.knownAs}})
     submitEditor()
     await screen.findByText('Author updated.')
-    await screen.findByRole('heading', {name: updated.knownAs})
+    await within(quotes).findByRole('button', {name: updated.knownAs})
     await waitFor(() => expect(screen.getByRole('button', {name: updated.knownAs, pressed: true})).toBeTruthy())
     expect(api.authors.listPage).toHaveBeenCalledTimes(2)
     await waitFor(() => expect(api.quotes.listPage).toHaveBeenCalledTimes(2))

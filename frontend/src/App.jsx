@@ -7,6 +7,8 @@ import './App.css'
 
 function App() {
   const [selectedAuthorId, setSelectedAuthorId] = useState(null)
+  const [selectedCharacterId, setSelectedCharacterId] = useState(null)
+  const [charactersVersion, setCharactersVersion] = useState(0)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState({
     toneIds: [],
     themeIds: [],
@@ -31,6 +33,12 @@ function App() {
 
   function handleQuoteCreated(quote) {
     setSelectedAuthorId(quote.author.id)
+    setSelectedCharacterId(quote.character?.id ?? null)
+    setQuotesVersion((version) => version + 1)
+  }
+
+  function handleCharacterChanged() {
+    setCharactersVersion((version) => version + 1)
     setQuotesVersion((version) => version + 1)
   }
 
@@ -41,6 +49,8 @@ function App() {
         onQuoteCreated={handleQuoteCreated}
         onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
         selectedAuthorId={selectedAuthorId}
+        selectedCharacterId={selectedCharacterId}
+        onCharacterCreated={handleCharacterChanged}
         searchText={searchText}
         onSearchTextChange={handleSearchTextChange}
         onSearch={handleSearch}
@@ -53,6 +63,11 @@ function App() {
             selectedCategoryIds={selectedCategoryIds}
             onCategoryIdsChange={setSelectedCategoryIds}
             refreshKey={authorsVersion}
+            selectedCharacterId={selectedCharacterId}
+            onCharacterSelect={setSelectedCharacterId}
+            charactersRefreshKey={charactersVersion}
+            isAuthenticated={isAuthenticated}
+            onCharacterChanged={handleCharacterChanged}
           />
         </aside>
         <main className="content-middle">
@@ -61,6 +76,9 @@ function App() {
             onAuthorUpdated={() => setAuthorsVersion((version) => version + 1)}
             onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
             authorId={selectedAuthorId}
+            characterId={selectedCharacterId}
+            charactersRefreshKey={charactersVersion}
+            onCharacterChanged={handleCharacterChanged}
             query={searchQuery}
             categoryIds={selectedCategoryIds}
             refreshKey={quotesVersion}

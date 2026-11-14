@@ -96,6 +96,17 @@
   margin-bottom: 5px;
 }
 
+.name-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.name-filter-row .author-btn {
+  flex: 1;
+  min-width: 0;
+}
+
 .author-btn {
   width: 100%;
   padding: 8px 10px;

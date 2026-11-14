@@ -1,14 +1,17 @@
 import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import AddAuthorDialog from './AddAuthorDialog'
+import AddCharacterDialog from './AddCharacterDialog'
+import {characterLabel} from '../characterFields'
 import QuoteCategoryFields from './QuoteCategoryFields'
 import DialogHeader from './DialogHeader'
 import {categoryDimensions, categorySelections} from '../quoteCategories'
 import '../styles/AddQuoteDialog.css'
 
-export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthorCreated, initialAuthorId, quote }) {
+export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthorCreated, onCharacterCreated, initialAuthorId, initialCharacterId, quote }) {
   const dialogRef = useRef(null)
   const addAuthorButtonRef = useRef(null)
+  const addCharacterButtonRef = useRef(null)
   const submittingRef = useRef(false)
   const [authors, setAuthors] = useState([])
   const [loadingAuthors, setLoadingAuthors] = useState(true)
@@ -18,6 +21,12 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   const [saveError, setSaveError] = useState('')
   const [showAddAuthor, setShowAddAuthor] = useState(false)
   const [authorAdded, setAuthorAdded] = useState(false)
+  const [characters, setCharacters] = useState([])
+  const [loadingCharacters, setLoadingCharacters] = useState(true)
+  const [characterError, setCharacterError] = useState('')
+  const [characterLoadAttempt, setCharacterLoadAttempt] = useState(0)
+  const [showAddCharacter, setShowAddCharacter] = useState(false)
+  const [characterAdded, setCharacterAdded] = useState(false)
   const [catalog, setCatalog] = useState(null)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [categoryError, setCategoryError] = useState('')
@@ -26,6 +35,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   const [fields, setFields] = useState({
     text: quote?.text ?? '',
     authorId: String(quote?.author.id ?? initialAuthorId ?? ''),
+    characterId: String(quote?.character?.id ?? initialCharacterId ?? ''),
     date: quote?.date ?? '',
     location: quote?.location ?? '',
     reference: quote?.reference ?? '',
@@ -55,6 +65,22 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
 
   useEffect(() => {
     let active = true
+    api.characters.list()
+      .then((data) => {
+        if (!Array.isArray(data)) throw new Error('The characters endpoint returned an invalid list')
+        if (active) setCharacters(data)
+      })
+      .catch((error) => {
+        if (active) setCharacterError(`Unable to load characters: ${error.message}`)
+      })
+      .finally(() => {
+        if (active) setLoadingCharacters(false)
+      })
+    return () => { active = false }
+  }, [characterLoadAttempt])
+
+  useEffect(() => {
+    let active = true
     api.categories.list()
       .then((data) => {
         if (active) setCatalog(data)
@@ -78,6 +104,16 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   async function submit(event) {
     event.preventDefault()
     if (submittingRef.current) return
+    if (showAddAuthor || showAddCharacter) return
+    if (loadingCharacters || characterError) {
+      setSaveError('Load the character options before saving. Your draft has been kept.')
+      return
+    }
+    const character = characters.find((item) => String(item.id) === fields.characterId)
+    if (fields.characterId && !character) {
+      setSaveError('The selected character is no longer available. Choose another character or no character.')
+      return
+    }
     if (loadingCategories || categoryError || !catalog) {
       setSaveError('Load the category options before saving. Your draft has been kept.')
       return
@@ -104,6 +140,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       const request = {
         text: fields.text,
         authorId: author.id,
+        characterId: character?.id ?? null,
         date: fields.date || null,
         location: fields.location || null,
         reference: fields.reference || null,
@@ -128,6 +165,11 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     addAuthorButtonRef.current?.focus()
   }
 
+  function closeAddCharacter() {
+    setShowAddCharacter(false)
+    addCharacterButtonRef.current?.focus()
+  }
+
   return (
     <>
     <dialog
@@ -136,16 +178,16 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       aria-labelledby="add-quote-title"
       onClose={onClose}
       onCancel={(event) => {
-        if (submittingRef.current || showAddAuthor) event.preventDefault()
+        if (submittingRef.current || showAddAuthor || showAddCharacter) event.preventDefault()
       }}
     >
       <DialogHeader
         titleId="add-quote-title"
         title={quote ? 'Edit Quote' : 'Add Quote'}
         closeLabel="Close quote form"
-        disabled={saving || showAddAuthor}
+        disabled={saving || showAddAuthor || showAddCharacter}
         onClose={() => {
-          if (!submittingRef.current && !showAddAuthor) dialogRef.current.close()
+          if (!submittingRef.current && !showAddAuthor && !showAddCharacter) dialogRef.current.close()
         }}
       />
       <div className="dialog-body">
@@ -197,6 +239,35 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           </div>
           {authorAdded && <p role="status">Author added and selected.</p>}
 
+          <label htmlFor="quote-character">Character (optional)</label>
+          <p className="add-quote-description">The fictional speaker, if any. The writer is still the author.</p>
+          {loadingCharacters && <p role="status">Loading characters...</p>}
+          {characterError && (
+            <div className="add-quote-error" role="alert">
+              <p>{characterError} Your draft has been kept.</p>
+              <button type="button" onClick={() => {
+                setLoadingCharacters(true)
+                setCharacterError('')
+                setCharacterLoadAttempt((attempt) => attempt + 1)
+              }}>Retry loading characters</button>
+            </div>
+          )}
+          <select id="quote-character" name="characterId" value={fields.characterId} onChange={updateField}
+            disabled={loadingCharacters || Boolean(characterError)}>
+            <option value="">No character / narration</option>
+            {fields.characterId && !characters.some((item) => String(item.id) === fields.characterId) && (
+              <option value={fields.characterId}>{quote?.character ? characterLabel(quote.character) : 'Selected character'} (unavailable)</option>
+            )}
+            {characters.map((character) => <option key={character.id} value={character.id}>{characterLabel(character)}</option>)}
+          </select>
+          <div className="add-author-actions">
+            <button ref={addCharacterButtonRef} type="button" disabled={loadingCharacters}
+              aria-haspopup="dialog" onClick={() => { setCharacterAdded(false); setShowAddCharacter(true) }}>
+              Add new character
+            </button>
+          </div>
+          {characterAdded && <p role="status">Character added and selected.</p>}
+
           <label htmlFor="quote-date">Date</label>
           <input id="quote-date" name="date" type="date" value={fields.date} onChange={updateField} />
           <label htmlFor="quote-location">Location</label>
@@ -228,7 +299,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         {saveError && <p className="add-quote-error" role="alert">{saveError}</p>}
         <div className="add-quote-actions">
           <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>
-          <button type="submit" className="add-quote-submit" disabled={saving || loadingAuthors || Boolean(authorError) || authors.length === 0 || loadingCategories || Boolean(categoryError)}>
+          <button type="submit" className="add-quote-submit" disabled={saving || loadingAuthors || Boolean(authorError) || authors.length === 0 || loadingCharacters || Boolean(characterError) || loadingCategories || Boolean(categoryError)}>
             {saving ? 'Saving...' : 'Save quote'}
           </button>
         </div>
@@ -245,9 +316,19 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           setSaveError('')
           setAuthorAdded(true)
           closeAddAuthor()
-          onAuthorCreated(author)
+          onAuthorCreated?.(author)
         }}
       />
+    )}
+    {showAddCharacter && (
+      <AddCharacterDialog onClose={closeAddCharacter} onCreated={(character) => {
+        setCharacters((current) => [...current, character])
+        setFields((current) => ({...current, characterId: String(character.id)}))
+        setSaveError('')
+        setCharacterAdded(true)
+        closeAddCharacter()
+        onCharacterCreated?.(character)
+      }} />
     )}
     </>
   )

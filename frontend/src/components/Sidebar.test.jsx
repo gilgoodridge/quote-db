@@ -12,6 +12,7 @@ function authorPage(content, number = 0, totalElements = content.length) {
 }
 
 beforeEach(() => {
+  vi.spyOn(api.characters, 'listPage').mockResolvedValue(authorPage([]))
   vi.spyOn(api.authors, 'listPage').mockResolvedValue(authorPage([author, other]))
   vi.spyOn(api.categories, 'list').mockResolvedValue({
     tones: [{id: 1, name: 'Funny'}], themes: [], forms: [], sources: [],
@@ -31,7 +32,7 @@ function sidebar(props = {}) {
 }
 
 function submit(query) {
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: query}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: query}})
   fireEvent.submit(screen.getByRole('search', {name: 'Author search'}))
 }
 
@@ -41,10 +42,10 @@ it('searches after exactly 500 ms of inactivity and restarts the delay on typing
   render(sidebar({onAuthorSelect, onCategoryIdsChange}))
   await screen.findByRole('button', {name: 'The Bard'})
   vi.useFakeTimers()
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'sha'}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: 'sha'}})
   await act(async () => vi.advanceTimersByTimeAsync(300))
   expect(api.authors.listPage).toHaveBeenCalledTimes(1)
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: ' shake '}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: ' shake '}})
   await act(async () => vi.advanceTimersByTimeAsync(499))
   expect(api.authors.listPage).toHaveBeenCalledTimes(1)
   await act(async () => vi.advanceTimersByTimeAsync(1))
@@ -72,15 +73,15 @@ it('clearing and unmounting cancel pending searches', async () => {
   vi.useFakeTimers()
   submit('shake')
   await act(async () => {})
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'jane'}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: 'jane'}})
   await act(async () => vi.advanceTimersByTimeAsync(250))
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: ''}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: ''}})
   await act(async () => {})
   expect(api.authors.listPage).toHaveBeenLastCalledWith({query: '', page: 0, size: 10})
   expect(api.authors.listPage).toHaveBeenCalledTimes(3)
   await act(async () => vi.advanceTimersByTimeAsync(500))
   expect(api.authors.listPage).toHaveBeenCalledTimes(3)
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: 'jane'}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: 'jane'}})
   unmount()
   await act(async () => vi.advanceTimersByTimeAsync(500))
   expect(api.authors.listPage).toHaveBeenCalledTimes(3)
@@ -91,14 +92,14 @@ it('submits trimmed queries, clears immediately, and leaves quote filters unchan
   const onCategoryIdsChange = vi.fn()
   render(sidebar({onAuthorSelect, onCategoryIdsChange}))
   await screen.findByRole('button', {name: 'Jane Austen'})
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: ' shake '}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: ' shake '}})
   expect(api.authors.listPage).toHaveBeenCalledTimes(1)
   api.authors.listPage.mockResolvedValueOnce(authorPage([author]))
   fireEvent.click(screen.getByRole('button', {name: 'Search authors'}))
   await waitFor(() => expect(screen.queryByRole('button', {name: 'Jane Austen'})).toBeNull())
   expect(api.authors.listPage).toHaveBeenLastCalledWith({query: 'shake', page: 0, size: 10})
   expect(screen.getByRole('button', {name: 'The Bard'}).getAttribute('aria-pressed')).toBe('true')
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: ''}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: ''}})
   await screen.findByRole('button', {name: 'Jane Austen'})
   expect(api.authors.listPage).toHaveBeenLastCalledWith({query: '', page: 0, size: 10})
   expect(onAuthorSelect).not.toHaveBeenCalled()
@@ -117,7 +118,7 @@ it('shows no matches without clearing a selected author and retains query on ref
   rerender(sidebar({onAuthorSelect, refreshKey: 1}))
   await waitFor(() => expect(api.authors.listPage).toHaveBeenCalledTimes(3))
   expect(api.authors.listPage).toHaveBeenLastCalledWith({query: 'missing', page: 0, size: 10})
-  expect(screen.getByRole('searchbox').value).toBe('missing')
+  expect(screen.getByRole('searchbox', {name: 'Search authors by full name'}).value).toBe('missing')
   expect(onAuthorSelect).not.toHaveBeenCalled()
 })
 
@@ -211,6 +212,6 @@ it('ignores pending more pages on a new search and resets pages on refresh and c
   rerender(sidebar({refreshKey: 1}))
   await waitFor(() => expect(api.authors.listPage).toHaveBeenCalledTimes(4))
   expect(api.authors.listPage).toHaveBeenLastCalledWith({query: 'jane', page: 0, size: 10})
-  fireEvent.change(screen.getByRole('searchbox'), {target: {value: ''}})
+  fireEvent.change(screen.getByRole('searchbox', {name: 'Search authors by full name'}), {target: {value: ''}})
   await waitFor(() => expect(api.authors.listPage).toHaveBeenLastCalledWith({query: '', page: 0, size: 10}))
 })

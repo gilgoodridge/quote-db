@@ -6,6 +6,73 @@ import {categorySelections} from './quoteCategories.js'
 
 const originalFetch = globalThis.fetch
 
+test('character lists encode queries, collect every matching page and preserve credentials', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    const number = Number(new URL(url, 'http://localhost').searchParams.get('page'))
+    return pageResponse(number === 0 ? [{id: 4}] : [{id: 5}], number, 101)
+  }
+  assert.deepEqual(await api.characters.list(' Hamlet & friend '), [{id: 4}, {id: 5}])
+  assert.deepEqual(calls.map(({url}) => url), [
+    '/api/characters?query=Hamlet+%26+friend&page=0&size=100',
+    '/api/characters?query=Hamlet+%26+friend&page=1&size=100',
+  ])
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+  await api.characters.listPage({query: '  ', page: 2, size: 10})
+  assert.equal(calls[2].url, '/api/characters?page=2&size=10')
+  globalThis.fetch = async () => new Response('Unavailable', {status: 503})
+  await assert.rejects(api.characters.list(), /Unavailable/)
+  globalThis.fetch = async () => new Response('[]')
+  await assert.rejects(api.characters.listPage(), /invalid paginated response/)
+})
+
+test('character reads and full-replacement writes use session credentials and fresh CSRF', async () => {
+  const calls = []
+  let token = 0
+  const character = {id: 4, fullName: 'Hamlet', knownAs: null, workTitle: 'Hamlet', description: null}
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return new Response(JSON.stringify(url.endsWith('/csrf')
+      ? {headerName: 'X-CSRF-TOKEN', token: `token-${++token}`} : character))
+  }
+  assert.deepEqual(await api.characters.get(4), character)
+  await api.characters.create(character)
+  await api.characters.update(4, character)
+  assert.deepEqual(calls.map(({url}) => url), [
+    '/api/characters/4', '/api/auth/csrf', '/api/characters', '/api/auth/csrf', '/api/characters/4',
+  ])
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+  for (const [index, method, csrf] of [[2, 'POST', 'token-1'], [4, 'PUT', 'token-2']]) {
+    assert.equal(calls[index].options.method, method)
+    assert.equal(calls[index].options.headers['X-CSRF-TOKEN'], csrf)
+    assert.deepEqual(JSON.parse(calls[index].options.body), character)
+  }
+  globalThis.fetch = async (url) => url.endsWith('/csrf')
+    ? new Response('{"headerName":"X-CSRF-TOKEN","token":"token"}')
+    : new Response('Session expired', {status: 401})
+  await assert.rejects(api.characters.update(4, character), /Session expired/)
+})
+
+test('character quote filtering survives paging and combines with every other filter', async () => {
+  const calls = []
+  globalThis.fetch = async (url) => {
+    calls.push(url)
+    const number = Number(new URL(url, 'http://localhost').searchParams.get('page'))
+    return pageResponse([], number, 101)
+  }
+  await api.quotes.list(7, ' be ', {toneIds: [1, 2]}, {characterId: 4})
+  assert.equal(calls.length, 2)
+  for (const [index, url] of calls.entries()) {
+    const params = new URL(url, 'http://localhost').searchParams
+    assert.equal(params.get('authorId'), '7')
+    assert.equal(params.get('characterId'), '4')
+    assert.equal(params.get('query'), 'be')
+    assert.deepEqual(params.getAll('toneIds'), ['1', '2'])
+    assert.equal(params.get('page'), String(index))
+  }
+})
+
 function pageResponse(content = [], number = 0, totalElements = content.length, size = 100) {
   return new Response(JSON.stringify({
     content,
