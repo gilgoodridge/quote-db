@@ -1,5 +1,13 @@
 # Architecture & Learnings
 
+## Documentation Maintenance
+
+- This repository has two READMEs: root `README.md` for application-wide/API
+  documentation and `frontend/README.md` for frontend behavior and development.
+- Check both READMEs when changing features; update each affected document and
+  keep shared behavior consistent. Update `AGENTS.md` when architecture,
+  conventions or implementation guidance changes.
+
 ## DTO-to-Entity Mapping Strategy
 
 **Tool**: MapStruct v1.6.0 (compile-time code generation)
@@ -188,7 +196,7 @@ retryable; writes refresh totals and recover pages that no longer exist.
   optional `knownAs` (255), `description` (1024), and `workTitle` (255).
   Names are not unique; distinct works can have identically named characters.
   Blank known-as names normalize to null, as for authors.
-- Backend-only CRUD at `/api/characters` follows AuthorController:
+- CRUD at `/api/characters` follows AuthorController:
   CharacterRepository, MapStruct CharacterMapper, separate create/update request
   DTOs and CharacterResponse. Never accept client IDs or expose entities.
   PUT replaces all editable fields and clears omitted/null optional fields.
@@ -205,10 +213,40 @@ retryable; writes refresh totals and recover pages that no longer exist.
   reject the entire write. `authorId` remains required even with a character.
   Responses include a CharacterResponse when assigned, otherwise omit the field
   under the existing non-null JSON policy. No cascade to characters or authors.
-- Do not infer or require a character from Source categories. There is no
-  frontend character UI yet. Existing frontend quote PUTs omit characterId and
-  therefore clear it, consistent with full replacement; API clients retaining
-  the character must send characterId.
+- Do not infer or require a character from Source categories. Frontend quote
+  forms always send characterId: preserve the existing assignment on edits,
+  preselect the current character filter on creation, and send null when
+  No character / narration is selected. API clients retaining the character
+  must also send characterId on PUT.
+- Public quote lists accept optional characterId, combined with author, text
+  and category filters using AND. Apply it in database queries and counts,
+  including native FULLTEXT search; preserve relevance and ID ordering.
+- `api.characters.list(query)` collects all matching pages for quote pickers;
+  `listPage({query, page, size})` loads one page. Reads include session cookies;
+  create/update use fresh CSRF tokens, as for authors.
+- Sidebar shares NameFilter for independent author/character searches, with
+  500 ms debounce, immediate submission/clearing, 10-item pages, More controls,
+  retryable failures and stale-response protection. Searching or clearing one
+  list never changes selected IDs or other quote filters. Character labels in
+  filters/pickers prefer knownAs and append workTitle in parentheses.
+- Character names on quotes and Sidebar Info buttons open AboutCharacterDialog.
+  Details are public; only authenticated users can create/edit characters.
+  AddCharacterDialog shares characterFields definitions with details, trims
+  text, sends cleared optional fields as null, keeps failed drafts and blocks
+  duplicate submissions/dismissal while saving. Use native dialogs and restore
+  focus to the invoking control or container. Character deletion has no UI.
+- AddQuoteDialog loads complete character options with visible retryable errors
+  and disables save during loading/failure. Never silently clear unavailable
+  assignments. Nested character creation selects the result without losing
+  quote fields/categories; cancelling a quote does not delete a saved character.
+- Character changes refresh Sidebar and quote results without clearing filters.
+  Quotes always use per-quote attribution, never selected-author/character
+  headings: author alone, or character in italicized work title by author.
+  Omit the "in work title" phrase when absent. Both names are accessible buttons
+  opening details without expanding the quote or changing filters.
+- Characters.test.jsx and API tests cover filters, pagination, debounce, stale
+  responses, retry, create/edit dialogs, focus, assignment preservation/clearing,
+  uniform attribution and italicized work titles.
 - CharacterControllerTest covers CRUD, validation, search/pagination, security,
   quote reads/replacement, atomic invalid writes and deletion conflicts with
   Open Session in View disabled. CharacterMigrationTest exercises V8 constraints
@@ -266,12 +304,12 @@ retryable; writes refresh totals and recover pages that no longer exist.
 - QuotesList shows selected category labels grouped by dimension in expanded
   details, for anonymous/authenticated browsing and search. Hide empty groups.
   Controls/tags wrap on narrow screens and use CSS theme variables.
-- Left navigation provides author selection and optional category checkboxes.
+- Left navigation provides author/character selection and optional category checkboxes.
   Bound the author-list height so it cannot consume the navigation; category
-  selections combine across dimensions and with author/text filters using AND.
+  selections combine across dimensions and with author/character/text filters using AND.
   Category catalog failures must remain visible and retryable.
 - `npm test` in frontend runs existing Node API tests and Vitest/jsdom category,
-  author-heading, and author-dialog interaction tests. Keep the Vitest include scoped to `*.test.jsx`
+  quote-attribution, character, and author-dialog interaction tests. Keep the Vitest include scoped to `*.test.jsx`
   so Node's `api.test.js` is not executed by both runners.
 - `seed-data.sh` requires jq and loads `/api/categories` to resolve labels rather
   than hardcoding IDs. Optional arguments 6-9 to `create_quote` accept tone,
@@ -334,7 +372,10 @@ frontend/
 │   │   ├── LoginDialog.jsx       # Optional Google OIDC login dialog
 │   │   ├── AboutAuthorDialog.jsx # Public author details with authenticated edit action
 │   │   ├── AddAuthorDialog.jsx   # Shared author creation/editing form
-│   │   ├── Sidebar.jsx           # Left sidebar: author filter list
+│   │   ├── AboutCharacterDialog.jsx # Public character details with authenticated editing
+│   │   ├── AddCharacterDialog.jsx # Character creation/full-replacement editing
+│   │   ├── NameFilter.jsx        # Shared paginated author/character search
+│   │   ├── Sidebar.jsx           # Left sidebar: author/character/category filters
 │   │   ├── QuotesList.jsx        # Center content: quotes display
 │   │   └── Placeholder.jsx       # Right sidebar: future feature placeholder
 │   └── styles/
@@ -360,17 +401,17 @@ frontend/
 - Neutral color scheme with subtle borders
 
 **Main Content (Below Header)**
-- **Left Sidebar (25% width)**: Author filter panel
-  - Displays list of authors fetched from backend
-  - Click author to select/deselect and filter quotes
-  - Active author highlighted with accent color
+- **Left Sidebar (25% width)**: Quote filter panel
+  - Displays independently searchable, paginated authors and characters from backend
+  - Click author/character to select/deselect and filter quotes
+  - Active selections highlighted with accent color
   - Scrollable if many authors
 
 - **Center Content (50% width)**: Quote display area
-  - Selection prompt when no author, search query, or category filter is active
-  - Selected author's display name appears once above their quotes, even during loading, failure, or no matches
-  - Mixed-author results show names beneath each quote instead of an author heading
-  - Both author-name placements open the About this Author dialog
+  - Selection prompt when no author, character, search query, or category filter is active
+  - Uniform attribution beneath each quote; no selected-author/character headings
+  - Character in italicized work title by author, or author alone; omit absent work titles
+  - Clickable author/character names open their public details dialogs
   - Scrollable for long quote lists
 
 - **Right Sidebar (25% width)**: Reserved for future features
@@ -439,20 +480,21 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Uses theme variables for light/dark mode, with fixed Google brand colors defined in index.css
 
 **Sidebar.jsx**
-- Fetches authors from `GET /api/authors` on mount and on submitted author query/refresh
+- Fetches authors and characters through NameFilter on mount and submitted query/refresh
 - Compact fullName search submits optional `query` with Enter/search icon or after a 500 ms typing pause; clearing restores the first unfiltered page
-- Loads 10 authors initially with More authors to append further pages; searches and refreshes reset to page 0
+- Loads 10 names per list initially with More authors/characters to append pages; searches and refreshes reset to page 0
 - Shows loading/no-match/retryable error states and ignores outdated author responses
 - Button-based author selection with active state styling
-- Author list search preserves author selection and quote text/category filters
+- Each list search preserves author/character selections and quote text/category filters
+- Character Info opens public details; authenticated users can add new characters
 
 **QuotesList.jsx**
-- Shows a selection prompt when no author, search query, or category filter is active
-- Searches all quotes when a query is submitted without an author; otherwise scopes to the selected author
-- Uses knownAs when present, otherwise fullName; shows the selected author once as a heading, or per-quote names in mixed-author results
-- Heading loads independently via `api.authors.get(id)`, with visible, retryable failures
-- Both heading and per-quote names are keyboard-accessible buttons opening AboutAuthorDialog without changing filters or expanding a quote
-- Author updates refresh the heading, matching quote authors/results, and Authors sidebar while preserving filters
+- Shows a selection prompt when no author, character, search query, or category filter is active
+- Searches within all selected author/character/category filters, or all quotes when none are selected
+- Uses knownAs when present, otherwise fullName, beneath every quote with no filter-specific headings
+- Character attribution is character in italicized work title by author; omit absent work titles
+- Per-quote names are keyboard-accessible buttons opening AboutAuthorDialog/AboutCharacterDialog without changing filters or expanding a quote
+- Author/character updates refresh matching quote attribution/results and Sidebar while preserving filters
 - Preserves backend relevance order
 - Shows distinct loading, error, and no-match states; ignores outdated requests after filter changes
 - Scrollable quote display with expandable details

@@ -36,11 +36,24 @@ Component tests use Vitest, Testing Library, and jsdom. Run `npm run lint` and
 The middle panel loads one quote page at a time via `api.quotes.listPage`.
 Previous/Next controls appear at the bottom with one-based page labels.
 Quotes per page offers 10, 20 (default), 50, and 100. Changing the size or
-author/search/category filters resets the API page to 0 and retains the chosen
+author/character/search/category filters resets the API page to 0 and retains the chosen
 size. Failed loads can be retried; outdated responses are ignored. Quote writes
 refresh the current page and totals, moving back if that page no longer exists.
-The Authors sidebar loads 10 authors at a time with a More authors action.
-Author pickers elsewhere still collect all pages.
+The sidebar loads 10 authors and 10 characters independently, with More authors
+and More characters actions. Quote form pickers collect all pages.
+
+## Quote attribution
+
+Every quote shows its author beneath the quote, using `knownAs` when available
+or `fullName` otherwise. Quotes with a character instead use a single line:
+character in *work title* by author. Work titles are italicized; if absent,
+the "in work title" phrase is omitted.
+
+Author and character names are keyboard-accessible buttons opening public
+details dialogs without expanding the quote or changing filters. Attribution
+is identical for all filter combinations; selecting an author or character
+never adds a heading above the results. Signed-in users can edit details;
+successful edits refresh the sidebar and quote attribution without clearing filters.
 
 ## Author search
 
@@ -64,13 +77,46 @@ authors visible, disables duplicate requests, and offers retry for failures on
 the same page. Searches, clearing, and author refreshes reset to the first page;
 outdated initial and more-page responses cannot populate a newer search.
 
-Search only narrows this list: it does not change the selected author or quote
-text/category filters, even if the selected author is no longer visible.
+Search only narrows this list: it does not change selected author/character IDs or
+quote text/category filters, even if the selected author is no longer visible.
 All authors still clears only the author selection. Creation and editing
 refreshes preserve the author query while resetting the list to its first page. Loading and no-match states are distinct
 from visible failures; Retry or resubmission retries the current query without
 losing the field text. Outdated responses are ignored. The field uses theme
 variables for light/dark mode and fits narrow sidebar widths.
+
+## Characters
+
+Characters are optional fictional speakers; every quote still requires its
+writer as the author. The Characters filter uses the shared `NameFilter`
+component with the same independent full-name search, 500 ms debounce,
+10-item paging, clearing, retry and stale-response handling as Authors.
+Selecting a character combines with author, quote-text and category filters
+using AND, with pagination and counts applied in the backend.
+
+`api.characters.list(query = '')` collects all matching pages;
+`listPage({query, page, size})` returns one page. Filter and picker labels prefer
+`knownAs` and append `workTitle` in parentheses to distinguish names from
+different works. Sidebar Info buttons and quote character names open
+`AboutCharacterDialog`, showing full name, known-as name, work title and
+description, with missing values marked Not provided.
+
+Signed-in users can create characters from the sidebar or quote form and edit
+them from details. `AddCharacterDialog` requires a full name (255 characters
+maximum); known-as name and work title are optional (255 each), and description
+is optional (1024). Saves trim text and send cleared optional fields as null
+using full-replacement PUT semantics. Failed saves retain drafts; saving blocks
+duplicate submissions and dismissal. Native dialogs restore focus on close.
+Character deletion is not exposed in the frontend.
+
+Add Quote preselects the current author/character filters. Edit Quote preserves
+the existing character, including on scalar-only edits. Every quote save sends
+`characterId`, or null for No character / narration. Character options load
+through the all-pages API helper; loading failures are visible and retryable,
+and Save stays disabled until loading succeeds. Unavailable assignments are
+never silently cleared. Nested character creation selects the saved character
+without discarding quote fields or categories; cancelling the quote does not
+delete an already-created character.
 
 ## Quote categories
 Add Quote and Edit Quote load `/api/categories` and offer optional multi-select
@@ -91,7 +137,9 @@ descriptions. These descriptions also support screen readers. Descriptions
 require backend V7; older responses without them still support editing.
 Category controls and tags wrap for mobile widths and use the existing theme
 variables for light and dark modes. Source identifies the origin type, while
-Location remains the precise location. Category filtering is not implemented.
+Location remains the precise location. Sidebar category filters match any
+selected ID within a dimension and combine dimensions with author, character
+and quote-text filters using AND.
 
 Currently, two official plugins are available:
 
