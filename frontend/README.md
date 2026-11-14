@@ -79,7 +79,12 @@ outdated initial and more-page responses cannot populate a newer search.
 
 Search only narrows this list: it does not change selected author/character IDs or
 quote text/category filters, even if the selected author is no longer visible.
-All authors still clears only the author selection. Creation and editing
+Clicking a selected author or character again clears only that selection.
+The scroll areas target about five authors and three characters: the author
+height limit is 5/6 of its previous size, and the character limit is 3/5 of
+the author limit. The same proportions apply on mobile; short screens and
+wrapped names may show fewer entries.
+Creation and editing
 refreshes preserve the author query while resetting the list to its first page. Loading and no-match states are distinct
 from visible failures; Retry or resubmission retries the current query without
 losing the field text. Outdated responses are ignored. The field uses theme
@@ -97,12 +102,15 @@ using AND, with pagination and counts applied in the backend.
 `api.characters.list(query = '')` collects all matching pages;
 `listPage({query, page, size})` returns one page. Filter and picker labels prefer
 `knownAs` and append `workTitle` in parentheses to distinguish names from
-different works. Sidebar Info buttons and quote character names open
-`AboutCharacterDialog`, showing full name, known-as name, work title and
-description, with missing values marked Not provided.
+different works. Sidebar Info buttons next to authors and characters open
+their respective details dialogs. `AboutAuthorDialog` shows author identity,
+dates, birthplace, nationality, biography and age when available;
+`AboutCharacterDialog` shows full name, known-as name, work title and
+description. Missing values are marked Not provided.
 
-Signed-in users can create characters from the sidebar or quote form and edit
-them from details. `AddCharacterDialog` requires a full name (255 characters
+Signed-in users can create characters from the quote form and edit them from
+details. The sidebar lists and filters characters but does not offer creation.
+`AddCharacterDialog` requires a full name (255 characters
 maximum); known-as name and work title are optional (255 each), and description
 is optional (1024). Saves trim text and send cleared optional fields as null
 using full-replacement PUT semantics. Failed saves retain drafts; saving blocks

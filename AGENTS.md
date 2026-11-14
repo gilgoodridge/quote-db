@@ -178,8 +178,8 @@ retryable; writes refresh totals and recover pages that no longer exist.
   pending searches. Clearing restores the first unfiltered page immediately. Keep query on
   author refresh and retry/resubmission.
 - Search narrows the author list only, never clears the selected author (even
-  when hidden) or changes quote text/category filters. All authors still clears
-  only the selected author. Labels continue to prefer knownAs over fullName.
+  when hidden) or changes quote text/category filters.
+  Labels continue to prefer knownAs over fullName.
 - Keep the field compact above the list, keyboard accessible, and theme-aware.
   Show loading, no matches, and visible retryable errors separately; clear stale
   results on first-page reload, retain results on more-page failure, and ignore outdated requests.
@@ -484,9 +484,11 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Compact fullName search submits optional `query` with Enter/search icon or after a 500 ms typing pause; clearing restores the first unfiltered page
 - Loads 10 names per list initially with More authors/characters to append pages; searches and refreshes reset to page 0
 - Shows loading/no-match/retryable error states and ignores outdated author responses
-- Button-based author selection with active state styling
+- Author/character buttons toggle selection; no All authors/characters controls
 - Each list search preserves author/character selections and quote text/category filters
-- Character Info opens public details; authenticated users can add new characters
+- Author/character Info opens existing details dialogs with focus restoration; edits refresh names and quotes without clearing filters
+- Character creation is in the quote form only, not the sidebar
+- Sidebar.css shares an author height limit (25vh, capped at 233.33px; 91.67px on mobile); characters use 3/5 of it, targeting about five authors/three characters
 
 **QuotesList.jsx**
 - Shows a selection prompt when no author, character, search query, or category filter is active

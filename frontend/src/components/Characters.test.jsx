@@ -1,4 +1,4 @@
-import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {afterEach, beforeEach, expect, it, vi} from 'vitest'
 import {api} from '../api'
 import App from '../App'
@@ -69,7 +69,7 @@ it('combines character and author filters through the app and clears only the se
   expect(api.quotes.listPage).toHaveBeenLastCalledWith(null, '', selections, {page: 0, size: 20, characterId: 4})
   fireEvent.click(screen.getByRole('button', {name: 'William Shakespeare', pressed: false}))
   await waitFor(() => expect(api.quotes.listPage).toHaveBeenLastCalledWith(7, '', selections, {page: 0, size: 20, characterId: 4}))
-  fireEvent.click(screen.getByRole('button', {name: 'All characters'}))
+  fireEvent.click(screen.getByRole('button', {name: 'Prince Hamlet (Hamlet)'}))
   await waitFor(() => expect(api.quotes.listPage).toHaveBeenLastCalledWith(7, '', selections, {page: 0, size: 20}))
   expect(screen.queryByRole('button', {name: 'Add new character'})).toBeNull()
 })
@@ -379,14 +379,10 @@ it('refreshes character filters and quote attribution after editing details thro
   expect(api.quotes.listPage).toHaveBeenLastCalledWith(null, '', selections, {page: 0, size: 20, characterId: 4})
 })
 
-it('creates characters from the signed-in sidebar and opens their public details', async () => {
-  const onCharacterChanged = vi.fn()
-  render(sidebar({isAuthenticated: true, onCharacterChanged}))
-  fireEvent.click(screen.getByRole('button', {name: 'Add new character'}))
-  const dialog = screen.getByRole('dialog')
-  fireEvent.change(within(dialog).getByLabelText('Full name (required)'), {target: {value: 'Hamlet'}})
-  fireEvent.click(within(dialog).getByRole('button', {name: 'Save character'}))
-  await waitFor(() => expect(onCharacterChanged).toHaveBeenCalledWith(character))
+it('does not offer sidebar character creation to signed-in users and still opens details', async () => {
+  render(sidebar({isAuthenticated: true}))
+  expect(await screen.findByRole('button', {name: 'Prince Hamlet (Hamlet)'})).toBeTruthy()
+  expect(screen.queryByRole('button', {name: 'Add new character'})).toBeNull()
   fireEvent.click(screen.getByRole('button', {name: 'About Prince Hamlet (Hamlet)'}))
   await screen.findByText('First line Second line')
 })

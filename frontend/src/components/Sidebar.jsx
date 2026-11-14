@@ -3,21 +3,22 @@ import {api} from '../api'
 import {categoryDimensions} from '../quoteCategories'
 import {characterLabel} from '../characterFields'
 import NameFilter from './NameFilter'
-import AddCharacterDialog from './AddCharacterDialog'
+import AboutAuthorDialog from './AboutAuthorDialog'
 import AboutCharacterDialog from './AboutCharacterDialog'
 import '../styles/Sidebar.css'
 
 export default function Sidebar({
   onAuthorSelect, selectedAuthorId, selectedCategoryIds, onCategoryIdsChange, refreshKey = 0,
   selectedCharacterId = null, onCharacterSelect, charactersRefreshKey = 0,
-  isAuthenticated = false, onCharacterChanged,
+  isAuthenticated = false, onAuthorChanged, onCharacterChanged,
 }) {
   const [categories, setCategories] = useState(null)
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [categoriesError, setCategoriesError] = useState(null)
   const [categoryAttempt, setCategoryAttempt] = useState(0)
-  const [addingCharacter, setAddingCharacter] = useState(false)
+  const [aboutAuthorId, setAboutAuthorId] = useState(null)
   const [aboutCharacterId, setAboutCharacterId] = useState(null)
+  const authorTrigger = useRef(null)
   const characterTrigger = useRef(null)
   const containerRef = useRef(null)
 
@@ -39,6 +40,11 @@ export default function Sidebar({
     return () => { active = false }
   }, [categoryAttempt])
 
+  function restoreAuthorFocus() {
+    if (authorTrigger.current?.isConnected) authorTrigger.current.focus()
+    else containerRef.current?.focus()
+  }
+
   function restoreCharacterFocus() {
     if (characterTrigger.current?.isConnected) characterTrigger.current.focus()
     else containerRef.current?.focus()
@@ -49,17 +55,17 @@ export default function Sidebar({
       <div className="sidebar-header"><h2>Filter Quotes</h2></div>
       <div className="sidebar-content">
         <NameFilter resource="authors" label="Author" selectedId={selectedAuthorId}
-          onSelect={onAuthorSelect} refreshKey={refreshKey} />
+          onSelect={onAuthorSelect} refreshKey={refreshKey}
+          onDetails={(id, event) => {
+            authorTrigger.current = event.currentTarget
+            setAboutAuthorId(id)
+          }} />
         <NameFilter resource="characters" label="Character" selectedId={selectedCharacterId}
           onSelect={onCharacterSelect} refreshKey={charactersRefreshKey} displayName={characterLabel}
           onDetails={(id, event) => {
             characterTrigger.current = event.currentTarget
             setAboutCharacterId(id)
-          }}
-          onCreate={isAuthenticated ? (event) => {
-            characterTrigger.current = event.currentTarget
-            setAddingCharacter(true)
-          } : undefined} />
+          }} />
         <section className="sidebar-section categories-section" aria-labelledby="categories-title">
           <h3 id="categories-title">Categories</h3>
           {loadingCategories && <p className="sidebar-message">Loading categories...</p>}
@@ -99,13 +105,9 @@ export default function Sidebar({
           })}
         </section>
       </div>
-      {addingCharacter && isAuthenticated && (
-        <AddCharacterDialog onClose={() => { setAddingCharacter(false); restoreCharacterFocus() }}
-          onCreated={(character) => {
-            setAddingCharacter(false)
-            restoreCharacterFocus()
-            onCharacterChanged?.(character)
-          }} />
+      {aboutAuthorId != null && (
+        <AboutAuthorDialog key={aboutAuthorId} authorId={aboutAuthorId} isAuthenticated={isAuthenticated}
+          onClose={() => { setAboutAuthorId(null); restoreAuthorFocus() }} onUpdated={onAuthorChanged} />
       )}
       {aboutCharacterId != null && (
         <AboutCharacterDialog key={aboutCharacterId} characterId={aboutCharacterId} isAuthenticated={isAuthenticated}

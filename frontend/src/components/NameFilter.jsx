@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 
-export default function NameFilter({resource, label, selectedId, onSelect, refreshKey = 0, displayName, onDetails, onCreate}) {
+export default function NameFilter({resource, label, selectedId, onSelect, refreshKey = 0, displayName, onDetails}) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -85,7 +85,6 @@ export default function NameFilter({resource, label, selectedId, onSelect, refre
           </svg>
         </button>
       </form>
-      {onCreate && <button type="button" className="sidebar-retry" aria-haspopup="dialog" onClick={onCreate}>Add new character</button>}
       {loading && <p className="sidebar-message">Loading {resource}...</p>}
       {error && (
         <div className="sidebar-error" role="alert">
@@ -97,9 +96,7 @@ export default function NameFilter({resource, label, selectedId, onSelect, refre
         </div>
       )}
       {!loading && !error && items.length === 0 && <p className="sidebar-message">No {resource} found</p>}
-      <ul className="authors-list">
-        <li><button className={`author-btn ${selectedId == null ? 'active' : ''}`}
-          onClick={() => onSelect(null)} aria-pressed={selectedId == null}>All {resource}</button></li>
+      <ul className={`authors-list${resource === 'characters' ? ' characters-list' : ''}`}>
         {!loading && items.map((item) => (
           <li key={item.id} className={onDetails ? 'name-filter-row' : undefined}>
             <button className={`author-btn ${selectedId === item.id ? 'active' : ''}`}
@@ -107,7 +104,8 @@ export default function NameFilter({resource, label, selectedId, onSelect, refre
               <span className="author-name">{displayName ? displayName(item) : item.knownAs || item.fullName}</span>
             </button>
             {onDetails && <button type="button" className="sidebar-retry" aria-haspopup="dialog"
-              aria-label={`About ${displayName(item)}`} onClick={(event) => onDetails(item.id, event)}>Info</button>}
+              aria-label={`About ${displayName ? displayName(item) : item.knownAs || item.fullName}`}
+              onClick={(event) => onDetails(item.id, event)}>Info</button>}
           </li>
         ))}
         {nextPage != null && <li><button type="button" className="sidebar-retry" onClick={loadMore} disabled={loadingMore}>

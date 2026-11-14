@@ -42,6 +42,11 @@ function App() {
     setQuotesVersion((version) => version + 1)
   }
 
+  function handleAuthorChanged() {
+    setAuthorsVersion((version) => version + 1)
+    setQuotesVersion((version) => version + 1)
+  }
+
   return (
     <div className="app-container">
       <Header
@@ -67,13 +72,14 @@ function App() {
             onCharacterSelect={setSelectedCharacterId}
             charactersRefreshKey={charactersVersion}
             isAuthenticated={isAuthenticated}
+            onAuthorChanged={handleAuthorChanged}
             onCharacterChanged={handleCharacterChanged}
           />
         </aside>
         <main className="content-middle">
           <QuotesList
             isAuthenticated={isAuthenticated}
-            onAuthorUpdated={() => setAuthorsVersion((version) => version + 1)}
+            onAuthorUpdated={handleAuthorChanged}
             onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
             authorId={selectedAuthorId}
             characterId={selectedCharacterId}

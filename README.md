@@ -89,8 +89,9 @@ New searches and clearing reset to page 0. Loading more preserves the existing
 authors; failures are retryable on the same page without losing loaded results.
 Searching the author list does not change the selected author or quote
 text/category filters, even when the selected author is hidden by the search.
-**All authors** still clears only the selected author. Display labels continue
-to prefer `knownAs`, but matching uses `fullName`, not the displayed alias.
+Clicking a selected author or character again clears only that selection.
+Display labels continue to prefer `knownAs`, but matching uses `fullName`, not
+the displayed alias.
 
 Creating or replacing an author requires both `fullName` and `dateOfBirth`
 (`YYYY-MM-DD`); missing either returns **400 Bad Request**. Authors with the same
@@ -293,9 +294,11 @@ those selections on save.
 The left navigation filters quotes by author and optional category checkboxes.
 Select multiple options within a category dimension to match any of those
 options; filters across dimensions are combined with one another, the selected
-author, and text search using **AND**. The author list is height-limited so the
-category filters remain accessible alongside it. **All authors** clears only
-the author filter.
+author, and text search using **AND**. The name lists have compact scroll areas
+targeting about five authors and three characters; the character area is 3/5
+of the author area's height. Short screens and wrapped names may show fewer.
+Category filters remain accessible alongside them. Click a selected name again
+to clear only that author or character filter.
 
 Category loading failures are visible and retryable without discarding the
 draft. Save stays disabled until the catalogs load, to avoid saving with
@@ -404,9 +407,9 @@ Every quote displays its author beneath the quote, using the known-as name
 or full name from the quote response. Selecting an author filters results without
 adding an author heading or changing attribution.
 
-Click an author name beneath a quote to open the read-only
-**About this Author** dialog. It shows the full name, known-as name, birth and
-death dates, birthplace, nationality, biography, and age when available.
+Click an author name beneath a quote or an author’s **Info** button in the
+sidebar to open the **About this Author** dialog. It shows the full name,
+known-as name, birth and death dates, birthplace, nationality, biography, and age when available.
 Missing optional details are marked **Not provided**. Details load independently
 with a retry action on failure.
 

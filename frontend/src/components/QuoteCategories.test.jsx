@@ -271,7 +271,7 @@ describe('category display on quote cards', () => {
         onCategoryIdsChange={onCategoryIdsChange}
       />,
     )
-    expect(screen.getByRole('button', { name: 'All authors' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('button', { name: 'All authors' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Test Author' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Clear tone' }))
     expect(onCategoryIdsChange).toHaveBeenLastCalledWith(emptySelections)

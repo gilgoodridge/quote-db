@@ -18,6 +18,11 @@ beforeEach(() => {
     tones: [{id: 1, name: 'Funny'}], themes: [], forms: [], sources: [],
   })
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  HTMLDialogElement.prototype.showModal = function () {this.open = true}
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
 })
 
 afterEach(() => {
@@ -104,8 +109,15 @@ it('submits trimmed queries, clears immediately, and leaves quote filters unchan
   expect(api.authors.listPage).toHaveBeenLastCalledWith({query: '', page: 0, size: 10})
   expect(onAuthorSelect).not.toHaveBeenCalled()
   expect(onCategoryIdsChange).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', {name: 'All authors'}))
+  fireEvent.click(screen.getByRole('button', {name: 'The Bard'}))
   expect(onAuthorSelect).toHaveBeenCalledWith(null)
+})
+
+it('does not render All authors or All characters options', async () => {
+  render(sidebar())
+  await screen.findByRole('button', {name: 'The Bard'})
+  expect(screen.queryByRole('button', {name: 'All authors'})).toBeNull()
+  expect(screen.queryByRole('button', {name: 'All characters'})).toBeNull()
 })
 
 it('shows no matches without clearing a selected author and retains query on refresh', async () => {
@@ -174,6 +186,22 @@ it('loads only ten initially and appends more pages on demand until the last pag
   await screen.findByRole('button', {name: 'Author 23'})
   expect(api.authors.listPage).toHaveBeenLastCalledWith({query: '', page: 2, size: 10})
   expect(screen.queryByRole('button', {name: 'More authors'})).toBeNull()
+})
+
+it('opens author details from the sidebar and restores focus when closed', async () => {
+  vi.spyOn(api.authors, 'get').mockResolvedValue(author)
+  const onAuthorChanged = vi.fn()
+  render(sidebar({isAuthenticated: true, onAuthorChanged}))
+  await screen.findByRole('button', {name: 'The Bard'})
+
+  const infoButton = screen.getByRole('button', {name: 'About The Bard'})
+  fireEvent.click(infoButton)
+  await screen.findByRole('heading', {name: 'About this Author'})
+  expect(api.authors.get).toHaveBeenCalledWith(author.id)
+  expect(screen.getByText('William Shakespeare')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', {name: 'Close author details'}))
+  await waitFor(() => expect(document.activeElement).toBe(infoButton))
+  expect(onAuthorChanged).not.toHaveBeenCalled()
 })
 
 it('retains loaded authors on a more-page failure and retries the same query and page', async () => {
