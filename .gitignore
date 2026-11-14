@@ -3,6 +3,7 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 .kotlin
+*.bz2
 
 ### IntelliJ IDEA ###
 .idea/
