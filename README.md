@@ -48,17 +48,51 @@ established name rules from editorial policies still to be defined.
 
 ### Available Endpoints
 
-#### Candidate staging (backend only)
+#### Candidate staging
 
 `candidate_authors` and `candidate_quotes` are separate review records, not
 published authors/quotes. Flyway **V9** creates the tables without changing
-existing content. There is no frontend review, enrichment, author matching,
-promotion, or Python importer integration yet.
+existing content. Signed-in users can review candidates near the top of the
+right-hand panel; signed-out visitors see Coming Soon in the same area.
+Enrichment, automatic author matching,
+transactional promotion, and Python importer integration are not implemented.
+
+**Review workflow:** Review next candidate requests
+`GET /api/candidate-quotes?status=PENDING&page=0&size=1` (oldest ID first).
+An approved candidate author with a publication link is selected automatically.
+Otherwise, Review author prefills the name and uses the existing author form
+(including its required date of birth). Saving creates a published author, then
+marks the candidate author APPROVED with `publishedAuthorId` and the saved name.
+Closing that form opens Review Quote with no author selected. Review Quote
+prefills the candidate text and source URL as Reference; the external-link icon
+opens HTTP/HTTPS references in a new tab. Reference retains the published quote's
+255-character limit; longer imported URLs must be edited before publication.
+Approve creates a normal quote with the selected author, optional character and
+categories, then marks the candidate APPROVED with its edited text and
+`publishedQuoteId`. Reject marks only the candidate REJECTED, preserving its
+stored text and publication link; it does not publish or save draft edits.
+The top-right close button cancels review without changing the quote candidate.
+Successful approval or rejection automatically opens the next pending candidate;
+an empty queue or loading failure returns to the panel with a visible message.
+Created authors remain published even if the quote is cancelled or rejected.
+
+**TODO: atomic promotion.** Author/quote publication and candidate approval
+currently require separate requests and are **not transactional**. Replace these
+with backend transactional, idempotent promotion operations, including concurrency
+control, so reviewers cannot publish the same candidate twice. The current GET
+does not claim/reserve a queue item. If publication succeeds but approval fails,
+the UI retains the published record in memory and retries only the candidate
+update, locking the saved form and disallowing rejection of an already-published
+quote. This recovery survives dialog cancellation within the current signed-in
+page session, but not a reload or logout. An ambiguous publication response can
+also leave a published record without its ID in the UI; reconcile existing
+published records before retrying after reload or such failures to avoid duplicates.
 
 **Temporary access policy:** All candidate endpoints permit anonymous access,
 including writes. CSRF protection remains enabled: fetch `/api/auth/csrf`,
 retain its session cookie, and send the returned header/token on POST/PUT.
-No Google login is required for candidates. These endpoints are not an admin
+No Google login is required for direct candidate API access; the frontend review
+panel requires login, as does publishing authors/quotes. These endpoints are not an admin
 boundary: anyone with access to the backend can read/import/edit staging data.
 Existing published-content write endpoints still require login and CSRF.
 
@@ -761,7 +795,7 @@ full suite, replace the Maven command with `mvn clean install`.
 Browsing authors, characters and quotes is public. Creating, updating, or deleting
 published resources requires a Google-authenticated session and a valid CSRF token.
 Candidate staging endpoints are temporarily anonymous, with CSRF still required
-for writes; see [Candidate staging](#candidate-staging-backend-only).
+for writes; see [Candidate staging](#candidate-staging).
 Any signed-in Google user can write; there are no editor/admin roles yet.
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the backend environment

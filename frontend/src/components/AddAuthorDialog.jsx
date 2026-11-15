@@ -4,10 +4,10 @@ import {authorFields} from '../authorFields'
 import DialogHeader from './DialogHeader'
 import '../styles/AddQuoteDialog.css'
 
-export default function AddAuthorDialog({ author = null, onClose, onCreated, onUpdated }) {
+export default function AddAuthorDialog({ author = null, onClose, onCreated, onUpdated, initialValues, onSave, reviewing = false, publishedAuthor = null }) {
   const dialogRef = useRef(null)
   const submittingRef = useRef(false)
-  const [fields, setFields] = useState(() => Object.fromEntries(authorFields.map(({ name }) => [name, author?.[name] ?? ''])))
+  const [fields, setFields] = useState(() => Object.fromEntries(authorFields.map(({ name }) => [name, author?.[name] ?? initialValues?.[name] ?? ''])))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -39,11 +39,11 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
       const payload = Object.fromEntries(
         authorFields.map(({ name }) => [name, fields[name].trim() || null]),
       )
-      savedAuthor = author
+      savedAuthor = onSave ? await onSave(payload) : author
         ? await api.authors.update(author.id, payload)
         : await api.authors.create(payload)
     } catch (saveError) {
-      setError(saveError.status === 409
+      setError(!onSave && saveError.status === 409
         ? 'The author already exists'
         : `Unable to ${author ? 'update' : 'add'} author: ${saveError.message}`)
       return
@@ -70,7 +70,7 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
     >
       <DialogHeader
         titleId="add-author-title"
-        title={author ? 'Edit author' : 'New author'}
+        title={reviewing ? 'Review author' : author ? 'Edit author' : 'New author'}
         closeLabel="Close author form"
         disabled={saving}
         onClose={() => {
@@ -83,8 +83,9 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
           ? 'Saving replaces all author details. Clearing an optional field removes its value.'
           : 'Saving creates the author immediately, even if you later cancel the quote.'}
       </p>
+      {publishedAuthor && <p role="status">Author saved. Retry approval to link the candidate without creating another author.</p>}
       <form onSubmit={submit} aria-busy={saving}>
-        <fieldset disabled={saving}>
+        <fieldset disabled={saving || Boolean(publishedAuthor)}>
           {authorFields.map(({ name, label, required, type, multiline }, index) => {
             const props = {
               id: `author-${name}`,
@@ -117,9 +118,9 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
           </p>
         )}
         <div className="add-quote-actions">
-          <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>
+          {!reviewing && <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>}
           <button type="submit" className="add-quote-submit" disabled={saving}>
-            {saving ? 'Saving...' : 'Save author'}
+            {saving ? 'Saving...' : publishedAuthor ? 'Retry author approval' : 'Save author'}
           </button>
         </div>
         {saving && <p role="status">Saving author...</p>}

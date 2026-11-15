@@ -31,6 +31,42 @@ Run API contract tests and component interaction tests with `npm test`.
 Component tests use Vitest, Testing Library, and jsdom. Run `npm run lint` and
 `npm run build` for linting and the production bundle.
 
+## Candidate review
+
+The right panel shows **Candidate review** near the top only while signed in;
+otherwise it retains **Coming Soon**, also top-aligned. **Review next candidate** requests the oldest pending quote
+with `status=PENDING&page=0&size=1`. Empty queues and retryable load failures are
+shown separately. No candidate requests run automatically on login.
+
+An APPROVED candidate author with a `publishedAuthorId` is preselected. Otherwise,
+the shared author form opens as **Review author**, prefilled with the candidate
+name. Edit the name and fill the existing required birth date, then **Save author**
+to create the author and link/approve the candidate author. The top-right close
+button cancels author creation and continues to **Review Quote** with an empty
+author picker; an existing author can then be selected.
+
+Review Quote reuses Add Quote's author/character pickers, categories, validation,
+and retryable option loads, with candidate text and source URL prefilled. The
+Reference field has an external-link icon for HTTP/HTTPS URLs, opening a new tab.
+Published references remain limited to 255 characters. **Approve** publishes the
+quote, then links and approves its candidate. **Reject** updates only the
+candidate status, preserving stored text/link rather than draft edits, and does
+not require an author or loaded form options. The top-right close button cancels.
+After successful approval or rejection, the next pending candidate opens
+automatically. Empty queues and retryable next-item failures appear in the panel;
+cancellation or failed approval/rejection does not advance the queue.
+An author already saved is not deleted by cancelling/rejecting the quote.
+
+Publication and candidate approval are separate requests. After partial success,
+the saved form is locked and a retry updates only the candidate; quote rejection
+is disabled once published. Published IDs survive closing/reopening a review
+in the current signed-in page session, not reload/logout. See the root README's
+atomic-promotion TODO for concurrency and ambiguous-response limitations. The
+queue is not reserved across reviewers. Successful publication refreshes sidebar
+names/quotes without changing browsing filters. Candidate backend endpoints remain
+temporarily anonymous with CSRF on writes; this signed-in UI is not an API access
+restriction.
+
 ## Quote pagination
 
 The middle panel loads one quote page at a time via `api.quotes.listPage`.

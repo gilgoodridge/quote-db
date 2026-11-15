@@ -60,7 +60,26 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  flex-wrap: wrap;
   margin-top: 24px;
+}
+
+.quote-reference-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quote-reference-field input {
+  min-width: 0;
+  flex: 1;
+}
+
+.source-external-link {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 8px;
+  color: var(--accent);
 }
 
 .add-quote-submit {

@@ -104,6 +104,25 @@ export function getLoginReturnState(href) {
 }
 
 export const api = {
+  candidateAuthors: {
+    get: (id) => requestJson(`/candidate-authors/${id}`),
+    update: (id, data) => requestJson(`/candidate-authors/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    }),
+  },
+  candidateQuotes: {
+    listPage: async ({status = 'PENDING', page = 0, size = 1} = {}) => {
+      const params = new URLSearchParams({status, page, size})
+      return validatePage(await requestJson(`/candidate-quotes?${params}`))
+    },
+    update: (id, data) => requestJson(`/candidate-quotes/${id}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    }),
+  },
   categories: {
     list: async () => validateCategoryCatalog(await requestJson('/categories')),
   },

@@ -29,8 +29,23 @@
 - PUT fully replaces review name/text, required PENDING/APPROVED/REJECTED status
   and optional publication link. Null/omitted links clear. Validate referenced IDs
   atomically; links never cascade. Publication links restrict deletion with visible 409.
-- No candidate DELETE, promotion validation, publication, matching, enrichment,
-  frontend UI or Python import integration yet. CandidateControllerTest exercises
+- CandidateReview replaces the right-side placeholder only for signed-in users.
+  Fetch the next PENDING quote with page 0/size 1; GET does not reserve the item.
+  Reuse AddAuthorDialog/AddQuoteDialog for review, preserving normal creation/editing.
+  Approved candidate authors preselect their publication link; otherwise prompt
+  for author creation (including required birth date). Closing leaves author empty.
+  Author Save and quote Approve publish first, then PUT the candidate with the
+  saved name/text, APPROVED status and publication ID. Reject updates only stored
+  quote review fields/status; closing makes no candidate quote changes.
+  Successful quote approval/rejection automatically fetches and opens the next
+  pending item; cancellation and failed mutations never advance the queue.
+  Separate writes are nontransactional: retain successful published records in
+  memory across dialog closes, lock saved forms and retry only candidate approval.
+  Do not allow rejecting a quote after publication. Reload/logout and concurrent
+  reviewers still need backend transactional/idempotent promotion (README TODO).
+  ExternalLink allows only HTTP/HTTPS and opens references with noopener/noreferrer.
+- No candidate DELETE, backend promotion validation, matching, enrichment,
+  or Python import integration yet. CandidateControllerTest exercises
   H2-backed endpoints with OSIV disabled; CandidateMigrationTest verifies V9.
 
 ## DTO-to-Entity Mapping Strategy
@@ -402,7 +417,8 @@ frontend/
 │   │   ├── NameFilter.jsx        # Shared paginated author/character search
 │   │   ├── Sidebar.jsx           # Left sidebar: author/character/category filters
 │   │   ├── QuotesList.jsx        # Center content: quotes display
-│   │   └── Placeholder.jsx       # Right sidebar: future feature placeholder
+│   │   ├── CandidateReview.jsx   # Signed-in right sidebar: candidate review
+│   │   └── Placeholder.jsx       # Signed-out right sidebar placeholder
 │   └── styles/
 │       ├── Header.css            # Header styling
 │       ├── LoginDialog.css       # Login modal and Google button styling
@@ -439,9 +455,10 @@ frontend/
   - Clickable author/character names open their public details dialogs
   - Scrollable for long quote lists
 
-- **Right Sidebar (25% width)**: Reserved for future features
-  - Placeholder graphic with floating animation
-  - "Coming Soon" text (could be ads, recommendations, etc.)
+- **Right Sidebar (25% width)**: Candidate review for signed-in users
+  - Review next candidate opens shared author/quote review forms
+  - Signed-out users retain the animated "Coming Soon" placeholder
+  - Both review controls and the placeholder are top-aligned with pane padding
 
 **Color Palette (CSS Variables)**
 - `--text`: #2d3436 (dark text, light mode)
@@ -539,7 +556,7 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Use theme variables and wrapping/scrolling for narrow screens; never expose editing controls to anonymous users
 
 **Placeholder.jsx**
-- Decorative component for right sidebar
+- Decorative component for the signed-out right sidebar
 - Animated graphic with gradient background
 - Placeholder for ads, recommendations, or other future features
 

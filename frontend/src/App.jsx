@@ -3,6 +3,7 @@ import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import QuotesList from './components/QuotesList'
 import Placeholder from './components/Placeholder'
+import CandidateReview from './components/CandidateReview'
 import './App.css'
 
 function App() {
@@ -91,7 +92,13 @@ function App() {
           />
         </main>
         <aside className="sidebar-right">
-          <Placeholder />
+          {isAuthenticated
+            ? <CandidateReview
+                onAuthorCreated={handleAuthorChanged}
+                onQuoteCreated={() => setQuotesVersion((version) => version + 1)}
+                onCharacterCreated={handleCharacterChanged}
+              />
+            : <Placeholder />}
         </aside>
       </div>
     </div>

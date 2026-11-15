@@ -1,0 +1,23 @@
+.candidate-review {
+  width: 100%;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.candidate-review h2 {
+  font-size: 1.25rem;
+}
+
+.candidate-review p {
+  margin: 16px 0;
+  color: var(--text-light);
+}
+
+.candidate-review button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.candidate-review [role="alert"] {
+  color: var(--error);
+}

@@ -5,10 +5,11 @@ import AddCharacterDialog from './AddCharacterDialog'
 import {characterLabel} from '../characterFields'
 import QuoteCategoryFields from './QuoteCategoryFields'
 import DialogHeader from './DialogHeader'
+import ExternalLink from './ExternalLink'
 import {categoryDimensions, categorySelections} from '../quoteCategories'
 import '../styles/AddQuoteDialog.css'
 
-export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthorCreated, onCharacterCreated, initialAuthorId, initialCharacterId, quote }) {
+export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthorCreated, onCharacterCreated, initialAuthorId, initialCharacterId, quote, initialValues, review }) {
   const dialogRef = useRef(null)
   const addAuthorButtonRef = useRef(null)
   const addCharacterButtonRef = useRef(null)
@@ -31,14 +32,14 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [categoryError, setCategoryError] = useState('')
   const [categoryLoadAttempt, setCategoryLoadAttempt] = useState(0)
-  const [selections, setSelections] = useState(() => categorySelections(quote))
+  const [selections, setSelections] = useState(() => categorySelections(quote ?? initialValues))
   const [fields, setFields] = useState({
-    text: quote?.text ?? '',
+    text: quote?.text ?? initialValues?.text ?? '',
     authorId: String(quote?.author.id ?? initialAuthorId ?? ''),
-    characterId: String(quote?.character?.id ?? initialCharacterId ?? ''),
-    date: quote?.date ?? '',
-    location: quote?.location ?? '',
-    reference: quote?.reference ?? '',
+    characterId: String(quote?.character?.id ?? initialValues?.character?.id ?? initialCharacterId ?? ''),
+    date: quote?.date ?? initialValues?.date ?? '',
+    location: quote?.location ?? initialValues?.location ?? '',
+    reference: quote?.reference ?? initialValues?.reference ?? '',
   })
 
   useEffect(() => {
@@ -105,6 +106,10 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     event.preventDefault()
     if (submittingRef.current) return
     if (showAddAuthor || showAddCharacter) return
+    if (review?.publishedQuote) {
+      await saveQuote(null)
+      return
+    }
     if (loadingCharacters || characterError) {
       setSaveError('Load the character options before saving. Your draft has been kept.')
       return
@@ -132,25 +137,28 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       setSaveError('Choose an author from the list.')
       return
     }
+    await saveQuote({
+      text: fields.text,
+      authorId: author.id,
+      characterId: character?.id ?? null,
+      date: fields.date || null,
+      location: fields.location || null,
+      reference: fields.reference || null,
+      ...selections,
+    })
+  }
+
+  async function saveQuote(request) {
     submittingRef.current = true
     setSaving(true)
     setSaveError('')
     let savedQuote
     try {
-      const request = {
-        text: fields.text,
-        authorId: author.id,
-        characterId: character?.id ?? null,
-        date: fields.date || null,
-        location: fields.location || null,
-        reference: fields.reference || null,
-        ...selections,
-      }
-      savedQuote = quote
+      savedQuote = review ? await review.onApprove(request) : quote
         ? await api.quotes.update(quote.id, request)
         : await api.quotes.create(request)
     } catch (error) {
-      setSaveError(`Unable to ${quote ? 'update' : 'add'} quote: ${error.message}`)
+      setSaveError(`Unable to ${review ? 'approve' : quote ? 'update' : 'add'} quote: ${error.message}`)
       return
     } finally {
       submittingRef.current = false
@@ -158,6 +166,21 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     }
     if (quote) onUpdated(savedQuote)
     else onCreated(savedQuote)
+  }
+
+  async function reject() {
+    if (submittingRef.current || showAddAuthor || showAddCharacter || review.publishedQuote) return
+    submittingRef.current = true
+    setSaving(true)
+    setSaveError('')
+    try {
+      await review.onReject()
+    } catch (error) {
+      setSaveError(`Unable to reject candidate: ${error.message}`)
+    } finally {
+      submittingRef.current = false
+      setSaving(false)
+    }
   }
 
   function closeAddAuthor() {
@@ -183,7 +206,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     >
       <DialogHeader
         titleId="add-quote-title"
-        title={quote ? 'Edit Quote' : 'Add Quote'}
+        title={review ? 'Review Quote' : quote ? 'Edit Quote' : 'Add Quote'}
         closeLabel="Close quote form"
         disabled={saving || showAddAuthor || showAddCharacter}
         onClose={() => {
@@ -192,8 +215,9 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       />
       <div className="dialog-body">
       <p className="add-quote-description">Quote text and author are required. Other fields are optional.</p>
+      {review?.publishedQuote && <p role="status">Quote saved. Retry approval to link the candidate without creating another quote.</p>}
       <form onSubmit={submit} aria-busy={saving}>
-        <fieldset disabled={saving}>
+        <fieldset disabled={saving || Boolean(review?.publishedQuote)}>
           <label htmlFor="quote-text">Quote text (required)</label>
           <textarea id="quote-text" name="text" value={fields.text} onChange={updateField} required maxLength={2048} rows={5} autoFocus />
 
@@ -273,7 +297,10 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           <label htmlFor="quote-location">Location</label>
           <input id="quote-location" name="location" value={fields.location} onChange={updateField} maxLength={255} />
           <label htmlFor="quote-reference">Reference</label>
-          <input id="quote-reference" name="reference" value={fields.reference} onChange={updateField} maxLength={255} />
+          <div className="quote-reference-field">
+            <input id="quote-reference" name="reference" value={fields.reference} onChange={updateField} maxLength={255} />
+            <ExternalLink url={fields.reference} />
+          </div>
           {loadingCategories && <p role="status">Loading categories...</p>}
           {categoryError && (
             <div className="add-quote-error" role="alert">
@@ -298,9 +325,11 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         </fieldset>
         {saveError && <p className="add-quote-error" role="alert">{saveError}</p>}
         <div className="add-quote-actions">
-          <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>
-          <button type="submit" className="add-quote-submit" disabled={saving || loadingAuthors || Boolean(authorError) || authors.length === 0 || loadingCharacters || Boolean(characterError) || loadingCategories || Boolean(categoryError)}>
-            {saving ? 'Saving...' : 'Save quote'}
+          {review
+            ? <button type="button" className="add-quote-cancel" disabled={saving || Boolean(review.publishedQuote)} onClick={reject}>Reject</button>
+            : <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>}
+          <button type="submit" className="add-quote-submit" disabled={saving || (!review?.publishedQuote && (loadingAuthors || Boolean(authorError) || authors.length === 0 || loadingCharacters || Boolean(characterError) || loadingCategories || Boolean(categoryError)))}>
+            {saving ? 'Saving...' : review?.publishedQuote ? 'Retry approval' : review ? 'Approve' : 'Save quote'}
           </button>
         </div>
         {saving && <p role="status">Saving quote...</p>}

@@ -6,6 +6,53 @@ import {categorySelections} from './quoteCategories.js'
 
 const originalFetch = globalThis.fetch
 
+test('candidate review reads the pending queue and candidate author with session cookies', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return url.includes('/candidate-quotes?')
+      ? pageResponse([{id: 12, candidateAuthorId: 3}], 0, 1, 1)
+      : new Response('{"id":3,"fullName":"Candidate Author"}')
+  }
+  assert.equal((await api.candidateQuotes.listPage({status: 'PENDING', page: 0, size: 1})).content[0].id, 12)
+  assert.equal((await api.candidateAuthors.get(3)).id, 3)
+  assert.deepEqual(calls.map(({url}) => url), [
+    '/api/candidate-quotes?status=PENDING&page=0&size=1', '/api/candidate-authors/3',
+  ])
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+  globalThis.fetch = async () => new Response('[]')
+  await assert.rejects(api.candidateQuotes.listPage(), /invalid paginated response/)
+})
+
+test('candidate review PUTs retain complete review fields and use fresh CSRF tokens', async () => {
+  const calls = []
+  let token = 0
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return new Response(JSON.stringify(url.endsWith('/csrf')
+      ? {headerName: 'X-CSRF-TOKEN', token: `token-${++token}`} : {id: 12}))
+  }
+  const author = {fullName: 'Edited Name', status: 'APPROVED', publishedAuthorId: 7}
+  const quote = {text: 'Edited quote', status: 'APPROVED', publishedQuoteId: 42}
+  const rejected = {text: 'Rejected quote', status: 'REJECTED', publishedQuoteId: null}
+  await api.candidateAuthors.update(3, author)
+  await api.candidateQuotes.update(12, quote)
+  await api.candidateQuotes.update(13, rejected)
+  assert.deepEqual(calls.map(({url}) => url), [
+    '/api/auth/csrf', '/api/candidate-authors/3',
+    '/api/auth/csrf', '/api/candidate-quotes/12',
+    '/api/auth/csrf', '/api/candidate-quotes/13',
+  ])
+  for (const [index, payload] of [[1, author], [3, quote], [5, rejected]]) {
+    assert.equal(calls[index].options.method, 'PUT')
+    assert.equal(calls[index].options.headers['X-CSRF-TOKEN'], `token-${(index + 1) / 2}`)
+    assert.deepEqual(JSON.parse(calls[index].options.body), payload)
+  }
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+  globalThis.fetch = async () => new Response('Session expired', {status: 401})
+  await assert.rejects(api.candidateQuotes.update(12, quote), /Session expired/)
+})
+
 test('character lists encode queries, collect every matching page and preserve credentials', async () => {
   const calls = []
   globalThis.fetch = async (url, options) => {
