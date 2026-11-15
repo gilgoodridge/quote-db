@@ -108,6 +108,7 @@ Existing published-content write endpoints still require login and CSRF.
 | GET/HEAD | `/api/candidate-authors/{id}`, `/api/candidate-quotes/{id}` | Read one candidate; missing ID returns 404 |
 | POST | `/api/candidate-authors` | Import one author candidate |
 | POST | `/api/candidate-quotes` | Import one quote attached to an existing candidate author |
+| POST | `/api/candidates/batch` | Atomically import up to 100 authors and 100 quotes |
 | PUT | `/api/candidate-authors/{id}` | Replace `fullName`, `status`, optional `publishedAuthorId` |
 | PUT | `/api/candidate-quotes/{id}` | Replace `text`, `status`, optional `publishedQuoteId` |
 
@@ -146,8 +147,34 @@ key returns the existing record **without overwriting anything**, including
 edits, review state, publication links, and the original provenance. Reusing a
 key for a different source/page or quote parent returns 409. Concurrent inserts
 are protected by database uniqueness; on a uniqueness 409, retry POST to
-retrieve the winner. Import individual records incrementally; a failed quote
-does not roll back earlier imports or the candidate author.
+retrieve the winner. With the individual endpoints, a failed quote does not roll
+back earlier imports or the candidate author.
+
+**Batch import:** POST `/api/candidates/batch` accepts an object with required
+`authors` and `quotes` arrays (each may be empty, but not both). Each array has a
+maximum of 100 non-null entries. Authors use the author import fields above.
+Quotes use the single-quote import fields, except `candidateAuthorImportKey`
+replaces `candidateAuthorId`. This key identifies an author in the same batch
+or an earlier import, so clients need no author-ID round trip. Authors are
+processed before quotes, regardless of their array positions.
+
+The 200 response is `{ "authors": [...], "quotes": [...] }`, containing the
+normal stored candidate DTOs in each input array's order, including repeated
+entries. Existing keys retain the same idempotency, provenance and review
+preservation rules as single imports. All writes in a batch share one
+transaction: invalid fields or unknown parent keys return 400; conflicting
+source/page/parent identities or concurrent uniqueness conflicts return 409.
+Any failure rolls back the entire batch, not earlier successful batches.
+Retry the entire batch with the same keys after resolving the error; a retry
+after a lost response is also safe. CSRF is required; anonymous access remains
+enabled under the temporary staging policy.
+
+`tools/wikiquote-review/extract_candidates.py` uses this endpoint, buffering
+100 candidates per request by default (`--batch-size 1-100`), with a 512 KiB
+encoded JSON limit to stay below common reverse-proxy body limits. It flushes
+the final partial batch before replacing the report and fetches one CSRF token
+per batch instead of per candidate. Deploy the batch endpoint before running
+the updated importer. See `tools/wikiquote-review/README.md`.
 
 PUT requires the editable name/text and status; omitted/null publication IDs
 clear the link. Import keys, provenance, original wikitext, source notes, and

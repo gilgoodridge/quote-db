@@ -76,6 +76,18 @@ public class CandidateService {
         return mapper.toResponse(candidateQuotes.saveAndFlush(candidate));
     }
 
+    public CandidateBatchResponse importBatch(ImportCandidateBatchRequest request) {
+        var importedAuthors = request.getAuthors().stream().map(this::importAuthor).toList();
+        var importedQuotes = request.getQuotes().stream().map(quote -> {
+            var parent = candidateAuthors.findByImportKey(quote.getCandidateAuthorImportKey())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "candidateAuthorImportKey does not identify an existing candidate author: "
+                                    + quote.getCandidateAuthorImportKey()));
+            return importQuote(mapper.toImportRequest(quote, parent.getId()));
+        }).toList();
+        return new CandidateBatchResponse(importedAuthors, importedQuotes);
+    }
+
     public CandidateAuthorResponse updateAuthor(Long id, UpdateCandidateAuthorRequest request) {
         var candidate = findAuthor(id);
         var published = request.getPublishedAuthorId() == null ? null

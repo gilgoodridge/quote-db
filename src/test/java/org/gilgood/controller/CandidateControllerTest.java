@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
@@ -54,6 +55,120 @@ class CandidateControllerTest {
         candidateAuthors.deleteAll();
         quotes.deleteAll();
         authors.deleteAll();
+    }
+
+    @Test
+    void importsAtomicBatchesWithStableKeysOrderedDtosAndExistingParents() throws Exception {
+        var a = author("enwikiquote:batch");
+        var q = batchQuote("enwikiquote:batch:q", "enwikiquote:batch");
+        var batch = Map.of("authors", List.of(a), "quotes", List.of(q, q));
+        var first = postJson("/api/candidates/batch", batch);
+        assertEquals(1, first.path("authors").size());
+        assertEquals(2, first.path("quotes").size());
+        assertEquals(first.path("quotes").get(0), first.path("quotes").get(1));
+        long authorId = first.path("authors").get(0).path("id").asLong();
+        long quoteId = first.path("quotes").get(0).path("id").asLong();
+        assertEquals(authorId, first.path("quotes").get(0).path("candidateAuthorId").asLong());
+        assertEquals("** Book, page 42.", first.path("quotes").get(0).path("sourceNotes").asText());
+        assertFalse(first.path("quotes").get(0).has("candidateAuthor"));
+        mvc.perform(put("/api/candidate-authors/{id}", authorId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Edited author\",\"status\":\"REJECTED\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/candidate-quotes/{id}", quoteId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Edited quote\",\"status\":\"REJECTED\"}"))
+                .andExpect(status().isOk());
+        a.put("sourceRevisionId", 9000000);
+        q.put("rawWikitext", "Changed raw text");
+        var retry = postJson("/api/candidates/batch", batch);
+        assertEquals("Edited author", retry.path("authors").get(0).path("fullName").asText());
+        assertEquals("REJECTED", retry.path("authors").get(0).path("status").asText());
+        assertEquals(4021123, retry.path("authors").get(0).path("sourceRevisionId").asLong());
+        assertEquals("Edited quote", retry.path("quotes").get(0).path("text").asText());
+        assertEquals("REJECTED", retry.path("quotes").get(0).path("status").asText());
+        assertEquals("* ''Original quotation.''", retry.path("quotes").get(0).path("rawWikitext").asText());
+        var additional = postJson("/api/candidates/batch", Map.of("authors", List.of(),
+                "quotes", List.of(batchQuote("enwikiquote:second:q", "enwikiquote:batch"),
+                        batchQuote("enwikiquote:third:q", "enwikiquote:batch"))));
+        assertEquals("enwikiquote:second:q", additional.path("quotes").get(0).path("importKey").asText());
+        assertEquals("enwikiquote:third:q", additional.path("quotes").get(1).path("importKey").asText());
+        assertEquals(1, candidateAuthors.count());
+        assertEquals(3, candidateQuotes.count());
+        assertEquals(0, authors.count());
+        assertEquals(0, quotes.count());
+    }
+
+    @Test
+    void rollsBackWholeBatchForMissingParentAndIdentityConflicts() throws Exception {
+        postJson("/api/candidates/batch", Map.of("authors", List.of(author("enwikiquote:existing")),
+                "quotes", List.of(batchQuote("enwikiquote:existing:q", "enwikiquote:existing"))));
+        for (String failure : List.of("missing-parent", "quote-parent", "quote-page", "author-page")) {
+            var a = author("enwikiquote:new");
+            var bad = batchQuote("enwikiquote:bad", "enwikiquote:missing");
+            int status = 409;
+            switch (failure) {
+                case "missing-parent" -> status = 400;
+                case "quote-parent" -> bad = batchQuote("enwikiquote:existing:q", "enwikiquote:new");
+                case "quote-page" -> {
+                    bad = batchQuote("enwikiquote:existing:q", "enwikiquote:existing");
+                    bad.put("sourcePageId", 99);
+                }
+                case "author-page" -> {
+                    a = author("enwikiquote:existing");
+                    a.put("sourcePageId", 99);
+                }
+            }
+            assertPostStatus("/api/candidates/batch", Map.of(
+                    "authors", List.of(author("enwikiquote:before"), a),
+                    "quotes", List.of(batchQuote("enwikiquote:before:q", "enwikiquote:before"), bad)), status);
+            assertEquals(1, candidateAuthors.count(), failure);
+            assertEquals(1, candidateQuotes.count(), failure);
+        }
+    }
+
+    @Test
+    void validatesBatchBoundsNestedFieldsAndCsrf() throws Exception {
+        var a = author("enwikiquote:batch");
+        var q = batchQuote("enwikiquote:batch:q", "enwikiquote:batch");
+        for (Object invalid : List.of(
+                Map.of(), Map.of("authors", List.of()), Map.of("authors", List.of(), "quotes", List.of()),
+                Map.of("authors", java.util.Collections.nCopies(101, a), "quotes", List.of()),
+                Map.of("authors", List.of(a), "quotes", java.util.Collections.nCopies(101, q)),
+                Map.of("authors", java.util.Arrays.asList((Object) null), "quotes", List.of()),
+                Map.of("authors", List.of(a), "quotes", java.util.Arrays.asList((Object) null)))) {
+            assertPostStatus("/api/candidates/batch", invalid, 400);
+        }
+        for (var field : Map.of("candidateAuthorImportKey", "BAD KEY", "text", "",
+                "rawWikitext", "x".repeat(16001), "sourceUrl", "javascript:alert(1)").entrySet()) {
+            var bad = batchQuote("enwikiquote:batch:q", "enwikiquote:batch");
+            bad.put(field.getKey(), field.getValue());
+            assertPostStatus("/api/candidates/batch",
+                    Map.of("authors", List.of(a), "quotes", List.of(bad)), 400);
+        }
+        var badAuthor = author("enwikiquote:bad");
+        badAuthor.put("fullName", "");
+        assertPostStatus("/api/candidates/batch",
+                Map.of("authors", List.of(badAuthor), "quotes", List.of()), 400);
+        mvc.perform(post("/api/candidates/batch").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("authors", List.of(a), "quotes", List.of(q)))))
+                .andExpect(status().isForbidden());
+        assertEquals(0, candidateAuthors.count());
+        assertEquals(0, candidateQuotes.count());
+        var maximum = postJson("/api/candidates/batch",
+                Map.of("authors", java.util.Collections.nCopies(100, a),
+                        "quotes", java.util.Collections.nCopies(100, q)));
+        assertEquals(100, maximum.path("authors").size());
+        assertEquals(100, maximum.path("quotes").size());
+        assertEquals(1, candidateAuthors.count());
+        assertEquals(1, candidateQuotes.count());
+    }
+
+    private Map<String, Object> batchQuote(String key, String authorKey) {
+        var request = quote(key, 1);
+        request.remove("candidateAuthorId");
+        request.put("candidateAuthorImportKey", authorKey);
+        return request;
     }
 
     @Test

@@ -20,6 +20,15 @@
   per candidate type. Repeat keys return stored DTOs unchanged, preserving rejected
   state, edits and original provenance. Conflicting source/page or quote parent
   is 409; concurrent uniqueness conflicts are retryable, never duplicate rows.
+- POST `/api/candidates/batch` atomically imports required `authors`/`quotes`
+  arrays (0-100 each, at least one candidate). Quotes use
+  `candidateAuthorImportKey` instead of an ID, referencing this batch or a stored
+  author. Process authors first; return normal stored DTO arrays in input order.
+  Reuse single-import validation/identity rules; any failure rolls back the batch.
+  This endpoint also allows anonymous access but requires CSRF.
+  The Wikiquote importer buffers 100 candidates by default (`--batch-size 1-100`)
+  and at most 512 KiB of UTF-8 JSON, fetching CSRF once per batch. Flush the tail
+  before replacing the report; counters reflect only confirmed batch responses.
 - Store source, page/revision IDs, dump date, source title/URL; quotes also retain
   raw wikitext and optional source notes. These and candidate quote parent are
   immutable. CandidateRecord and ImportCandidateRequest share provenance fields;
@@ -59,8 +68,8 @@
 - Quotes have optional `primaryReference` and `secondaryReference` (double-sourcing; neither is
   required). Flyway V10 renamed `reference` to `primary_reference`, preserving data, and added
   `secondary_reference`. Candidate tables are unchanged; candidate sourceUrl prefills the primary.
-- No candidate DELETE, backend promotion validation, matching, enrichment,
-  or Python import integration yet. CandidateControllerTest exercises
+- No candidate DELETE, backend promotion validation, matching or enrichment
+  yet. CandidateControllerTest exercises
   H2-backed endpoints with OSIV disabled; CandidateMigrationTest verifies V9.
 
 ## DTO-to-Entity Mapping Strategy

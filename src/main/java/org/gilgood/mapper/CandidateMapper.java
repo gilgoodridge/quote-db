@@ -7,6 +7,9 @@ import org.mapstruct.*;
 
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface CandidateMapper {
+    ImportCandidateQuoteRequest toImportRequest(ImportCandidateBatchRequest.QuoteRequest request,
+                                               Long candidateAuthorId);
+
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "status", ignore = true)
     @Mapping(target = "publishedAuthor", ignore = true)
