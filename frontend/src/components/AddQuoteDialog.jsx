@@ -39,7 +39,8 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     characterId: String(quote?.character?.id ?? initialValues?.character?.id ?? initialCharacterId ?? ''),
     date: quote?.date ?? initialValues?.date ?? '',
     location: quote?.location ?? initialValues?.location ?? '',
-    reference: quote?.reference ?? initialValues?.reference ?? '',
+    primaryReference: quote?.primaryReference ?? initialValues?.primaryReference ?? '',
+    secondaryReference: quote?.secondaryReference ?? initialValues?.secondaryReference ?? '',
   })
 
   useEffect(() => {
@@ -143,7 +144,8 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       characterId: character?.id ?? null,
       date: fields.date || null,
       location: fields.location || null,
-      reference: fields.reference || null,
+      primaryReference: fields.primaryReference || null,
+      secondaryReference: fields.secondaryReference || null,
       ...selections,
     })
   }
@@ -296,10 +298,15 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           <input id="quote-date" name="date" type="date" value={fields.date} onChange={updateField} />
           <label htmlFor="quote-location">Location</label>
           <input id="quote-location" name="location" value={fields.location} onChange={updateField} maxLength={255} />
-          <label htmlFor="quote-reference">Reference</label>
+          <label htmlFor="quote-primary-reference">Primary reference</label>
           <div className="quote-reference-field">
-            <input id="quote-reference" name="reference" value={fields.reference} onChange={updateField} maxLength={255} />
-            <ExternalLink url={fields.reference} />
+            <input id="quote-primary-reference" name="primaryReference" value={fields.primaryReference} onChange={updateField} maxLength={255} />
+            <ExternalLink url={fields.primaryReference} />
+          </div>
+          <label htmlFor="quote-secondary-reference">Secondary reference</label>
+          <div className="quote-reference-field">
+            <input id="quote-secondary-reference" name="secondaryReference" value={fields.secondaryReference} onChange={updateField} maxLength={255} />
+            <ExternalLink url={fields.secondaryReference} />
           </div>
           {loadingCategories && <p role="status">Loading categories...</p>}
           {categoryError && (

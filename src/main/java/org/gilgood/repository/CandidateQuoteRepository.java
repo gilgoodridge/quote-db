@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface CandidateQuoteRepository extends JpaRepository<CandidateQuote, Long> {
     Optional<CandidateQuote> findByImportKey(String importKey);
 
+    boolean existsByPublishedQuote_Id(Long publishedQuoteId);
+
     @Query("select q from CandidateQuote q where (:status is null or q.status = :status) " +
             "and (:candidateAuthorId is null or q.candidateAuthor.id = :candidateAuthorId)")
     Page<CandidateQuote> findCandidates(CandidateStatus status, Long candidateAuthorId, Pageable pageable);

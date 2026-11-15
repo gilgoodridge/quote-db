@@ -479,7 +479,8 @@ test('quote creation sends all POST fields with session credentials and CSRF', a
     authorId: 12,
     date: '2026-10-17',
     location: 'London',
-    reference: 'A book, page 42',
+    primaryReference: 'A book, page 42',
+    secondaryReference: 'An archive, folio 7',
     toneIds: [101, 103],
     themeIds: [205],
     formIds: [],
@@ -504,7 +505,7 @@ test('quote creation sends all POST fields with session credentials and CSRF', a
 })
 
 test('quote creation preserves optional null fields and surfaces authentication errors', async () => {
-  const quote = { text: 'A quote', authorId: 1, date: null, location: null, reference: null }
+  const quote = { text: 'A quote', authorId: 1, date: null, location: null, primaryReference: null, secondaryReference: null }
   globalThis.fetch = async (url, options) => {
     if (url === '/api/auth/csrf') {
       return new Response('{"token":"token","headerName":"X-CSRF-TOKEN"}')
@@ -523,7 +524,8 @@ test('quote editing sends a full replacement with credentials and a fresh CSRF t
     authorId: 12,
     date: null,
     location: null,
-    reference: 'Updated reference',
+    primaryReference: 'Updated reference',
+    secondaryReference: null,
     toneIds: [101, 103],
     themeIds: [],
     formIds: [201],

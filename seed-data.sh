@@ -165,6 +165,7 @@ create_quote() {
     local location="$4"
     local reference="$5"
     local character_id="${10:-}"
+    local secondary_reference="${11:-}"
     # Optional category labels, separated by | for multiple selections.
     local tone_ids theme_ids form_ids source_ids
     tone_ids=$(category_ids tones "${6:-}")
@@ -202,7 +203,11 @@ create_quote() {
     fi
     
     if [ -n "$reference" ]; then
-        json="$json, \"reference\": \"$reference\""
+        json="$json, \"primaryReference\": \"$reference\""
+    fi
+
+    if [ -n "$secondary_reference" ]; then
+        json="$json, \"secondaryReference\": \"$secondary_reference\""
     fi
     
     json="$json}"

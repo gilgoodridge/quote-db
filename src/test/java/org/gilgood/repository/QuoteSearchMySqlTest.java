@@ -76,7 +76,7 @@ class QuoteSearchMySqlTest {
         otherWord = quotes.saveAndFlush(new Quote("lantern", firstAuthor));
         Quote metadataOnly = new Quote("A completely unrelated quotation", firstAuthor);
         metadataOnly.setLocation("orchard");
-        metadataOnly.setReference("orchard");
+        metadataOnly.setPrimaryReference("orchard");
         quotes.saveAndFlush(metadataOnly);
     }
 
@@ -293,7 +293,7 @@ class QuoteSearchMySqlTest {
             insert.executeBatch();
         }
         flyway = Flyway.configure().dataSource(serverUrl() + LEGACY_DATABASE, username(), password()).load();
-        assertEquals(7, flyway.migrate().migrationsExecuted);
+        assertEquals(8, flyway.migrate().migrationsExecuted);
         assertEquals(0, flyway.migrate().migrationsExecuted);
         try (Connection connection = DriverManager.getConnection(serverUrl() + LEGACY_DATABASE, username(), password());
              var statement = connection.createStatement()) {
@@ -311,7 +311,8 @@ class QuoteSearchMySqlTest {
                 assertEquals(1, results.getLong("author_id"));
                 assertEquals("1950-01-02", results.getString("date"));
                 assertEquals("Old location", results.getString("location"));
-                assertEquals("Old reference", results.getString("reference"));
+                assertEquals("Old reference", results.getString("primary_reference"));
+                assertNull(results.getObject("secondary_reference"));
                 assertNull(results.getObject("character_id"));
             }
             statement.executeUpdate("""

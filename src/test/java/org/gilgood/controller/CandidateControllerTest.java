@@ -177,7 +177,8 @@ class CandidateControllerTest {
                                 "text", "Reviewed.", "status", "APPROVED", "publishedQuoteId", publishedQuoteId))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.publishedQuoteId").value(publishedQuoteId));
         mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).with(oidcLogin()).with(csrf()))
-                .andExpect(status().isConflict()).andExpect(content().string(containsString("candidate")));
+                .andExpect(status().isConflict())
+                .andExpect(content().string(containsString("clear the candidate quote link")));
         mvc.perform(put("/api/candidate-quotes/{id}", q).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
                                 "text", "Invalid edit.", "status", "PENDING", "publishedQuoteId", 999999))))

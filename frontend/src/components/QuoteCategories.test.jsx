@@ -17,7 +17,7 @@ for (const options of Object.values(catalog)) {
 const author = { id: 7, fullName: 'Test Author' }
 const quote = {
   id: 42, text: 'A categorized quote', author, date: '2020-01-02',
-  location: 'Act 1', reference: 'Page 2',
+  location: 'Act 1', primaryReference: 'Page 2', secondaryReference: 'Folio 3',
   ...catalog,
 }
 const allSelections = {
@@ -105,7 +105,7 @@ describe('quote category editing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save quote' }))
     await waitFor(() => expect(callbacks.onCreated).toHaveBeenCalledWith(quote))
     expect(api.quotes.create).toHaveBeenCalledWith({
-      text: 'New quote', authorId: 7, characterId: null, date: null, location: null, reference: null, ...allSelections,
+      text: 'New quote', authorId: 7, characterId: null, date: null, location: null, primaryReference: null, secondaryReference: null, ...allSelections,
     })
     expect(api.quotes.update).not.toHaveBeenCalled()
   })
@@ -126,7 +126,8 @@ describe('quote category editing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save quote' }))
     await waitFor(() => expect(callbacks.onUpdated).toHaveBeenCalledWith(quote))
     expect(api.quotes.update).toHaveBeenCalledWith(42, {
-      text: quote.text, authorId: 7, characterId: null, date: quote.date, location: 'Act 2', reference: quote.reference,
+      text: quote.text, authorId: 7, characterId: null, date: quote.date, location: 'Act 2', primaryReference: quote.primaryReference,
+      secondaryReference: quote.secondaryReference,
       ...allSelections,
     })
   })

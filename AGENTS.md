@@ -44,6 +44,9 @@
   Do not allow rejecting a quote after publication. Reload/logout and concurrent
   reviewers still need backend transactional/idempotent promotion (README TODO).
   ExternalLink allows only HTTP/HTTPS and opens references with noopener/noreferrer.
+- Quotes have optional `primaryReference` and `secondaryReference` (double-sourcing; neither is
+  required). Flyway V10 renamed `reference` to `primary_reference`, preserving data, and added
+  `secondary_reference`. Candidate tables are unchanged; candidate sourceUrl prefills the primary.
 - No candidate DELETE, backend promotion validation, matching, enrichment,
   or Python import integration yet. CandidateControllerTest exercises
   H2-backed endpoints with OSIV disabled; CandidateMigrationTest verifies V9.

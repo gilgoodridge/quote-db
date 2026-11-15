@@ -77,6 +77,8 @@ class QuoteControllerTest {
         Character character = new Character(4L, "Hamlet", "Prince Hamlet", "Prince of Denmark", "Hamlet");
         Quote attributed = quote(9L, "love life");
         attributed.setCharacter(character);
+        attributed.setPrimaryReference("Book, p. 1");
+        attributed.setSecondaryReference("Archive, folio 2");
         when(repository.search("love life", null, null, false, List.of(0L), false, List.of(0L),
                 false, List.of(0L), false, List.of(0L), PageRequest.of(0, 20)))
                 .thenReturn(new PageImpl<>(List.of(attributed, quote(3L, "life"))));
@@ -84,6 +86,9 @@ class QuoteControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(9))
                 .andExpect(jsonPath("$.content[0].text").value("love life"))
+                .andExpect(jsonPath("$.content[0].primaryReference").value("Book, p. 1"))
+                .andExpect(jsonPath("$.content[0].secondaryReference").value("Archive, folio 2"))
+                .andExpect(jsonPath("$.content[0].reference").doesNotExist())
                 .andExpect(jsonPath("$.content[0].searchText").doesNotExist())
                 .andExpect(jsonPath("$.content[0].author.fullName").value("Test Author"))
                 .andExpect(jsonPath("$.content[0].author.quotes").doesNotExist())

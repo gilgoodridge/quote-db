@@ -14,7 +14,8 @@ public class QuoteResponse {
     private String text;
     private LocalDate date;
     private String location;
-    private String reference;
+    private String primaryReference;
+    private String secondaryReference;
     private AuthorResponse author;
     private CharacterResponse character;
     private List<CategoryResponse> tones;

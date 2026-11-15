@@ -13,7 +13,8 @@ public class UpdateQuoteRequest {
     private String text;
     private LocalDate date;
     private String location;
-    private String reference;
+    private String primaryReference;
+    private String secondaryReference;
     @NotNull
     private Long authorId;
     private Long characterId;

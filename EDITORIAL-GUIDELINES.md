@@ -139,7 +139,8 @@ The following fields exist, but their detailed editorial rules are
 | Author (`authorId`) | Required selection of an existing author | Attribution evidence, disputed authorship, anonymous quotes, and avoiding duplicate author records |
 | Date (`date`) | Optional date: `YYYY-MM-DD` | Date spoken versus date published, uncertain dates, and partial dates |
 | Location (`location`) | Optional text; up to 255 characters in the form | Physical locations versus event or work titles, and consistent formatting |
-| Reference (`reference`) | Optional text; up to 255 characters in the form | Primary sources, URLs, publication details, page numbers, and citation format |
+| Primary reference (`primaryReference`) | Optional text; up to 255 characters in the form | Primary sources, URLs, publication details, page numbers, and citation format |
+| Secondary reference (`secondaryReference`) | Optional text; up to 255 characters in the form | Independent second source used to double-source the quote; what counts as independent |
 
 ## Cross-cutting editorial topics
 

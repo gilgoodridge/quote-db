@@ -54,7 +54,7 @@ with an empty author picker.
 
 Review Quote reuses Add Quote's author/character pickers, categories, validation,
 and retryable option loads, with candidate text and source URL prefilled. The
-Reference field has an external-link icon for HTTP/HTTPS URLs, opening a new tab.
+Primary and secondary reference fields have external-link icons for HTTP/HTTPS URLs, opening a new tab.
 Published references remain limited to 255 characters. **Approve** publishes the
 quote, then links and approves its candidate. **Reject** updates only the
 candidate status, preserving stored text/link rather than draft edits, and does

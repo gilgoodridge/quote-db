@@ -69,8 +69,8 @@ existing author form (including its required date of birth). Saving creates a
 published author, then marks the candidate author APPROVED with
 `publishedAuthorId` and the saved name. Closing the author prompt/form opens
 Review Quote with no author selected. Review Quote
-prefills the candidate text and source URL as Reference; the external-link icon
-opens HTTP/HTTPS references in a new tab. Reference retains the published quote's
+prefills the candidate text and source URL as Primary reference; the external-link icon
+opens HTTP/HTTPS references in a new tab. Both references retain the published quote's
 255-character limit; longer imported URLs must be edited before publication.
 Approve creates a normal quote with the selected author, optional character and
 categories, then marks the candidate APPROVED with its edited text and
@@ -296,7 +296,7 @@ API clients must also include `characterId` on PUT to retain the association.
 #### Quotes
 - `GET /api/quotes?page=0&size=20&authorId={id}&characterId={id}&query={text}&toneIds={id}&themeIds={id}&formIds={id}&sourceIds={id}` - List a page of quotes, optionally filtered by author/character/categories and searched by text
 - `POST /api/quotes` - Create a quote with `text`, `authorId`, and optional
-  `characterId`, `date` (`YYYY-MM-DD`), `location`, `reference`, `toneIds`, `themeIds`, `formIds`, and `sourceIds`
+  `characterId`, `date` (`YYYY-MM-DD`), `location`, `primaryReference`, `secondaryReference` (an optional second source; V10 renamed the former `reference` column to `primary_reference`, preserving data), `toneIds`, `themeIds`, `formIds`, and `sourceIds`
 - `GET /api/quotes/{id}` - Get a quote
 - `PUT /api/quotes/{id}` - Replace a quote
 - `DELETE /api/quotes/{id}` - Delete a quote
@@ -370,7 +370,7 @@ a new Flyway migration.
 | Source | Where it came from | Movie, Speech, Play, Letter, Book, Article, Poem, Song, Interview, Conversation, Journal |
 
 Every dimension allows **zero or multiple selections**. Source is a type, not
-the precise `location` (page, scene, venue, etc.) or the `reference` URL.
+the precise `location` (page, scene, venue, etc.) or the reference URLs.
 `Excerpt` is not a form. `Poem` is a source; `Verse` is a form.
 All labels are at most 32 characters.
 
@@ -555,8 +555,8 @@ across the redirect, not credentials or quote data. Browser session storage must
 be available to resume the action automatically.
 
 The form includes all POST fields: quote text (up to 2,048 characters), an
-existing author and optional character selected from dropdowns, date, location, and reference (the
-latter two up to 255 characters each), and optional multi-select Tone, Theme,
+existing author and optional character selected from dropdowns, date, location, and primary and secondary references (the
+latter three up to 255 characters each), and optional multi-select Tone, Theme,
 Form, and Source groups. The currently selected author and character are
 preselected. **Add new author** opens a separate form without losing your quote
 draft. It supports all author POST fields: required full name and birth date,

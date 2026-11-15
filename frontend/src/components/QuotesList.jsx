@@ -332,11 +332,19 @@ export default function QuotesList({
                             <p className="detail-value">{quote.location}</p>
                           </div>
                         )}
-                        {quote.reference && (
+                        {quote.primaryReference && (
                           <div className="detail-field">
-                            <span className="detail-label">Reference:</span>
+                            <span className="detail-label">Primary reference:</span>
                             <p className="detail-value">
-                              {renderReference(quote.reference)}
+                              {renderReference(quote.primaryReference)}
+                            </p>
+                          </div>
+                        )}
+                        {quote.secondaryReference && (
+                          <div className="detail-field">
+                            <span className="detail-label">Secondary reference:</span>
+                            <p className="detail-value">
+                              {renderReference(quote.secondaryReference)}
                             </p>
                           </div>
                         )}

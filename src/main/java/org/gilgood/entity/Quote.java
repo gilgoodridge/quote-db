@@ -34,8 +34,11 @@ public class Quote {
     @Column(name = "location")
     private String location;
 
-    @Column(name = "reference")
-    private String reference;
+    @Column(name = "primary_reference")
+    private String primaryReference;
+
+    @Column(name = "secondary_reference")
+    private String secondaryReference;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "author_id", nullable = false)

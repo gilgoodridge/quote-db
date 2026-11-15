@@ -11,7 +11,7 @@ const candidate = {
   sourceUrl: 'https://example.com/source?chapter=1&part=2',
 }
 const catalog = {tones: [{id: 1, name: 'Funny'}], themes: [], forms: [], sources: []}
-const savedQuote = {id: 42, text: candidate.text, author, reference: candidate.sourceUrl}
+const savedQuote = {id: 42, text: candidate.text, author, primaryReference: candidate.sourceUrl}
 const emptySelections = {toneIds: [], themeIds: [], formIds: [], sourceIds: []}
 
 function page(content, size = 1) {
@@ -105,7 +105,7 @@ describe('candidate review', () => {
     expect(screen.getByRole('dialog', {name: 'Review Quote'})).toBeTruthy()
     expect(screen.getByLabelText('Author (required)').value).toBe('7')
     expect(screen.getByLabelText('Quote text (required)').value).toBe(candidate.text)
-    expect(screen.getByLabelText('Reference').value).toBe(candidate.sourceUrl)
+    expect(screen.getByLabelText('Primary reference').value).toBe(candidate.sourceUrl)
     const source = screen.getByRole('link', {name: 'Open source in a new tab'})
     expect(source.href).toBe(candidate.sourceUrl)
     expect(source.target).toBe('_blank')
@@ -161,7 +161,7 @@ describe('candidate review', () => {
     await screen.findByText(/Candidate approved\./)
     expect(api.quotes.create).toHaveBeenCalledWith({
       text: 'Edited quote', authorId: 7, characterId: null, date: null, location: 'Chapter 1',
-      reference: candidate.sourceUrl, ...emptySelections, toneIds: [1],
+      primaryReference: candidate.sourceUrl, secondaryReference: null, ...emptySelections, toneIds: [1],
     })
     expect(api.candidateQuotes.update).toHaveBeenCalledWith(12, {
       text: 'Edited quote', status: 'APPROVED', publishedQuoteId: 42,
