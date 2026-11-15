@@ -179,8 +179,9 @@ heuristics. DTOs expose related IDs, never ORM entities or collections.
   ```
 - `DELETE /api/authors/{id}` - Delete author
 
-The optional `query` searches **fullName only** using case-insensitive substring
-matching; for example, `/api/authors?query=shake` finds William Shakespeare.
+The optional `query` searches **fullName or knownAs** using case-insensitive substring
+matching; for example, `/api/authors?query=shake` finds William Shakespeare,
+and `/api/authors?query=twain` finds Samuel Langhorne Clemens by his alias Mark Twain.
 Leading/trailing whitespace is trimmed; an omitted or blank query lists all
 authors. The query is literal text (`%`, `_`, and `\` are not wildcards).
 Unlike quote FULLTEXT search, author search has no stemming, relevance ordering,
@@ -200,7 +201,7 @@ authors; failures are retryable on the same page without losing loaded results.
 Searching the author list does not change the selected author or quote
 text/category filters, even when the selected author is hidden by the search.
 Clicking a selected author or character again clears only that selection.
-Display labels continue to prefer `knownAs`, but matching uses `fullName`, not
+Display labels continue to prefer `knownAs`; matching uses either `fullName` or
 the displayed alias.
 
 Creating or replacing an author requires both `fullName` and `dateOfBirth`

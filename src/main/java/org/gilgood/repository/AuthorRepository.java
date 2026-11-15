@@ -8,5 +8,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AuthorRepository extends JpaRepository<Author, Long> {
-    Page<Author> findByFullNameContainingIgnoreCase(String query, Pageable pageable);
+    Page<Author> findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+            String fullNameQuery, String knownAsQuery, Pageable pageable);
 }

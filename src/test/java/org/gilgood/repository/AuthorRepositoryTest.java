@@ -80,32 +80,36 @@ class AuthorRepositoryTest {
     }
 
     @Test
-    void searchMatchesFullNameSubstringsIgnoringCaseAndCountsOnlyMatches() {
+    void searchMatchesEitherNameIgnoringCaseAndCountsEachAuthorOnce() {
         Author first = repository.saveAndFlush(author("William Shakespeare", null, BIRTH_DATE));
-        Author second = repository.saveAndFlush(author("Another SHAKESPEARE", null, BIRTH_DATE));
-        repository.saveAndFlush(author("Samuel Clemens", "Shakespeare", BIRTH_DATE));
+        Author second = repository.saveAndFlush(author("Another SHAKESPEARE", "Shakespeare Junior", BIRTH_DATE));
+        Author third = repository.saveAndFlush(author("Samuel Clemens", "The SHAKESPEARE of America", BIRTH_DATE));
         repository.saveAndFlush(author("Unrelated Author", null, BIRTH_DATE));
 
-        var firstPage = repository.findByFullNameContainingIgnoreCase(
-                "sHaKe", PageRequest.of(0, 1, Sort.by("id")));
-        var secondPage = repository.findByFullNameContainingIgnoreCase(
-                "sHaKe", PageRequest.of(1, 1, Sort.by("id")));
+        var firstPage = repository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+                "sHaKe", "sHaKe", PageRequest.of(0, 1, Sort.by("id")));
+        var secondPage = repository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+                "sHaKe", "sHaKe", PageRequest.of(1, 1, Sort.by("id")));
+        var thirdPage = repository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+                "sHaKe", "sHaKe", PageRequest.of(2, 1, Sort.by("id")));
 
         assertEquals(List.of(first), firstPage.getContent());
         assertEquals(List.of(second), secondPage.getContent());
-        assertEquals(2, firstPage.getTotalElements());
-        assertEquals(2, firstPage.getTotalPages());
-        assertEquals(0, repository.findByFullNameContainingIgnoreCase(
-                "missing", PageRequest.of(0, 20)).getTotalElements());
+        assertEquals(List.of(third), thirdPage.getContent());
+        assertEquals(3, firstPage.getTotalElements());
+        assertEquals(3, firstPage.getTotalPages());
+        assertEquals(0, repository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+                "missing", "missing", PageRequest.of(0, 20)).getTotalElements());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"%", "_", "\\"})
     void searchTreatsLikeWildcardsAsLiteralCharacters(String query) {
         Author match = repository.saveAndFlush(author("Name " + query + " literal", null, BIRTH_DATE));
+        Author aliasMatch = repository.saveAndFlush(author("Alias author", "Alias " + query + " literal", BIRTH_DATE));
         repository.saveAndFlush(author("Name without special characters", null, BIRTH_DATE));
-        assertEquals(List.of(match), repository.findByFullNameContainingIgnoreCase(
-                query, PageRequest.of(0, 20)).getContent());
+        assertEquals(List.of(match, aliasMatch), repository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+                query, query, PageRequest.of(0, 20, Sort.by("id"))).getContent());
     }
 
     @Test

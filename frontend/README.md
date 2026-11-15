@@ -100,7 +100,7 @@ Enter or click its search icon to submit immediately, or pause typing for
 **500 ms** to search automatically. Further typing restarts the delay;
 clearing the field immediately restores the first unfiltered page. The backend's optional
 `query` parameter performs case-insensitive substring matching on **fullName
-only**, not `knownAs`, with trimmed, literal text (no wildcard syntax or quote
+or knownAs**, with trimmed, literal text (no wildcard syntax or quote
 FULLTEXT stemming). Labels still prefer `knownAs`; results remain ID ascending.
 
 `api.authors.list(query = '')` collects all matching pages, retaining the query

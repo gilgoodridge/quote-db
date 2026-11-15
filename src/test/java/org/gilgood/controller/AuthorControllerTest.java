@@ -131,11 +131,11 @@ class AuthorControllerTest {
     }
 
     @Test
-    void searchesOnlyFullNameWithTrimmedQueryAndPreservesPagination() throws Exception {
+    void searchesFullNameOrKnownAsWithTrimmedQueryAndPreservesPagination() throws Exception {
         var pageable = PageRequest.of(1, 1, Sort.by("id"));
         Author author = new Author("William Shakespeare");
         author.setId(7L);
-        when(repository.findByFullNameContainingIgnoreCase("sHaKe", pageable))
+        when(repository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase("sHaKe", "sHaKe", pageable))
                 .thenReturn(new PageImpl<>(List.of(author), pageable, 3));
 
         mvc.perform(get("/api/authors").param("query", "  sHaKe  ").param("page", "1").param("size", "1"))
@@ -144,7 +144,7 @@ class AuthorControllerTest {
                 .andExpect(jsonPath("$.content[0].quotes").doesNotExist())
                 .andExpect(jsonPath("$.page.number").value(1))
                 .andExpect(jsonPath("$.page.totalElements").value(3));
-        verify(repository).findByFullNameContainingIgnoreCase("sHaKe", pageable);
+        verify(repository).findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase("sHaKe", "sHaKe", pageable);
     }
 
     @Test

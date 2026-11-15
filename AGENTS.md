@@ -163,7 +163,7 @@ PUT /api/authors/1
 ```
 
 ### Endpoints
-- `GET /api/authors` - Returns `PagedModel<AuthorResponse>`; optional `query` searches fullName only
+- `GET /api/authors` - Returns `PagedModel<AuthorResponse>`; optional `query` searches fullName or knownAs
 - `GET /api/authors/{id}` - Returns full `AuthorResponse` details for one author
 - `POST /api/authors` - Accepts `CreateAuthorRequest`, returns `AuthorResponse`
 - `PUT /api/authors/{id}` - Accepts `UpdateAuthorRequest` (full replacement), returns `AuthorResponse`
@@ -178,7 +178,8 @@ public PagedModel<AuthorResponse> list(
         @RequestParam(defaultValue = "20") int size) {
     var pageable = Pagination.request(page, size).withSort(Sort.by("id"));
     var authors = query != null && !query.isBlank()
-        ? repository.findByFullNameContainingIgnoreCase(query.trim(), pageable)
+        ? repository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+                query.trim(), query.trim(), pageable)
         : repository.findAll(pageable);
     return new PagedModel<>(authors.map(mapper::toResponse));
 }
@@ -199,10 +200,11 @@ retryable; writes refresh totals and recover pages that no longer exist.
 
 - Public GET/HEAD `/api/authors` accepts only the new optional `query` filter.
   Trim nonblank queries; omitted/blank queries preserve normal listing.
-- Use `AuthorRepository.findByFullNameContainingIgnoreCase` for case-insensitive
-  substring matching on fullName only, with database pagination/counting and ID
+- Use `AuthorRepository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase`
+  with the same trimmed query for both fields for case-insensitive substring
+  matching on fullName or knownAs, with database pagination/counting and ID
   ascending order. Spring Data escapes LIKE wildcards; treat `%`, `_`, and `\`
-  literally. Do not search knownAs or reuse quote FULLTEXT stemming/relevance.
+  literally. Authors matching both fields appear once. Do not reuse quote FULLTEXT stemming/relevance.
 - `api.authors.list(query = '')` collects every matching page with the same
   query. `api.authors.listPage({query, page, size})` returns one page.
   No-query calls must still load complete author pickers.
@@ -224,7 +226,7 @@ retryable; writes refresh totals and recover pages that no longer exist.
   Show loading, no matches, and visible retryable errors separately; clear stale
   results on first-page reload, retain results on more-page failure, and ignore outdated requests.
 - AuthorControllerTest and AuthorRepositoryTest cover query/blank handling,
-  pagination, fullName-only matching, case-insensitive substrings, and literal
+  pagination, fullName-or-knownAs matching, case-insensitive substrings, and literal
   wildcards. API and Sidebar tests cover encoding, all-pages query retention,
   submission/clearing, retry, refresh, filter independence, and stale responses.
 

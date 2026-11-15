@@ -28,18 +28,19 @@ public class AuthorController {
 
     @GetMapping
     @Operation(summary = "List authors",
-            description = "Optionally searches fullName using case-insensitive substring matching. " +
+            description = "Optionally searches fullName or knownAs using case-insensitive substring matching. " +
                     "Omitted or blank query preserves normal listing behavior. " +
                     "Returns a page ordered by ID ascending. page is zero-based (default 0); " +
                     "size defaults to 20 and must be between 1 and 100.")
     public PagedModel<AuthorResponse> listAuthors(
-            @Parameter(description = "Plain-text partial name; searches fullName only")
+            @Parameter(description = "Plain-text partial name; searches fullName or knownAs")
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         var pageable = Pagination.request(page, size).withSort(Sort.by("id"));
         var authors = query != null && !query.isBlank()
-                ? authorRepository.findByFullNameContainingIgnoreCase(query.trim(), pageable)
+                ? authorRepository.findByFullNameContainingIgnoreCaseOrKnownAsContainingIgnoreCase(
+                        query.trim(), query.trim(), pageable)
                 : authorRepository.findAll(pageable);
         return new PagedModel<>(authors.map(authorMapper::toResponse));
     }
