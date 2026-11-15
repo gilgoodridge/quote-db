@@ -60,10 +60,15 @@ transactional promotion, and Python importer integration are not implemented.
 **Review workflow:** Review next candidate requests
 `GET /api/candidate-quotes?status=PENDING&page=0&size=1` (oldest ID first).
 An approved candidate author with a publication link is selected automatically.
-Otherwise, Review author prefills the name and uses the existing author form
-(including its required date of birth). Saving creates a published author, then
-marks the candidate author APPROVED with `publishedAuthorId` and the saved name.
-Closing that form opens Review Quote with no author selected. Review Quote
+Otherwise, the candidate name is searched before Review author opens. An exact,
+case-insensitive full-name or known-as match prompts the reviewer to view the
+author details, use the existing author, or create a new one; searching can be
+retried if it fails. Using an existing author links and approves the candidate
+author without creating a duplicate. With no match, Review author uses the
+existing author form (including its required date of birth). Saving creates a
+published author, then marks the candidate author APPROVED with
+`publishedAuthorId` and the saved name. Closing the author prompt/form opens
+Review Quote with no author selected. Review Quote
 prefills the candidate text and source URL as Reference; the external-link icon
 opens HTTP/HTTPS references in a new tab. Reference retains the published quote's
 255-character limit; longer imported URLs must be edited before publication.

@@ -1,4 +1,4 @@
-import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {api} from '../api'
 import App from '../App'
@@ -27,6 +27,7 @@ function deferred() {
 beforeEach(() => {
   vi.spyOn(api.auth, 'me').mockResolvedValue({authenticated: false})
   vi.spyOn(api.auth, 'logout').mockResolvedValue()
+  vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   vi.spyOn(api.candidateQuotes, 'pendingCount').mockResolvedValue(0)
   vi.spyOn(api.candidateAuthors, 'pendingCount').mockResolvedValue(0)
   vi.spyOn(api.candidateQuotes, 'listPage').mockResolvedValue(page([])).mockResolvedValueOnce(page([candidate]))
@@ -54,7 +55,10 @@ afterEach(() => {
 
 async function openNext() {
   fireEvent.click(screen.getByRole('button', {name: 'Review next candidate'}))
-  return screen.findByRole('dialog')
+  await waitFor(() => {
+    expect(screen.getByRole('dialog').querySelector('h2').textContent).not.toBe('Checking existing authors')
+  })
+  return screen.getByRole('dialog')
 }
 
 async function ready() {
@@ -134,6 +138,7 @@ describe('candidate review', () => {
     pendingAuthor()
     render(<CandidateReview />)
     await openNext()
+    await screen.findByRole('button', {name: 'Close author form'})
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     await ready()
     expect(screen.getByLabelText('Author (required)').value).toBe('')
@@ -173,6 +178,7 @@ describe('candidate review', () => {
     api.categories.list.mockRejectedValue(new Error('Catalog offline'))
     render(<CandidateReview />)
     await openNext()
+    await screen.findByRole('button', {name: 'Close author form'})
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     await screen.findByRole('button', {name: 'Retry loading categories'})
     fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: ''}})
@@ -276,6 +282,7 @@ describe('candidate review', () => {
     api.authors.create.mockReturnValueOnce(pending.promise)
     render(<CandidateReview />)
     await openNext()
+    await screen.findByRole('dialog', {name: 'Review author'})
     saveAuthor()
     fireEvent.submit(screen.getByRole('button', {name: 'Saving...'}).closest('form'))
     expect(api.authors.create).toHaveBeenCalledTimes(1)
@@ -296,6 +303,7 @@ describe('candidate review', () => {
     const onAuthorCreated = vi.fn()
     render(<CandidateReview onAuthorCreated={onAuthorCreated} />)
     await openNext()
+    await screen.findByRole('dialog', {name: 'Review author'})
     saveAuthor()
     expect((await screen.findByRole('alert')).textContent).toContain('Link failed')
     expect(screen.getByRole('button', {name: 'Retry author approval'})).toBeTruthy()
@@ -312,6 +320,57 @@ describe('candidate review', () => {
     expect(api.candidateAuthors.update).toHaveBeenCalledTimes(2)
     expect(onAuthorCreated).toHaveBeenCalledTimes(1)
     expect(screen.getByLabelText('Author (required)').value).toBe('7')
+  })
+
+  it('finds an exact duplicate, lets the reviewer inspect it, and links it without creating an author', async () => {
+    pendingAuthor()
+    const duplicate = {...author, id: 19, fullName: candidateAuthor.fullName}
+    api.authors.list.mockResolvedValue([duplicate])
+    api.authors.listPage.mockResolvedValue(page([duplicate], 10))
+    api.authors.get.mockResolvedValue(duplicate)
+    render(<CandidateReview />)
+
+    await openNext()
+    expect(api.authors.list).toHaveBeenCalledWith(candidateAuthor.fullName)
+    expect(screen.getByText('This author already exists. Would you like to use the existing author?')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', {name: 'View author details'}))
+    const details = await screen.findByRole('dialog', {name: 'About this Author'})
+    await within(details).findByText(candidateAuthor.fullName)
+    expect(within(details).queryByRole('button', {name: 'Edit author'})).toBeNull()
+    fireEvent.click(within(details).getByRole('button', {name: 'Close author details'}))
+    expect(screen.getByText('This author already exists. Would you like to use the existing author?')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', {name: 'Use this author'}))
+    await screen.findByRole('dialog', {name: 'Review Quote'})
+    await ready()
+    expect(api.candidateAuthors.update).toHaveBeenCalledWith(3, {
+      fullName: duplicate.fullName, status: 'APPROVED', publishedAuthorId: duplicate.id,
+    })
+    expect(api.authors.create).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Author (required)').value).toBe(String(duplicate.id))
+  })
+
+  it('lets the reviewer continue with a new author after finding a possible duplicate', async () => {
+    pendingAuthor()
+    api.authors.list.mockResolvedValue([{...author, fullName: candidateAuthor.fullName}])
+    render(<CandidateReview />)
+
+    await openNext()
+    fireEvent.click(screen.getByRole('button', {name: 'Create a new author'}))
+    expect(await screen.findByRole('dialog', {name: 'Review author'})).toBeTruthy()
+    expect(screen.getByLabelText('Full name (required)').value).toBe(candidateAuthor.fullName)
+  })
+
+  it('keeps author review blocked and offers a retry when duplicate search fails', async () => {
+    pendingAuthor()
+    api.authors.list.mockRejectedValueOnce(new Error('Author search offline'))
+    render(<CandidateReview />)
+    fireEvent.click(screen.getByRole('button', {name: 'Review next candidate'}))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Author search offline')
+    expect(screen.queryByRole('dialog', {name: 'Review author'})).toBeNull()
+    fireEvent.click(screen.getByRole('button', {name: 'Retry author search'}))
+    await screen.findByRole('dialog', {name: 'Review author'})
   })
 
   it('retains the quote draft when publication fails and prevents duplicate writes and cancellation while saving', async () => {

@@ -2,7 +2,89 @@ import {useEffect, useRef, useState} from 'react'
 import {api} from '../api'
 import AddAuthorDialog from './AddAuthorDialog'
 import AddQuoteDialog from './AddQuoteDialog'
+import AboutAuthorDialog from './AboutAuthorDialog'
+import DialogHeader from './DialogHeader'
 import '../styles/CandidateReview.css'
+
+function normalizeName(name) {
+  return name?.trim().toLocaleLowerCase()
+}
+
+function ExistingAuthorDialog({candidateName, authors, status, error, onRetry, onClose, onUse, onCreate, onView, linkingAuthorId, linkError}) {
+  const dialogRef = useRef(null)
+  const creatingNewAuthorRef = useRef(false)
+
+  useEffect(() => {
+    dialogRef.current.showModal()
+  }, [])
+
+  function createNewAuthor() {
+    creatingNewAuthorRef.current = true
+    dialogRef.current.close()
+    onCreate()
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className="add-quote-dialog candidate-author-duplicates"
+      aria-labelledby="candidate-author-lookup-title"
+      onClose={() => {
+        if (!creatingNewAuthorRef.current) onClose()
+      }}
+      onCancel={(event) => {
+        event.preventDefault()
+        if (linkingAuthorId == null) dialogRef.current.close()
+      }}
+    >
+      <DialogHeader
+        titleId="candidate-author-lookup-title"
+        title={status === 'loading'
+          ? 'Checking existing authors'
+          : status === 'error' ? 'Unable to search authors' : 'Existing author found'}
+        closeLabel="Close author lookup"
+        disabled={linkingAuthorId != null}
+        onClose={() => {
+          if (linkingAuthorId == null) dialogRef.current.close()
+        }}
+        autoFocus
+      />
+      <div className="dialog-body">
+        {status === 'loading' && <p role="status">Searching existing authors for "{candidateName}"...</p>}
+        {status === 'error' && (
+          <div className="add-quote-error" role="alert">
+            <p>{error}</p>
+            <button type="button" onClick={onRetry}>Retry author search</button>
+          </div>
+        )}
+        {status === 'duplicates' && (
+          <>
+            <p>This author already exists. Would you like to use the existing author?</p>
+            <ul className="candidate-author-match-list">
+              {authors.map((author) => (
+                <li key={author.id}>
+                  <span>{author.fullName}{author.knownAs ? ` (${author.knownAs})` : ''}</span>
+                  <div>
+                    <button type="button" onClick={() => onView(author.id)} disabled={linkingAuthorId != null}>
+                      View author details
+                    </button>
+                    <button type="button" onClick={() => onUse(author)} disabled={linkingAuthorId != null}>
+                      {linkingAuthorId === author.id ? 'Linking...' : 'Use this author'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {linkError && <p className="add-quote-error" role="alert">{linkError}</p>}
+            <div className="add-quote-actions">
+              <button type="button" onClick={createNewAuthor} disabled={linkingAuthorId != null}>Create a new author</button>
+            </div>
+          </>
+        )}
+      </div>
+    </dialog>
+  )
+}
 
 function ReviewDialog({candidate, candidateAuthor, progress, onClose, onCompleted, onCountsChanged, onAuthorCreated, onQuoteCreated, onCharacterCreated}) {
   const [publishedAuthor, setPublishedAuthor] = useState(progress.authors.get(candidateAuthor.id) ?? null)
@@ -10,6 +92,48 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
   const authorApproved = candidateAuthor.status === 'APPROVED' && candidateAuthor.publishedAuthorId != null
   const [reviewAuthor, setReviewAuthor] = useState(!authorApproved && !publishedQuote)
   const [authorId, setAuthorId] = useState(publishedQuote?.author.id ?? (authorApproved ? candidateAuthor.publishedAuthorId : null))
+  const [authorLookupAttempt, setAuthorLookupAttempt] = useState(0)
+  const [authorLookup, setAuthorLookup] = useState({status: 'loading', authors: [], error: ''})
+  const [linkingAuthorId, setLinkingAuthorId] = useState(null)
+  const [linkError, setLinkError] = useState('')
+  const [viewedAuthorId, setViewedAuthorId] = useState(null)
+
+  useEffect(() => {
+    if (!reviewAuthor || publishedAuthor) return
+    let active = true
+    api.authors.list(candidateAuthor.fullName).then((authors) => {
+      if (!active) return
+      const candidateName = normalizeName(candidateAuthor.fullName)
+      const matches = authors.filter((author) =>
+        normalizeName(author.fullName) === candidateName || normalizeName(author.knownAs) === candidateName)
+      setAuthorLookup({status: matches.length ? 'duplicates' : 'none', authors: matches, error: ''})
+    }).catch((failure) => {
+      if (active) setAuthorLookup({status: 'error', authors: [], error: `Unable to search existing authors: ${failure.message}`})
+    })
+    return () => { active = false }
+  }, [candidateAuthor.fullName, authorLookupAttempt, publishedAuthor, reviewAuthor])
+
+  async function useExistingAuthor(author) {
+    if (linkingAuthorId != null) return
+    setLinkingAuthorId(author.id)
+    setLinkError('')
+    progress.authors.set(candidateAuthor.id, author)
+    setPublishedAuthor(author)
+    try {
+      await api.candidateAuthors.update(candidateAuthor.id, {
+        fullName: author.fullName,
+        status: 'APPROVED',
+        publishedAuthorId: author.id,
+      })
+      setAuthorId(author.id)
+      setReviewAuthor(false)
+      onCountsChanged()
+    } catch (failure) {
+      setLinkError(`Unable to link existing author: ${failure.message}`)
+    } finally {
+      setLinkingAuthorId(null)
+    }
+  }
 
   async function saveAuthor(request) {
     let author = progress.authors.get(candidateAuthor.id)
@@ -45,17 +169,42 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
   }
 
   if (reviewAuthor) {
+    if (authorLookup.status === 'none' || publishedAuthor) {
+      return (
+        <AddAuthorDialog reviewing
+          initialValues={publishedAuthor ?? {fullName: candidateAuthor.fullName}}
+          publishedAuthor={publishedAuthor}
+          onSave={saveAuthor}
+          onClose={() => setReviewAuthor(false)}
+          onCreated={(author) => {
+            setAuthorId(author.id)
+            setReviewAuthor(false)
+          }}
+        />
+      )
+    }
     return (
-      <AddAuthorDialog reviewing
-        initialValues={publishedAuthor ?? {fullName: candidateAuthor.fullName}}
-        publishedAuthor={publishedAuthor}
-        onSave={saveAuthor}
-        onClose={() => setReviewAuthor(false)}
-        onCreated={(author) => {
-          setAuthorId(author.id)
-          setReviewAuthor(false)
-        }}
-      />
+      <>
+        <ExistingAuthorDialog
+          candidateName={candidateAuthor.fullName}
+          authors={authorLookup.authors}
+          status={authorLookup.status}
+          error={authorLookup.error}
+          onRetry={() => {
+            setAuthorLookup({status: 'loading', authors: [], error: ''})
+            setAuthorLookupAttempt((attempt) => attempt + 1)
+          }}
+          onClose={() => setReviewAuthor(false)}
+          onUse={useExistingAuthor}
+          onCreate={() => setAuthorLookup({status: 'none', authors: [], error: ''})}
+          onView={setViewedAuthorId}
+          linkingAuthorId={linkingAuthorId}
+          linkError={linkError}
+        />
+        {viewedAuthorId != null && (
+          <AboutAuthorDialog authorId={viewedAuthorId} isAuthenticated={false} onClose={() => setViewedAuthorId(null)} />
+        )}
+      </>
     )
   }
 

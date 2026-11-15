@@ -41,11 +41,16 @@ counts on sign-in, and refreshes them after candidate review updates; count
 failures are visible and retryable. It does not automatically open a candidate.
 
 An APPROVED candidate author with a `publishedAuthorId` is preselected. Otherwise,
-the shared author form opens as **Review author**, prefilled with the candidate
-name. Edit the name and fill the existing required birth date, then **Save author**
-to create the author and link/approve the candidate author. The top-right close
-button cancels author creation and continues to **Review Quote** with an empty
-author picker; an existing author can then be selected.
+the candidate name is searched before **Review author** opens. An exact,
+case-insensitive match on full name or known-as name prompts the reviewer to
+choose an existing author or create a new one. **View author details** opens a
+read-only view before linking; **Use this author** links and approves the
+candidate author without creating another record. Search failures stay visible
+and retryable. If there is no match, the shared author form opens as **Review
+author**, prefilled with the candidate name. Edit the name and fill the existing
+required birth date, then **Save author** to create the author and link/approve
+the candidate author. Closing the author prompt/form continues to **Review Quote**
+with an empty author picker.
 
 Review Quote reuses Add Quote's author/character pickers, categories, validation,
 and retryable option loads, with candidate text and source URL prefilled. The

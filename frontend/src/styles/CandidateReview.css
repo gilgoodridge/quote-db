@@ -21,3 +21,28 @@
 .candidate-review [role="alert"] {
   color: var(--error);
 }
+
+.candidate-author-match-list {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.candidate-author-match-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.candidate-author-match-list li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
