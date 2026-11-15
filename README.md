@@ -59,6 +59,11 @@ transactional promotion, and Python importer integration are not implemented.
 
 **Review workflow:** Review next candidate requests
 `GET /api/candidate-quotes?status=PENDING&page=0&size=1` (oldest ID first).
+**Snooze** changes a pending quote candidate to `SNOOZED` without saving draft
+edits or publishing it; it is excluded from the pending queue. **Review snoozed**
+requests `GET /api/candidate-quotes?status=SNOOZED&page=0&size=1` (oldest ID
+first). Approval or rejection advances to the next item in the queue being
+reviewed; snoozed candidates remain snoozed if the reviewer closes the form.
 An approved candidate author with a publication link is selected automatically.
 Otherwise, the candidate name is searched before Review author opens. An exact,
 case-insensitive full-name or known-as match prompts the reviewer to view the
@@ -114,7 +119,8 @@ Existing published-content write endpoints still require login and CSRF.
 
 Lists use ID ascending, zero-based `page` (default 0) and `size` (default 20,
 1-100), returning `content` and `page` metadata. Invalid filters/pagination
-return 400. Status values are `PENDING`, `APPROVED`, and `REJECTED`.
+return 400. Candidate authors support `PENDING`, `APPROVED`, and `REJECTED`;
+candidate quotes additionally support `SNOOZED`.
 There are no candidate DELETE endpoints: reject unwanted candidates so import
 retries do not bring them back.
 

@@ -29,6 +29,7 @@ beforeEach(() => {
   vi.spyOn(api.auth, 'logout').mockResolvedValue()
   vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   vi.spyOn(api.candidateQuotes, 'pendingCount').mockResolvedValue(0)
+  vi.spyOn(api.candidateQuotes, 'snoozedCount').mockResolvedValue(0)
   vi.spyOn(api.candidateAuthors, 'pendingCount').mockResolvedValue(0)
   vi.spyOn(api.candidateQuotes, 'listPage').mockResolvedValue(page([])).mockResolvedValueOnce(page([candidate]))
   vi.spyOn(api.candidateAuthors, 'get').mockResolvedValue(candidateAuthor)
@@ -77,10 +78,16 @@ function saveAuthor() {
 describe('candidate review', () => {
   it('shows the pending candidate quote and author counts', async () => {
     api.candidateQuotes.pendingCount.mockResolvedValue(8)
+    api.candidateQuotes.snoozedCount.mockResolvedValue(5)
     api.candidateAuthors.pendingCount.mockResolvedValue(3)
     render(<CandidateReview />)
-    expect(await screen.findByText(/Candidate quotes left: 8/)).toBeTruthy()
+    expect(await screen.findByText(/Candidate quotes pending: 8/)).toBeTruthy()
+    expect(screen.getByText('Candidate quotes snoozed: 5')).toBeTruthy()
     expect(screen.getByText(/Candidate authors pending: 3/)).toBeTruthy()
+    expect(screen.queryByText('Review the next pending quote before publishing it.')).toBeNull()
+    const snoozedCount = screen.getByText('Candidate quotes snoozed: 5')
+    expect(snoozedCount.previousElementSibling).toBe(screen.getByRole('button', {name: 'Review next candidate'}))
+    expect(snoozedCount.nextElementSibling).toBe(screen.getByRole('button', {name: 'Review snoozed'}))
   })
 
   it('keeps Coming Soon signed out and shows the review panel only after login', async () => {
@@ -188,6 +195,36 @@ describe('candidate review', () => {
       text: candidate.text, status: 'REJECTED', publishedQuoteId: null,
     })
     expect(api.quotes.create).not.toHaveBeenCalled()
+  })
+
+  it('snoozes a pending candidate without publishing and continues the pending queue', async () => {
+    api.candidateQuotes.listPage.mockReset().mockResolvedValueOnce(page([candidate])).mockResolvedValue(page([]))
+    render(<CandidateReview />)
+    await openNext()
+    await ready()
+    fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: 'Unsaved edit'}})
+    fireEvent.click(screen.getByRole('button', {name: 'Snooze'}))
+    await screen.findByText('Candidate snoozed. No pending candidates.')
+    expect(api.candidateQuotes.update).toHaveBeenCalledWith(12, {
+      text: candidate.text, status: 'SNOOZED', publishedQuoteId: null,
+    })
+    expect(api.quotes.create).not.toHaveBeenCalled()
+    expect(api.candidateQuotes.listPage).toHaveBeenLastCalledWith({status: 'PENDING', page: 0, size: 1})
+  })
+
+  it('loads snoozed candidates separately and continues that queue after rejection', async () => {
+    api.candidateQuotes.listPage.mockReset()
+      .mockResolvedValueOnce(page([{...candidate, status: 'SNOOZED'}]))
+      .mockResolvedValue(page([]))
+    render(<CandidateReview />)
+    fireEvent.click(screen.getByRole('button', {name: 'Review snoozed'}))
+    await ready()
+    expect(api.candidateQuotes.listPage).toHaveBeenCalledWith({status: 'SNOOZED', page: 0, size: 1})
+    expect(screen.queryByRole('button', {name: 'Snooze'})).toBeNull()
+    fireEvent.click(screen.getByRole('button', {name: 'Reject'}))
+    await screen.findByText('Candidate rejected. No snoozed candidates.')
+    expect(api.candidateQuotes.listPage).toHaveBeenLastCalledWith({status: 'SNOOZED', page: 0, size: 1})
+    expect(document.activeElement).toBe(screen.getByRole('button', {name: 'Review snoozed'}))
   })
 
   it('closes without changing the candidate when cancelled', async () => {
@@ -433,7 +470,7 @@ describe('candidate review', () => {
     api.candidateQuotes.pendingCount.mockResolvedValue(1)
     api.candidateQuotes.listPage.mockResolvedValueOnce(page([candidate]))
     rerender(<CandidateReview deletedQuoteId={savedQuote.id} />)
-    await screen.findByText(/Candidate quotes left: 1/)
+    await screen.findByText(/Candidate quotes pending: 1/)
     await openNext()
     await ready()
     expect(screen.getByLabelText('Quote text (required)').matches(':disabled')).toBe(false)

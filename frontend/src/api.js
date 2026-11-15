@@ -130,6 +130,7 @@ export const api = {
   },
   candidateQuotes: {
     pendingCount: async () => (await api.candidateQuotes.listPage({status: 'PENDING', page: 0, size: 1})).page.totalElements,
+    snoozedCount: async () => (await api.candidateQuotes.listPage({status: 'SNOOZED', page: 0, size: 1})).page.totalElements,
     listPage: async ({status = 'PENDING', page = 0, size = 1} = {}) => {
       const params = new URLSearchParams({status, page, size})
       return validatePage(await requestJson(`/candidate-quotes?${params}`))

@@ -37,8 +37,13 @@ The right panel shows **Candidate review** near the top only while signed in;
 otherwise it retains **Coming Soon**, also top-aligned. **Review next candidate** requests the oldest pending quote
 with `status=PENDING&page=0&size=1`. Empty queues and retryable load failures are
 shown separately. The panel loads and displays total pending quote and author
-counts on sign-in, and refreshes them after candidate review updates; count
+pending quote, snoozed quote, and pending author counts on sign-in, and refreshes them after candidate review updates; count
 failures are visible and retryable. It does not automatically open a candidate.
+**Snooze** marks a pending quote `SNOOZED` without saving draft edits or
+publishing it, removing it from the pending queue. **Review snoozed** loads the
+oldest snoozed quote with `status=SNOOZED&page=0&size=1`. Approval or rejection
+continues within the queue currently being reviewed; closing a snoozed review
+leaves the quote snoozed.
 
 An APPROVED candidate author with a `publishedAuthorId` is preselected. Otherwise,
 the candidate name is searched before **Review author** opens. An exact,
@@ -58,9 +63,10 @@ Primary and secondary reference fields have external-link icons for HTTP/HTTPS U
 Published references remain limited to 255 characters. **Approve** publishes the
 quote, then links and approves its candidate. **Reject** updates only the
 candidate status, preserving stored text/link rather than draft edits, and does
-not require an author or loaded form options. The top-right close button cancels.
-After successful approval or rejection, the next pending candidate opens
-automatically. Empty queues and retryable next-item failures appear in the panel;
+not require an author or loaded form options. **Snooze** likewise preserves stored
+text/link and does not require the quote form options. The top-right close button
+cancels. After successful approval or rejection, the next candidate in the
+current queue opens automatically. Empty queues and retryable next-item failures appear in the panel;
 cancellation or failed approval/rejection does not advance the queue.
 An author already saved is not deleted by cancelling/rejecting the quote.
 

@@ -36,6 +36,7 @@
 - GET/HEAD lists use existing Pagination/PagedModel, ID ascending and optional
   status; quotes additionally filter candidateAuthorId with AND in the database.
 - PUT fully replaces review name/text, required PENDING/APPROVED/REJECTED status
+  for authors and PENDING/APPROVED/REJECTED/SNOOZED status for quotes
   and optional publication link. Null/omitted links clear. Validate referenced IDs
   atomically; links never cascade. Publication links restrict deletion with visible 409.
 - Quote deletion conflicts use RFC 9457 ProblemDetail with stable
@@ -50,15 +51,21 @@
   endpoint permissions. Successful recovery refreshes quote totals/candidate counts
   and removes the deleted quote from CandidateReview's in-memory publication cache.
 - CandidateReview replaces the right-side placeholder only for signed-in users.
-  Fetch the next PENDING quote with page 0/size 1; GET does not reserve the item.
+  Review next candidate fetches the next PENDING quote; Review snoozed fetches
+  the next SNOOZED quote, both page 0/size 1 and oldest ID first. GET does not
+  reserve the item. SNOOZED applies only to candidate quotes and is excluded
+  from pending review and pending counts; show pending, snoozed and author counts
+  in the review panel.
   Reuse AddAuthorDialog/AddQuoteDialog for review, preserving normal creation/editing.
   Approved candidate authors preselect their publication link; otherwise prompt
   for author creation (including required birth date). Closing leaves author empty.
   Author Save and quote Approve publish first, then PUT the candidate with the
   saved name/text, APPROVED status and publication ID. Reject updates only stored
   quote review fields/status; closing makes no candidate quote changes.
-  Successful quote approval/rejection automatically fetches and opens the next
-  pending item; cancellation and failed mutations never advance the queue.
+  Snooze updates only the candidate status, preserving stored quote text/link,
+  then continues the pending queue. Successful quote approval/rejection
+  automatically fetches and opens the next item from the queue being reviewed;
+  cancellation and failed mutations never advance the queue.
   Separate writes are nontransactional: retain successful published records in
   memory across dialog closes, lock saved forms and retry only candidate approval.
   Do not allow rejecting a quote after publication from the review form; the

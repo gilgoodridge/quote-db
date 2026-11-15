@@ -185,6 +185,21 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     }
   }
 
+  async function snooze() {
+    if (submittingRef.current || showAddAuthor || showAddCharacter || review.publishedQuote) return
+    submittingRef.current = true
+    setSaving(true)
+    setSaveError('')
+    try {
+      await review.onSnooze()
+    } catch (error) {
+      setSaveError(`Unable to snooze candidate: ${error.message}`)
+    } finally {
+      submittingRef.current = false
+      setSaving(false)
+    }
+  }
+
   function closeAddAuthor() {
     setShowAddAuthor(false)
     addAuthorButtonRef.current?.focus()
@@ -333,7 +348,12 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         {saveError && <p className="add-quote-error" role="alert">{saveError}</p>}
         <div className="add-quote-actions">
           {review
-            ? <button type="button" className="add-quote-cancel" disabled={saving || Boolean(review.publishedQuote)} onClick={reject}>Reject</button>
+            ? <>
+              <button type="button" className="add-quote-cancel" disabled={saving || Boolean(review.publishedQuote)} onClick={reject}>Reject</button>
+              {review.status === 'PENDING' && (
+                <button type="button" className="add-quote-cancel" disabled={saving || Boolean(review.publishedQuote)} onClick={snooze}>Snooze</button>
+              )}
+            </>
             : <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>}
           <button type="submit" className="add-quote-submit" disabled={saving || (!review?.publishedQuote && (loadingAuthors || Boolean(authorError) || authors.length === 0 || loadingCharacters || Boolean(characterError) || loadingCategories || Boolean(categoryError)))}>
             {saving ? 'Saving...' : review?.publishedQuote ? 'Retry approval' : review ? 'Approve' : 'Save quote'}

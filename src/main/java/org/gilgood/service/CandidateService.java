@@ -24,6 +24,7 @@ public class CandidateService {
 
     @Transactional(readOnly = true)
     public PagedModel<CandidateAuthorResponse> listAuthors(CandidateStatus status, Pageable pageable) {
+        requireAuthorStatus(status);
         var page = status == null ? candidateAuthors.findAll(pageable)
                 : candidateAuthors.findByStatus(status, pageable);
         return new PagedModel<>(page.map(mapper::toResponse));
@@ -89,6 +90,7 @@ public class CandidateService {
     }
 
     public CandidateAuthorResponse updateAuthor(Long id, UpdateCandidateAuthorRequest request) {
+        requireAuthorStatus(request.getStatus());
         var candidate = findAuthor(id);
         var published = request.getPublishedAuthorId() == null ? null
                 : authors.findById(request.getPublishedAuthorId())
@@ -118,6 +120,13 @@ public class CandidateService {
     private CandidateQuote findQuote(Long id) {
         return candidateQuotes.findById(id).orElseThrow(() ->
                 new IllegalArgumentException("Candidate quote not found with ID: " + id));
+    }
+
+    private void requireAuthorStatus(CandidateStatus status) {
+        if (status == CandidateStatus.SNOOZED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "SNOOZED is only valid for candidate quotes");
+        }
     }
 
     private void verifyIdentity(CandidateRecord candidate, ImportCandidateRequest request) {

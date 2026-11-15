@@ -18,7 +18,8 @@ public class CandidateQuoteController {
 
     @GetMapping
     @Operation(summary = "List candidate quotes", description =
-            "Optional status and candidateAuthorId combine with AND. ID ascending; zero-based page, size 1-100.")
+            "Optional PENDING/APPROVED/REJECTED/SNOOZED status and candidateAuthorId combine with AND. " +
+                    "ID ascending; zero-based page, size 1-100.")
     public PagedModel<CandidateQuoteResponse> list(
             @RequestParam(required = false) CandidateStatus status,
             @RequestParam(required = false) Long candidateAuthorId,

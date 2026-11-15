@@ -274,6 +274,21 @@ class CandidateControllerTest {
                 .andExpect(jsonPath("$.page.totalElements").value(2));
         mvc.perform(get("/api/candidate-authors").param("status", "APPROVED"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+        mvc.perform(get("/api/candidate-authors").param("status", "SNOOZED"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/candidate-authors/{id}", a).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"Author\",\"status\":\"SNOOZED\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/candidate-quotes/{id}", first).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Snoozed quote.\",\"status\":\"SNOOZED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SNOOZED"));
+        mvc.perform(get("/api/candidate-quotes").param("status", "SNOOZED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(first))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
         mvc.perform(get("/api/candidate-quotes/{id}", second))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.candidateAuthorId").value(a));
     }
@@ -344,7 +359,7 @@ class CandidateControllerTest {
                                     "publishedQuoteId", key.equals("unrelated") ? otherQuoteId : publishedQuoteId))))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
         }
-        for (String invalid : new String[]{"APPROVED", "UNKNOWN"}) {
+        for (String invalid : new String[]{"APPROVED", "SNOOZED", "UNKNOWN"}) {
             mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", invalid)
                             .with(oidcLogin()).with(csrf()))
                     .andExpect(status().isBadRequest());

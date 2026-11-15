@@ -221,11 +221,20 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
             status: 'REJECTED',
             publishedQuoteId: candidate.publishedQuoteId ?? null,
           })
-          onCompleted('Candidate rejected.')
+          onCompleted('Candidate rejected.', candidate.status)
+        },
+        status: candidate.status,
+        onSnooze: async () => {
+          await api.candidateQuotes.update(candidate.id, {
+            text: candidate.text,
+            status: 'SNOOZED',
+            publishedQuoteId: candidate.publishedQuoteId ?? null,
+          })
+          onCompleted('Candidate snoozed.', 'PENDING')
         },
       }}
       onClose={onClose}
-      onCreated={() => onCompleted('Candidate approved.')}
+      onCreated={() => onCompleted('Candidate approved.', candidate.status)}
       onAuthorCreated={onAuthorCreated}
       onCharacterCreated={onCharacterCreated}
     />
@@ -240,7 +249,9 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
   const [counts, setCounts] = useState(null)
   const [countsLoading, setCountsLoading] = useState(true)
   const [countsError, setCountsError] = useState('')
-  const buttonRef = useRef(null)
+  const [queueStatus, setQueueStatus] = useState('PENDING')
+  const pendingButtonRef = useRef(null)
+  const snoozedButtonRef = useRef(null)
   const loadingRef = useRef(false)
   const requestVersion = useRef(0)
   const countsVersion = useRef(0)
@@ -248,11 +259,12 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
   const progress = useRef({authors: new Map(), quotes: new Map()})
 
   async function fetchCounts() {
-    const [quotes, authors] = await Promise.all([
+    const [quotes, snoozedQuotes, authors] = await Promise.all([
       api.candidateQuotes.pendingCount(),
+      api.candidateQuotes.snoozedCount(),
       api.candidateAuthors.pendingCount(),
     ])
-    return {quotes, authors}
+    return {quotes, snoozedQuotes, authors}
   }
 
   useEffect(() => {
@@ -293,11 +305,12 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
     }
   }
 
-  async function next(completedMessage = '') {
+  async function next(completedMessage = '', status = 'PENDING') {
     if (loadingRef.current || (review && !completedMessage)) return
     loadingRef.current = true
     const version = ++requestVersion.current
     setLoading(true)
+    setQueueStatus(status)
     setError('')
     setMessage(completedMessage)
     if (completedMessage) {
@@ -305,20 +318,20 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
       loadCounts()
     }
     try {
-      const result = await api.candidateQuotes.listPage({status: 'PENDING', page: 0, size: 1})
+      const result = await api.candidateQuotes.listPage({status, page: 0, size: 1})
       if (version !== requestVersion.current) return
       if (result.page.number !== 0 || result.page.size !== 1 || result.content.length > 1) {
         throw new Error('The candidates endpoint returned an unexpected page')
       }
       const candidate = result.content[0]
       if (!candidate) {
-        setMessage([completedMessage, 'No pending candidates.'].filter(Boolean).join(' '))
+        setMessage([completedMessage, status === 'SNOOZED' ? 'No snoozed candidates.' : 'No pending candidates.'].filter(Boolean).join(' '))
         return
       }
       const candidateAuthor = await api.candidateAuthors.get(candidate.candidateAuthorId)
       if (version === requestVersion.current) setReview({candidate, candidateAuthor, progress: progress.current})
     } catch (failure) {
-      if (version === requestVersion.current) setError(`Unable to load next candidate: ${failure.message}`)
+      if (version === requestVersion.current) setError(`Unable to load ${status === 'SNOOZED' ? 'snoozed' : 'next'} candidate: ${failure.message}`)
     } finally {
       if (version === requestVersion.current) {
         loadingRef.current = false
@@ -329,6 +342,7 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
 
   function close() {
     setReview(null)
+    const buttonRef = queueStatus === 'SNOOZED' ? snoozedButtonRef : pendingButtonRef
     buttonRef.current?.focus()
   }
 
@@ -337,7 +351,7 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
       <h2 id="candidate-review-title">Candidate review</h2>
       {counts && (
         <p className="candidate-review-counts">
-          Candidate quotes left: {counts.quotes}<br />
+          Candidate quotes pending: {counts.quotes}<br />
           Candidate authors pending: {counts.authors}
         </p>
       )}
@@ -347,12 +361,15 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
           {countsError} <button type="button" onClick={loadCounts} disabled={countsLoading}>Retry counts</button>
         </p>
       )}
-      <p>Review the next pending quote before publishing it.</p>
-      <button ref={buttonRef} type="button" onClick={() => next()} disabled={loading} aria-haspopup="dialog">
+      <button ref={pendingButtonRef} type="button" onClick={() => next()} disabled={loading} aria-haspopup="dialog">
         {loading ? 'Loading candidate...' : 'Review next candidate'}
       </button>
+      {counts && <p className="candidate-review-counts">Candidate quotes snoozed: {counts.snoozedQuotes}</p>}
+      <button ref={snoozedButtonRef} type="button" onClick={() => next('', 'SNOOZED')} disabled={loading} aria-haspopup="dialog">
+        Review snoozed
+      </button>
       {loading && <p role="status">Loading next candidate...</p>}
-      {error && <p role="alert">{error} Try again with Review next candidate.</p>}
+      {error && <p role="alert">{error} Try again with {queueStatus === 'SNOOZED' ? 'Review snoozed' : 'Review next candidate'}.</p>}
       {message && <p role="status">{message}</p>}
       {review && (
         <ReviewDialog key={review.candidate.id} {...review} onClose={close}
