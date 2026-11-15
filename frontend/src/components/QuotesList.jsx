@@ -3,6 +3,7 @@ import {api} from '../api'
 import AddQuoteDialog from './AddQuoteDialog'
 import AboutAuthorDialog from './AboutAuthorDialog'
 import AboutCharacterDialog from './AboutCharacterDialog'
+import DeleteLinkedQuoteDialog from './DeleteLinkedQuoteDialog'
 import {categoryDimensions} from '../quoteCategories'
 import '../styles/QuotesList.css'
 
@@ -19,6 +20,7 @@ export default function QuotesList({
   characterId = null,
   charactersRefreshKey = 0,
   onCharacterChanged,
+  onCandidatesChanged,
 }) {
   const [quotes, setQuotes] = useState([])
   const scope = JSON.stringify([authorId, characterId, query, categoryIds])
@@ -36,6 +38,7 @@ export default function QuotesList({
   const [expandedQuoteId, setExpandedQuoteId] = useState(null)
   const [editingQuote, setEditingQuote] = useState(null)
   const [deletingQuoteId, setDeletingQuoteId] = useState(null)
+  const [linkedQuote, setLinkedQuote] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
   const [editVersion, setEditVersion] = useState(0)
@@ -46,6 +49,7 @@ export default function QuotesList({
   const deletingRef = useRef(false)
   const editButtonRef = useRef(null)
   const containerRef = useRef(null)
+  const deleteButtonRef = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -120,22 +124,38 @@ export default function QuotesList({
     else containerRef.current?.focus()
   }
 
-  async function deleteQuote(quote) {
+  function quoteDeleted(quote) {
+    setLinkedQuote(null)
+    setQuotes((current) => current.filter((item) => item.id !== quote.id))
+    setExpandedQuoteId((current) => current === quote.id ? null : current)
+    setActionMessage('Quote deleted.')
+    setEditVersion((version) => version + 1)
+    containerRef.current?.focus()
+  }
+
+  function closeLinkedQuote() {
+    setLinkedQuote(null)
+    if (deleteButtonRef.current?.isConnected) deleteButtonRef.current.focus()
+    else containerRef.current?.focus()
+  }
+
+  async function deleteQuote(quote, event) {
     if (!isAuthenticated || deletingRef.current) return
     if (!window.confirm(`Delete this quote? This cannot be undone. The author will not be deleted.\n\n${quote.text}`)) return
+    deleteButtonRef.current = event.currentTarget
     deletingRef.current = true
     setDeletingQuoteId(quote.id)
     setActionError('')
     setActionMessage('')
     try {
       await api.quotes.delete(quote.id)
-      setQuotes((current) => current.filter((item) => item.id !== quote.id))
-      setExpandedQuoteId((current) => current === quote.id ? null : current)
-      setActionMessage('Quote deleted.')
-      setEditVersion((version) => version + 1)
-      containerRef.current?.focus()
+      quoteDeleted(quote)
     } catch (err) {
-      setActionError(`Unable to delete quote: ${err.message}`)
+      if (err.status === 409 && err.code === 'QUOTE_LINKED_TO_CANDIDATES') {
+        setLinkedQuote(quote)
+      } else {
+        setActionError(`Unable to delete quote: ${err.message}`)
+      }
     } finally {
       deletingRef.current = false
       setDeletingQuoteId(null)
@@ -175,6 +195,16 @@ export default function QuotesList({
 
   return (
     <div className={`quotes-container${hasFilters ? ' has-filters' : ''}`} ref={containerRef} tabIndex={-1} aria-label="Quotes">
+      {isAuthenticated && linkedQuote && (
+        <DeleteLinkedQuoteDialog
+          quote={linkedQuote}
+          onClose={closeLinkedQuote}
+          onDeleted={(quote) => {
+            quoteDeleted(quote)
+            onCandidatesChanged?.(quote.id)
+          }}
+        />
+      )}
       {aboutCharacterId != null && (
         <AboutCharacterDialog key={aboutCharacterId} characterId={aboutCharacterId} isAuthenticated={isAuthenticated}
           onClose={closeCharacter} onUpdated={(character) => {
@@ -289,7 +319,7 @@ export default function QuotesList({
                             aria-label="Delete quote"
                             title="Delete quote"
                             disabled={deletingQuoteId !== null}
-                            onClick={() => deleteQuote(quote)}
+                            onClick={(event) => deleteQuote(quote, event)}
                           >
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                               <path d="m6 6 12 12M6 18 18 6" />

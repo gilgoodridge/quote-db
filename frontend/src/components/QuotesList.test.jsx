@@ -11,6 +11,11 @@ function quotePage(content = [quote], number = 0, size = 20, totalElements = con
 }
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true }
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
   vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   vi.spyOn(api.quotes, 'listPage').mockResolvedValue(quotePage())
 })
@@ -141,6 +146,96 @@ describe('quote pagination', () => {
     expect(api.quotes.delete).toHaveBeenCalledWith(43)
     expect(api.quotes.listPage).toHaveBeenLastCalledWith(7, '', expect.any(Object), {page: 0, size: 20})
     expect(screen.getByText('Quote deleted.')).toBeTruthy()
+  })
+})
+
+describe('deleting quotes linked to candidates', () => {
+  function conflict(status = 409, code = 'QUOTE_LINKED_TO_CANDIDATES') {
+    return Object.assign(new Error('Quote is linked to candidate review data'), {status, code})
+  }
+
+  async function attemptDelete(props = {}) {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<QuotesList authorId={7} isAuthenticated {...props} />)
+    const button = await screen.findByRole('button', {name: 'Delete quote'})
+    button.focus()
+    fireEvent.click(button)
+    return button
+  }
+
+  it.each([
+    ['Reject candidates and delete quote', 'REJECTED'],
+    ['Return candidates to Pending and delete quote', 'PENDING'],
+  ])('supports %s only after the specific conflict', async (label, candidateStatus) => {
+    vi.spyOn(api.quotes, 'delete').mockRejectedValueOnce(conflict()).mockResolvedValueOnce(true)
+    const onCandidatesChanged = vi.fn()
+    await attemptDelete({onCandidatesChanged})
+    const dialog = await screen.findByRole('dialog', {name: 'Quote linked to candidates'})
+    expect(api.quotes.delete).toHaveBeenCalledTimes(1)
+    api.quotes.listPage.mockResolvedValue(quotePage([]))
+    fireEvent.click(within(dialog).getByRole('button', {name: label}))
+    await screen.findByText('Quote deleted.')
+    expect(api.quotes.delete).toHaveBeenLastCalledWith(42, {candidateStatus})
+    expect(onCandidatesChanged).toHaveBeenCalledWith(42)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText(quote.text)).toBeNull()
+    expect(document.activeElement).toBe(screen.getByLabelText('Quotes'))
+  })
+
+  it('cancels without changing candidates or retrying deletion and restores focus', async () => {
+    vi.spyOn(api.quotes, 'delete').mockRejectedValueOnce(conflict())
+    const button = await attemptDelete()
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(api.quotes.delete).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(button)
+    expect(screen.getByText(quote.text)).toBeTruthy()
+  })
+
+  it.each([[409, undefined], [409, 'OTHER_CONFLICT'], [403, 'QUOTE_LINKED_TO_CANDIDATES']])(
+    'does not offer recovery for status %s and code %s',
+    async (status, code) => {
+      vi.spyOn(api.quotes, 'delete').mockRejectedValueOnce(Object.assign(new Error('Other failure'), {status, code}))
+      await attemptDelete()
+      expect((await screen.findByRole('alert')).textContent).toContain('Other failure')
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.getByText(quote.text)).toBeTruthy()
+    },
+  )
+
+  it('keeps failures retryable, blocks duplicate writes and dismissal while saving', async () => {
+    let rejectRecovery
+    vi.spyOn(api.quotes, 'delete').mockRejectedValueOnce(conflict())
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRecovery = reject }))
+      .mockResolvedValueOnce(true)
+    const onCandidatesChanged = vi.fn()
+    await attemptDelete({onCandidatesChanged})
+    const dialog = await screen.findByRole('dialog')
+    const reject = within(dialog).getByRole('button', {name: 'Reject candidates and delete quote'})
+    fireEvent.click(reject)
+    fireEvent.click(reject)
+    expect(within(dialog).getAllByRole('button').every((button) => button.disabled)).toBe(true)
+    expect(fireEvent(dialog, new Event('cancel', {cancelable: true}))).toBe(false)
+    expect(api.quotes.delete).toHaveBeenCalledTimes(2)
+    await act(async () => rejectRecovery(new Error('Deletion failed; transaction rolled back')))
+    expect(within(dialog).getByRole('alert').textContent).toContain('transaction rolled back')
+    expect(screen.getAllByText(quote.text)).toHaveLength(2)
+    expect(onCandidatesChanged).not.toHaveBeenCalled()
+    api.quotes.listPage.mockResolvedValue(quotePage([]))
+    fireEvent.click(reject)
+    await screen.findByText('Quote deleted.')
+    expect(api.quotes.delete).toHaveBeenCalledTimes(3)
+    expect(onCandidatesChanged).toHaveBeenCalledOnce()
+  })
+
+  it('does not send a request after cancelling the initial confirmation', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    vi.spyOn(api.quotes, 'delete')
+    render(<QuotesList authorId={7} isAuthenticated />)
+    fireEvent.click(await screen.findByRole('button', {name: 'Delete quote'}))
+    expect(api.quotes.delete).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
 

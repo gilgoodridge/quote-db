@@ -5,6 +5,7 @@ import org.gilgood.entity.CandidateStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.Optional;
@@ -13,6 +14,11 @@ public interface CandidateQuoteRepository extends JpaRepository<CandidateQuote, 
     Optional<CandidateQuote> findByImportKey(String importKey);
 
     boolean existsByPublishedQuote_Id(Long publishedQuoteId);
+
+    @Modifying
+    @Query("update CandidateQuote q set q.status = :status, q.publishedQuote = null " +
+            "where q.publishedQuote.id = :publishedQuoteId")
+    int unlinkPublishedQuote(Long publishedQuoteId, CandidateStatus status);
 
     @Query("select q from CandidateQuote q where (:status is null or q.status = :status) " +
             "and (:candidateAuthorId is null or q.candidateAuthor.id = :candidateAuthorId)")

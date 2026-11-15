@@ -232,7 +232,7 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
   )
 }
 
-export default function CandidateReview({onAuthorCreated, onQuoteCreated, onCharacterCreated}) {
+export default function CandidateReview({onAuthorCreated, onQuoteCreated, onCharacterCreated, deletedQuoteId = null}) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -256,18 +256,27 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
   }
 
   useEffect(() => {
+    for (const [candidateId, publishedQuote] of progress.current.quotes) {
+      if (publishedQuote.id === deletedQuoteId) progress.current.quotes.delete(candidateId)
+    }
     const version = ++countsVersion.current
     fetchCounts().then((result) => {
-      if (version === countsVersion.current) setCounts(result)
+      if (version === countsVersion.current) {
+        setCounts(result)
+        setCountsError('')
+      }
     }).catch((failure) => {
       if (version === countsVersion.current) setCountsError(`Unable to load pending candidate counts: ${failure.message}`)
     }).finally(() => {
       if (version === countsVersion.current) setCountsLoading(false)
     })
     return () => {
-      requestVersion.current += 1
       countsVersion.current += 1
     }
+  }, [deletedQuoteId])
+
+  useEffect(() => () => {
+    requestVersion.current += 1
   }, [])
 
   async function loadCounts() {

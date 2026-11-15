@@ -11,6 +11,33 @@
   justify-content: flex-start;
 }
 
+.delete-linked-quote-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.delete-linked-quote-dialog::backdrop {
+  background: var(--modal-backdrop);
+}
+
+.delete-linked-quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.delete-linked-quote-dialog button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;

@@ -21,6 +21,7 @@ function App() {
   const [searchText, setSearchText] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [deletedCandidateQuoteId, setDeletedCandidateQuoteId] = useState(null)
 
   function handleSearch() {
     setSearchQuery(searchText.trim())
@@ -79,6 +80,7 @@ function App() {
         </aside>
         <main className="content-middle">
           <QuotesList
+            onCandidatesChanged={setDeletedCandidateQuoteId}
             isAuthenticated={isAuthenticated}
             onAuthorUpdated={handleAuthorChanged}
             onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
@@ -94,6 +96,7 @@ function App() {
         <aside className="sidebar-right">
           {isAuthenticated
             ? <CandidateReview
+                deletedQuoteId={deletedCandidateQuoteId}
                 onAuthorCreated={handleAuthorChanged}
                 onQuoteCreated={() => setQuotesVersion((version) => version + 1)}
                 onCharacterCreated={handleCharacterChanged}

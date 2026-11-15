@@ -74,6 +74,26 @@ names/quotes without changing browsing filters. Candidate backend endpoints rema
 temporarily anonymous with CSRF on writes; this signed-in UI is not an API access
 restriction.
 
+## Deleting quotes linked to candidates
+
+After normal quote-delete confirmation, the specific HTTP 409 Problem Details
+code `QUOTE_LINKED_TO_CANDIDATES` opens a native recovery dialog. The API client
+reads RFC 9457 `application/problem+json` errors and exposes `status`, `code`
+and `type`, while retaining support for existing plain-text errors. Never match
+error prose or treat every 409 as a candidate-link conflict.
+
+Choose **Reject candidates and delete quote** or **Return candidates to Pending
+and delete quote**, or cancel without changes. The selected status is sent as
+`candidateStatus=REJECTED` or `PENDING` on the authenticated, CSRF-protected quote
+DELETE. The backend updates all linked candidates, clears their published-quote
+links and deletes the quote in one transaction, rolling everything back on
+failure. Candidate text, source information, candidate-author links and published
+authors/characters are preserved. Saving blocks duplicate actions and dismissal;
+errors keep the dialog retryable. Cancellation restores focus to Delete, success
+to the quotes container. Successful recovery refreshes quote totals and pending
+candidate counts, and discards cached publication IDs for the deleted quote so
+Pending candidates can be reviewed again.
+
 ## Quote pagination
 
 The middle panel loads one quote page at a time via `api.quotes.listPage`.

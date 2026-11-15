@@ -155,7 +155,26 @@ the candidate quote's parent are immutable. Unknown/nonpositive referenced
 IDs return 400 without applying the edit. Publication links reference existing
 records only; `APPROVED` does **not** create published content or require a link.
 There are deliberately no promotion rules yet. Linked published records cannot
-be deleted until their candidate links are cleared (409).
+be deleted until their candidate links are cleared (409), unless quote deletion
+explicitly requests the transactional recovery below.
+
+`DELETE /api/quotes/{id}` returns an RFC 9457 `application/problem+json` response
+when candidate quotes reference it: `type` is
+`urn:quote-db:problem:quote-linked-to-candidates`, `code` is
+`QUOTE_LINKED_TO_CANDIDATES`, and `detail` is
+`Quote is linked to candidate review data`. Clients identify this conflict by
+HTTP 409 and the stable code, not human-readable text or HTTP status alone.
+Other errors retain their existing formats.
+
+After explicit confirmation, `DELETE /api/quotes/{id}?candidateStatus=REJECTED`
+or `candidateStatus=PENDING` updates **all** candidates linked to that quote to
+the chosen status, clears their `publishedQuoteId`, and deletes the published
+quote in one transaction. Any deletion failure rolls back the candidate changes
+too. Other status values are invalid (400). A completed deletion can be retried
+without changing candidate statuses again. Candidate text, import identity,
+provenance and candidate-author links are preserved; authors and characters
+are never deleted. This recovery requires the same authentication and CSRF as
+normal quote deletion; it does not change candidate endpoint permissions.
 
 Names/titles allow 255 characters, source 64, URLs 2,048 (HTTP/HTTPS),
 cleaned text 2,048, and raw wikitext/source notes 16,000 each.
@@ -579,7 +598,12 @@ so a changed quote may no longer match. Cancel leaves the quote unchanged;
 save failures keep the draft open.
 
 Delete requires browser confirmation before sending the request. Failures are
-shown without removing the card. Deleting a quote never deletes its author,
+shown without removing the card. Only the `QUOTE_LINKED_TO_CANDIDATES` conflict
+opens a recovery dialog: reject the linked candidate quotes or return them to
+Pending, clear their publication links, and delete the quote atomically.
+Cancel makes no changes. While saving, duplicate submissions and dismissal
+are blocked; failed saves remain visible and retryable. Successful recovery
+refreshes quote results and pending candidate counts. Deleting a quote never deletes its author,
 even when it was their last quote. Both actions use the existing
 session-authenticated, CSRF-protected PUT and DELETE endpoints.
 

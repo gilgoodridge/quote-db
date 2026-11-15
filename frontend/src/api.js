@@ -10,10 +10,21 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const message = await response.text()
+    let problem
+    if (response.headers.get('Content-Type')?.split(';')[0].trim() === 'application/problem+json') {
+      try {
+        problem = JSON.parse(message)
+      } catch {
+        // Keep malformed problem responses visible as the original response text.
+        problem = null
+      }
+    }
     const error = new Error(
-      `Request failed (${response.status}): ${message || response.statusText || 'Unknown error'}`,
+      `Request failed (${response.status}): ${problem?.detail || message || response.statusText || 'Unknown error'}`,
     )
     error.status = response.status
+    if (typeof problem?.code === 'string') error.code = problem.code
+    if (typeof problem?.type === 'string') error.type = problem.type
     throw error
   }
 
@@ -188,8 +199,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
-    delete: async (id) => {
-      await requestWithCsrf(`/quotes/${id}`, { method: 'DELETE' })
+    delete: async (id, {candidateStatus} = {}) => {
+      const params = new URLSearchParams()
+      if (candidateStatus != null) params.set('candidateStatus', candidateStatus)
+      await requestWithCsrf(`/quotes/${id}${params.size ? `?${params}` : ''}`, { method: 'DELETE' })
       return true
     },
     create: (data) => requestJson('/quotes', {

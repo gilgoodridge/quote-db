@@ -9,18 +9,17 @@ import org.gilgood.dto.CreateQuoteRequest;
 import org.gilgood.dto.QuoteResponse;
 import org.gilgood.dto.UpdateQuoteRequest;
 import org.gilgood.entity.Quote;
+import org.gilgood.entity.CandidateStatus;
 import org.gilgood.mapper.QuoteMapper;
-import org.gilgood.repository.CandidateQuoteRepository;
 import org.gilgood.repository.QuoteRepository;
 import org.gilgood.search.QuoteSearchText;
+import org.gilgood.service.QuoteDeletionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PagedModel;
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -35,7 +34,7 @@ public class QuoteController {
     private QuoteMapper quoteMapper;
 
     @Autowired
-    private CandidateQuoteRepository candidateQuoteRepository;
+    private QuoteDeletionService quoteDeletionService;
 
     @GetMapping
     @Transactional(readOnly = true)
@@ -153,17 +152,18 @@ public class QuoteController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete quote")
+    @Operation(summary = "Delete quote", description =
+            "Linked candidate quotes return a QUOTE_LINKED_TO_CANDIDATES problem (409). " +
+                    "Explicit candidateStatus=PENDING or REJECTED changes all linked candidates to that status, " +
+                    "clears their published-quote links and deletes the quote in one transaction. " +
+                    "Candidate text, provenance and candidate-author links are preserved.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Quote deleted"),
+            @ApiResponse(responseCode = "400", description = "Invalid candidateStatus"),
             @ApiResponse(responseCode = "409", description = "Quote is linked to candidate review data")
     })
-    @Transactional
-    public void deleteQuote(@PathVariable Long id) {
-        if (candidateQuoteRepository.existsByPublishedQuote_Id(id)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Quote is linked to candidate review data; clear the candidate quote link before deleting");
-        }
-        quoteRepository.deleteById(id);
+    public void deleteQuote(@PathVariable Long id,
+                            @RequestParam(required = false) CandidateStatus candidateStatus) {
+        quoteDeletionService.delete(id, candidateStatus);
     }
 }

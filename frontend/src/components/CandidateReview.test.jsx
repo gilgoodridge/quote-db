@@ -423,6 +423,26 @@ describe('candidate review', () => {
     expect(onQuoteCreated).toHaveBeenCalledTimes(1)
   })
 
+  it('refreshes counts and forgets deleted publication IDs so Pending candidates can be published again', async () => {
+    const {rerender} = render(<CandidateReview />)
+    await openNext()
+    await ready()
+    fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
+    await screen.findByText(/Candidate approved\./)
+    expect(api.quotes.create).toHaveBeenCalledTimes(1)
+    api.candidateQuotes.pendingCount.mockResolvedValue(1)
+    api.candidateQuotes.listPage.mockResolvedValueOnce(page([candidate]))
+    rerender(<CandidateReview deletedQuoteId={savedQuote.id} />)
+    await screen.findByText(/Candidate quotes left: 1/)
+    await openNext()
+    await ready()
+    expect(screen.getByLabelText('Quote text (required)').matches(':disabled')).toBe(false)
+    expect(screen.getByRole('button', {name: 'Reject'}).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
+    await screen.findByText(/Candidate approved\./)
+    expect(api.quotes.create).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps the candidate available when rejection fails and retries without publishing', async () => {
     api.candidateQuotes.update.mockRejectedValueOnce(new Error('Reject failed'))
     render(<CandidateReview />)

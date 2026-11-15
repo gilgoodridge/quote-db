@@ -584,6 +584,67 @@ test('quote edits and deletes surface authentication and server failures', async
   }
 })
 
+test('quote deletion exposes a stable Problem Details code independently of the message', async () => {
+  const problem = {
+    type: 'urn:quote-db:problem:quote-linked-to-candidates',
+    code: 'QUOTE_LINKED_TO_CANDIDATES',
+    status: 409,
+    detail: 'A human-readable message that may change',
+  }
+  globalThis.fetch = async (url) => url === '/api/auth/csrf'
+    ? new Response('{"token":"token","headerName":"X-CSRF-TOKEN"}')
+    : new Response(JSON.stringify(problem), {status: 409, headers: {'Content-Type': 'application/problem+json'}})
+  await assert.rejects(api.quotes.delete(42), (error) => {
+    assert.equal(error.status, 409)
+    assert.equal(error.code, problem.code)
+    assert.equal(error.type, problem.type)
+    assert.match(error.message, /A human-readable message/)
+    assert.doesNotMatch(error.message, /"code"/)
+    return true
+  })
+})
+
+test('plain and malformed problem errors remain visible without inventing a code', async () => {
+  for (const [contentType, body] of [
+    ['text/plain', 'Other conflict'],
+    ['application/problem+json', '{malformed'],
+    ['application/problem+json', 'null'],
+    ['application/problem+json', '{"detail":"Other conflict","code":123}'],
+  ]) {
+    globalThis.fetch = async (url) => url === '/api/auth/csrf'
+      ? new Response('{"token":"token","headerName":"X-CSRF-TOKEN"}')
+      : new Response(body, {status: 409, headers: {'Content-Type': contentType}})
+    await assert.rejects(api.quotes.delete(42), (error) => {
+      assert.equal(error.status, 409)
+      assert.equal(error.code, undefined)
+      assert.ok(error.message.includes(body) || error.message.includes('Other conflict'))
+      return true
+    })
+  }
+})
+
+test('quote deletion recovery explicitly sends the selected status with fresh CSRF and cookies', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return url === '/api/auth/csrf'
+      ? new Response('{"token":"recovery-token","headerName":"X-CSRF-TOKEN"}')
+      : new Response(null, {status: 204})
+  }
+  for (const candidateStatus of ['REJECTED', 'PENDING']) {
+    assert.equal(await api.quotes.delete(42, {candidateStatus}), true)
+  }
+  assert.deepEqual(calls.map(({url}) => url), [
+    '/api/auth/csrf', '/api/quotes/42?candidateStatus=REJECTED',
+    '/api/auth/csrf', '/api/quotes/42?candidateStatus=PENDING',
+  ])
+  for (const {options} of [calls[1], calls[3]]) {
+    assert.equal(options.method, 'DELETE')
+    assert.equal(options.credentials, 'include')
+    assert.equal(options.headers['X-CSRF-TOKEN'], 'recovery-token')
+  }
+})
+
 test('failed CSRF lookup prevents quote edits and deletes', async () => {
   const calls = []
   globalThis.fetch = async (url) => {

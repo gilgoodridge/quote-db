@@ -29,6 +29,17 @@
 - PUT fully replaces review name/text, required PENDING/APPROVED/REJECTED status
   and optional publication link. Null/omitted links clear. Validate referenced IDs
   atomically; links never cascade. Publication links restrict deletion with visible 409.
+- Quote deletion conflicts use RFC 9457 ProblemDetail with stable
+  `code=QUOTE_LINKED_TO_CANDIDATES` and
+  `type=urn:quote-db:problem:quote-linked-to-candidates`, not message matching.
+  Only this 409 offers the signed-in recovery dialog. Explicit DELETE
+  `candidateStatus=PENDING|REJECTED` invokes QuoteDeletionService: lock the quote,
+  update all linked candidate statuses/clear publication links, then delete/flush
+  in one transaction. Failure rolls back all changes. Preserve candidate text,
+  provenance, candidate-author links and published authors/characters.
+  Recovery uses published-content authentication/CSRF, never anonymous candidate
+  endpoint permissions. Successful recovery refreshes quote totals/candidate counts
+  and removes the deleted quote from CandidateReview's in-memory publication cache.
 - CandidateReview replaces the right-side placeholder only for signed-in users.
   Fetch the next PENDING quote with page 0/size 1; GET does not reserve the item.
   Reuse AddAuthorDialog/AddQuoteDialog for review, preserving normal creation/editing.
@@ -41,7 +52,8 @@
   pending item; cancellation and failed mutations never advance the queue.
   Separate writes are nontransactional: retain successful published records in
   memory across dialog closes, lock saved forms and retry only candidate approval.
-  Do not allow rejecting a quote after publication. Reload/logout and concurrent
+  Do not allow rejecting a quote after publication from the review form; the
+  explicit quote-deletion recovery above is separate. Reload/logout and concurrent
   reviewers still need backend transactional/idempotent promotion (README TODO).
   ExternalLink allows only HTTP/HTTPS and opens references with noopener/noreferrer.
 - Quotes have optional `primaryReference` and `secondaryReference` (double-sourcing; neither is

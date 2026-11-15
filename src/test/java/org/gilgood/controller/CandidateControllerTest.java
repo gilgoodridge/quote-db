@@ -7,10 +7,13 @@ import org.gilgood.entity.Quote;
 import org.gilgood.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -43,6 +46,7 @@ class CandidateControllerTest {
     @Autowired private CandidateQuoteRepository candidateQuotes;
     @Autowired private AuthorRepository authors;
     @Autowired private QuoteRepository quotes;
+    @Autowired private JdbcTemplate jdbc;
 
     @BeforeEach
     void clean() {
@@ -178,7 +182,11 @@ class CandidateControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.publishedQuoteId").value(publishedQuoteId));
         mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).with(oidcLogin()).with(csrf()))
                 .andExpect(status().isConflict())
-                .andExpect(content().string(containsString("clear the candidate quote link")));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("urn:quote-db:problem:quote-linked-to-candidates"))
+                .andExpect(jsonPath("$.code").value("QUOTE_LINKED_TO_CANDIDATES"))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value("Quote is linked to candidate review data"));
         mvc.perform(put("/api/candidate-quotes/{id}", q).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
                                 "text", "Invalid edit.", "status", "PENDING", "publishedQuoteId", 999999))))
@@ -201,6 +209,73 @@ class CandidateControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.publishedAuthorId").doesNotExist());
         assertEquals(1, authors.count());
         assertEquals(0, quotes.count());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"PENDING", "REJECTED"})
+    void deletesQuoteAndUpdatesAllLinkedCandidatesAtomically(String candidateStatus) throws Exception {
+        var publishedAuthor = new Author("Published Author");
+        publishedAuthor.setDateOfBirth(LocalDate.of(1900, 1, 1));
+        publishedAuthor = authors.saveAndFlush(publishedAuthor);
+        long publishedQuoteId = quotes.saveAndFlush(new Quote("Published quote.", publishedAuthor)).getId();
+        long otherQuoteId = quotes.saveAndFlush(new Quote("Unrelated quote.", publishedAuthor)).getId();
+        long a = postJson("/api/candidate-authors", author("enwikiquote:one")).path("id").asLong();
+        var linked = new java.util.ArrayList<JsonNode>();
+        for (String key : new String[]{"first", "second", "unrelated"}) {
+            long q = postJson("/api/candidate-quotes", quote("enwikiquote:" + key, a)).path("id").asLong();
+            linked.add(json.readTree(mvc.perform(put("/api/candidate-quotes/{id}", q).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                                    "text", "Reviewed " + key, "status", "APPROVED",
+                                    "publishedQuoteId", key.equals("unrelated") ? otherQuoteId : publishedQuoteId))))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        }
+        for (String invalid : new String[]{"APPROVED", "UNKNOWN"}) {
+            mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", invalid)
+                            .with(oidcLogin()).with(csrf()))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus).with(csrf()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus).with(oidcLogin()))
+                .andExpect(status().isForbidden());
+
+        jdbc.execute("CREATE TABLE quote_delete_blocker (quote_id BIGINT REFERENCES quotes(id))");
+        try {
+            jdbc.update("INSERT INTO quote_delete_blocker (quote_id) VALUES (?)", publishedQuoteId);
+            assertThrows(jakarta.servlet.ServletException.class, () ->
+                    mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus)
+                            .with(oidcLogin()).with(csrf())));
+            assertTrue(quotes.existsById(publishedQuoteId));
+            for (JsonNode before : linked) {
+                var after = json.readTree(mvc.perform(get("/api/candidate-quotes/{id}", before.path("id").asLong()))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+                assertEquals(before, after);
+            }
+        } finally {
+            jdbc.execute("DROP TABLE quote_delete_blocker");
+        }
+        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus)
+                        .with(oidcLogin()).with(csrf()))
+                .andExpect(status().isOk());
+        assertFalse(quotes.existsById(publishedQuoteId));
+        assertTrue(quotes.existsById(otherQuoteId));
+        assertTrue(authors.existsById(publishedAuthor.getId()));
+        for (int i = 0; i < linked.size(); i++) {
+            var before = (com.fasterxml.jackson.databind.node.ObjectNode) linked.get(i).deepCopy();
+            if (i < 2) {
+                before.put("status", candidateStatus);
+                before.remove("publishedQuoteId");
+            }
+            var after = json.readTree(mvc.perform(get("/api/candidate-quotes/{id}", before.path("id").asLong()))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            assertEquals(before, after);
+        }
+        // Retrying a completed deletion is harmless and does not change candidate status again.
+        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", "PENDING")
+                        .with(oidcLogin()).with(csrf()))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/candidate-quotes/{id}", linked.getFirst().path("id").asLong()))
+                .andExpect(jsonPath("$.status").value(candidateStatus));
     }
 
     @Test

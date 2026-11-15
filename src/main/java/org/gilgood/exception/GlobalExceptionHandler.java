@@ -3,6 +3,7 @@ package org.gilgood.exception;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -10,8 +11,20 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.URI;
+
 @ControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(QuoteLinkedToCandidatesException.class)
+    @ResponseBody
+    public ResponseEntity<ProblemDetail> handleQuoteLinkedToCandidates(QuoteLinkedToCandidatesException ex) {
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setType(URI.create("urn:quote-db:problem:quote-linked-to-candidates"));
+        problem.setTitle("Quote linked to candidates");
+        problem.setProperty("code", "QUOTE_LINKED_TO_CANDIDATES");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseBody
@@ -27,10 +40,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     @ResponseBody
-    public ResponseEntity<String> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+    public ResponseEntity<?> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
             if (cause instanceof ConstraintViolationException violation) {
                 String name = violation.getConstraintName();
+                if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("fk_candidate_published_quote")) {
+                    return handleQuoteLinkedToCandidates(new QuoteLinkedToCandidatesException());
+                }
                 if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("uk_candidate_")) {
                     return ResponseEntity.status(HttpStatus.CONFLICT)
                             .body("The importKey already exists; retry the import to retrieve the existing candidate");
