@@ -31,6 +31,14 @@ public class GlobalExceptionHandler {
         for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
             if (cause instanceof ConstraintViolationException violation) {
                 String name = violation.getConstraintName();
+                if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("uk_candidate_")) {
+                    return ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body("The importKey already exists; retry the import to retrieve the existing candidate");
+                }
+                if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("fk_candidate_")) {
+                    return ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body("The record is linked to candidate review data; clear the link before deleting");
+                }
                 if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("fk_quote_character")) {
                     return ResponseEntity.status(HttpStatus.CONFLICT)
                             .body("The character is linked to quotes; unlink it before deleting");

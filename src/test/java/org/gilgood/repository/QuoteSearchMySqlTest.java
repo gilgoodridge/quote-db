@@ -293,7 +293,7 @@ class QuoteSearchMySqlTest {
             insert.executeBatch();
         }
         flyway = Flyway.configure().dataSource(serverUrl() + LEGACY_DATABASE, username(), password()).load();
-        assertEquals(6, flyway.migrate().migrationsExecuted);
+        assertEquals(7, flyway.migrate().migrationsExecuted);
         assertEquals(0, flyway.migrate().migrationsExecuted);
         try (Connection connection = DriverManager.getConnection(serverUrl() + LEGACY_DATABASE, username(), password());
              var statement = connection.createStatement()) {

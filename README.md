@@ -48,6 +48,82 @@ established name rules from editorial policies still to be defined.
 
 ### Available Endpoints
 
+#### Candidate staging (backend only)
+
+`candidate_authors` and `candidate_quotes` are separate review records, not
+published authors/quotes. Flyway **V9** creates the tables without changing
+existing content. There is no frontend review, enrichment, author matching,
+promotion, or Python importer integration yet.
+
+**Temporary access policy:** All candidate endpoints permit anonymous access,
+including writes. CSRF protection remains enabled: fetch `/api/auth/csrf`,
+retain its session cookie, and send the returned header/token on POST/PUT.
+No Google login is required for candidates. These endpoints are not an admin
+boundary: anyone with access to the backend can read/import/edit staging data.
+Existing published-content write endpoints still require login and CSRF.
+
+| Method | Endpoint | Behavior |
+|--------|----------|----------|
+| GET/HEAD | `/api/candidate-authors` | List; optional `status` |
+| GET/HEAD | `/api/candidate-quotes` | List; optional `status` and `candidateAuthorId`, combined with AND |
+| GET/HEAD | `/api/candidate-authors/{id}`, `/api/candidate-quotes/{id}` | Read one candidate; missing ID returns 404 |
+| POST | `/api/candidate-authors` | Import one author candidate |
+| POST | `/api/candidate-quotes` | Import one quote attached to an existing candidate author |
+| PUT | `/api/candidate-authors/{id}` | Replace `fullName`, `status`, optional `publishedAuthorId` |
+| PUT | `/api/candidate-quotes/{id}` | Replace `text`, `status`, optional `publishedQuoteId` |
+
+Lists use ID ascending, zero-based `page` (default 0) and `size` (default 20,
+1-100), returning `content` and `page` metadata. Invalid filters/pagination
+return 400. Status values are `PENDING`, `APPROVED`, and `REJECTED`.
+There are no candidate DELETE endpoints: reject unwanted candidates so import
+retries do not bring them back.
+
+Author import example:
+
+```json
+{
+  "importKey": "enwikiquote:2",
+  "source": "enwikiquote",
+  "sourcePageId": 2,
+  "sourceRevisionId": 4021123,
+  "dumpDate": "2026-10-01",
+  "sourceTitle": "Albert Einstein",
+  "sourceUrl": "https://en.wikiquote.org/wiki/Albert_Einstein",
+  "fullName": "Albert Einstein"
+}
+```
+
+Quote imports require the same provenance fields plus `candidateAuthorId`
+(the ID returned by author import), `text`, and `rawWikitext`; `sourceNotes`
+is optional. Use a distinct stable quote key, for example
+`enwikiquote:2:quote:<sha256-of-original-quote>`, not a position in the filtered
+output. Keys should not include the dump date or revision: reruns and larger
+samples must retain identity. Keys are lowercase ASCII, 1-128 characters,
+starting with a letter/digit and otherwise allowing letters/digits and `:._/-`.
+Keys are unique separately within each candidate type.
+
+POST returns 200 with a DTO. A new key creates a `PENDING` record. A repeated
+key returns the existing record **without overwriting anything**, including
+edits, review state, publication links, and the original provenance. Reusing a
+key for a different source/page or quote parent returns 409. Concurrent inserts
+are protected by database uniqueness; on a uniqueness 409, retry POST to
+retrieve the winner. Import individual records incrementally; a failed quote
+does not roll back earlier imports or the candidate author.
+
+PUT requires the editable name/text and status; omitted/null publication IDs
+clear the link. Import keys, provenance, original wikitext, source notes, and
+the candidate quote's parent are immutable. Unknown/nonpositive referenced
+IDs return 400 without applying the edit. Publication links reference existing
+records only; `APPROVED` does **not** create published content or require a link.
+There are deliberately no promotion rules yet. Linked published records cannot
+be deleted until their candidate links are cleared (409).
+
+Names/titles allow 255 characters, source 64, URLs 2,048 (HTTP/HTTPS),
+cleaned text 2,048, and raw wikitext/source notes 16,000 each.
+Page/revision IDs must be positive; dump dates are required date-only values.
+The backend does not apply the Python extractor's language/sentence/500-character
+heuristics. DTOs expose related IDs, never ORM entities or collections.
+
 #### Authors
 - `GET /api/authors?page=0&size=20&query={text}` - List a page of authors, optionally searched by full name
 - `POST /api/authors` - Create author
@@ -612,6 +688,8 @@ junction tables; existing quotes remain uncategorized.
 `V8` creates characters and adds an optional, indexed character foreign key to
 quotes. Existing quotes retain their authors and start without a character;
 linked characters cannot be deleted until explicitly unlinked.
+`V9` adds candidate author/quote staging, unique import keys, review states,
+provenance, and optional links to published records.
 Hibernate uses `spring.jpa.hibernate.ddl-auto=validate`,
 not `update`. Add new migrations for future schema changes; do not edit migrations
 that have already run. The database account needs schema DDL privileges in addition
@@ -620,7 +698,7 @@ to run without its index.
 
 **Upgrade an existing Flyway V2 database (including production):** Back up and
 stop all old backend instances/writers before starting the new JAR. Flyway
-applies V3-V8 automatically, preserving IDs, original text, authors, and all
+applies V3-V9 automatically, preserving IDs, original text, authors, and all
 metadata. No reset, reload, or new baseline is needed. The backfill and index
 creation extend startup time and may lock the table; plan a maintenance window.
 Do not run the old application alongside the upgrade: it cannot maintain the
@@ -640,7 +718,7 @@ or use the reset procedure above; baselining does not repair an old schema.
 For the first startup only, set `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`
 in the backend environment, or pass `--spring.flyway.baseline-on-migrate=true`
 when launching the JAR. Flyway records the existing schema at version 1 without
-recreating tables, then applies V2-V8 while preserving data. Remove this override
+recreating tables, then applies V2-V9 while preserving data. Remove this override
 after successful startup; by default Flyway refuses unversioned nonempty databases
 to avoid silently adopting the wrong database. Do not manually pre-create the index.
 Index creation can take time and require table locks; schedule deployment accordingly.
@@ -648,8 +726,8 @@ Update any server-local `application.properties` override from `ddl-auto=update`
 to `validate` as well.
 
 **MySQL integration tests:** Normal `mvn test` covers HTTP compatibility using mocks,
-category and character API/persistence with H2, and the V6-V8 catalogs,
-descriptions, character relationships and constraints in H2 MySQL mode.
+category, character and candidate API/persistence with H2, and the V6-V9 catalogs,
+descriptions, relationships, candidate import keys and constraints in H2 MySQL mode.
 H2 cannot validate MySQL FULLTEXT. To include actual
 search and migration tests, set `MYSQL_TEST_URL` to a server-only URL such as
 `jdbc:mysql://localhost:3306/`, plus `MYSQL_TEST_USERNAME` and `MYSQL_TEST_PASSWORD`,
@@ -680,8 +758,10 @@ full suite, replace the Maven command with `mvn clean install`.
 
 ### Google login
 
-Browsing authors, characters and quotes is public. Creating, updating, or deleting any
-resource now requires a Google-authenticated session and a valid CSRF token.
+Browsing authors, characters and quotes is public. Creating, updating, or deleting
+published resources requires a Google-authenticated session and a valid CSRF token.
+Candidate staging endpoints are temporarily anonymous, with CSRF still required
+for writes; see [Candidate staging](#candidate-staging-backend-only).
 Any signed-in Google user can write; there are no editor/admin roles yet.
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the backend environment
@@ -711,7 +791,8 @@ The API client includes cookies and fetches a fresh CSRF token before each write
 Direct API clients and Swagger writes must likewise send the session cookie and
 the header/token returned by `/api/auth/csrf`. Unauthenticated protected requests
 return 401 when CSRF is valid; missing/invalid CSRF returns 403. Anonymous
-seed/import scripts cannot write without authentication.
+seed/import scripts cannot write published content without authentication.
+Anonymous clients can write candidate staging data using a session-bound CSRF token.
 
 `seed-data.sh` prompts for the `JSESSIONID` cookie value from a signed-in session
 for the selected base URL, fetches its CSRF token, and includes both on seed

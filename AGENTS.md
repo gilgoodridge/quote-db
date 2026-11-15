@@ -8,6 +8,31 @@
   keep shared behavior consistent. Update `AGENTS.md` when architecture,
   conventions or implementation guidance changes.
 
+## Candidate Staging
+
+- V9 introduces CandidateAuthor and CandidateQuote in separate staging tables.
+  Keep candidate content out of published author/quote queries and UI.
+- `/api/candidate-authors` and `/api/candidate-quotes` currently permit anonymous
+  reads and writes by explicit request. Preserve CSRF on mutations and existing
+  authentication requirements for published-content endpoints. Admin authorization
+  is deferred; do not describe candidate endpoints as admin-restricted.
+- POST imports one candidate, with a lowercase ASCII stable importKey unique
+  per candidate type. Repeat keys return stored DTOs unchanged, preserving rejected
+  state, edits and original provenance. Conflicting source/page or quote parent
+  is 409; concurrent uniqueness conflicts are retryable, never duplicate rows.
+- Store source, page/revision IDs, dump date, source title/URL; quotes also retain
+  raw wikitext and optional source notes. These and candidate quote parent are
+  immutable. CandidateRecord and ImportCandidateRequest share provenance fields;
+  CandidateMapper uses MapStruct for conversion, and CandidateService owns transactions.
+- GET/HEAD lists use existing Pagination/PagedModel, ID ascending and optional
+  status; quotes additionally filter candidateAuthorId with AND in the database.
+- PUT fully replaces review name/text, required PENDING/APPROVED/REJECTED status
+  and optional publication link. Null/omitted links clear. Validate referenced IDs
+  atomically; links never cascade. Publication links restrict deletion with visible 409.
+- No candidate DELETE, promotion validation, publication, matching, enrichment,
+  frontend UI or Python import integration yet. CandidateControllerTest exercises
+  H2-backed endpoints with OSIV disabled; CandidateMigrationTest verifies V9.
+
 ## DTO-to-Entity Mapping Strategy
 
 **Tool**: MapStruct v1.6.0 (compile-time code generation)
@@ -565,7 +590,7 @@ npm run dev
 - Local Google callback: `http://localhost:8080/login/oauth2/code/google`
 - `FRONTEND_URL` sets the fixed post-login origin, default `http://localhost:5173` (no trailing slash)
 - `SecurityConfig` integrates Spring Security with the existing credentialed MVC CORS configuration
-- Anonymous GET/HEAD browsing of authors, characters and quotes is allowed; all API writes require authentication and CSRF
+- Anonymous GET/HEAD browsing of authors, characters and quotes is allowed; published-content API writes require authentication and CSRF. Candidate staging writes temporarily require CSRF only.
 - Every authenticated Google user can write; editor/admin roles are not implemented
 - AuthController returns minimal DTOs from `/api/auth/me` and `/api/auth/csrf`, with `Cache-Control: no-store`
 - `/api/auth/logout` is a CSRF-protected POST that invalidates the session and clears its cookie

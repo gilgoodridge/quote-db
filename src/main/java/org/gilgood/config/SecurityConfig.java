@@ -21,6 +21,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/api/candidate-authors", "/api/candidate-authors/**",
+                                "/api/candidate-quotes", "/api/candidate-quotes/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me", "/api/auth/csrf",
                                 "/api/authors", "/api/authors/**", "/api/quotes", "/api/quotes/**", "/api/categories",
                                 "/api/characters", "/api/characters/**",
