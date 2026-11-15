@@ -24,6 +24,23 @@ test('candidate review reads the pending queue and candidate author with session
   await assert.rejects(api.candidateQuotes.listPage(), /invalid paginated response/)
 })
 
+test('candidate review pending counts use paginated totals for both candidate types', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return url.includes('/candidate-quotes?')
+      ? pageResponse([], 0, 8, 1)
+      : pageResponse([], 0, 3, 1)
+  }
+  assert.equal(await api.candidateQuotes.pendingCount(), 8)
+  assert.equal(await api.candidateAuthors.pendingCount(), 3)
+  assert.deepEqual(calls.map(({url}) => url), [
+    '/api/candidate-quotes?status=PENDING&page=0&size=1',
+    '/api/candidate-authors?status=PENDING&page=0&size=1',
+  ])
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+})
+
 test('candidate review PUTs retain complete review fields and use fresh CSRF tokens', async () => {
   const calls = []
   let token = 0

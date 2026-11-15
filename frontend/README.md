@@ -36,7 +36,9 @@ Component tests use Vitest, Testing Library, and jsdom. Run `npm run lint` and
 The right panel shows **Candidate review** near the top only while signed in;
 otherwise it retains **Coming Soon**, also top-aligned. **Review next candidate** requests the oldest pending quote
 with `status=PENDING&page=0&size=1`. Empty queues and retryable load failures are
-shown separately. No candidate requests run automatically on login.
+shown separately. The panel loads and displays total pending quote and author
+counts on sign-in, and refreshes them after candidate review updates; count
+failures are visible and retryable. It does not automatically open a candidate.
 
 An APPROVED candidate author with a `publishedAuthorId` is preselected. Otherwise,
 the shared author form opens as **Review author**, prefilled with the candidate

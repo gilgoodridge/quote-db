@@ -105,6 +105,11 @@ export function getLoginReturnState(href) {
 
 export const api = {
   candidateAuthors: {
+    pendingCount: async () => (await api.candidateAuthors.listPage({status: 'PENDING', page: 0, size: 1})).page.totalElements,
+    listPage: async ({status = 'PENDING', page = 0, size = 1} = {}) => {
+      const params = new URLSearchParams({status, page, size})
+      return validatePage(await requestJson(`/candidate-authors?${params}`))
+    },
     get: (id) => requestJson(`/candidate-authors/${id}`),
     update: (id, data) => requestJson(`/candidate-authors/${id}`, {
       method: 'PUT',
@@ -113,6 +118,7 @@ export const api = {
     }),
   },
   candidateQuotes: {
+    pendingCount: async () => (await api.candidateQuotes.listPage({status: 'PENDING', page: 0, size: 1})).page.totalElements,
     listPage: async ({status = 'PENDING', page = 0, size = 1} = {}) => {
       const params = new URLSearchParams({status, page, size})
       return validatePage(await requestJson(`/candidate-quotes?${params}`))

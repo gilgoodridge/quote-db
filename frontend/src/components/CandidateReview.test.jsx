@@ -27,6 +27,8 @@ function deferred() {
 beforeEach(() => {
   vi.spyOn(api.auth, 'me').mockResolvedValue({authenticated: false})
   vi.spyOn(api.auth, 'logout').mockResolvedValue()
+  vi.spyOn(api.candidateQuotes, 'pendingCount').mockResolvedValue(0)
+  vi.spyOn(api.candidateAuthors, 'pendingCount').mockResolvedValue(0)
   vi.spyOn(api.candidateQuotes, 'listPage').mockResolvedValue(page([])).mockResolvedValueOnce(page([candidate]))
   vi.spyOn(api.candidateAuthors, 'get').mockResolvedValue(candidateAuthor)
   vi.spyOn(api.candidateAuthors, 'update').mockResolvedValue({...candidateAuthor, status: 'APPROVED'})
@@ -69,6 +71,14 @@ function saveAuthor() {
 }
 
 describe('candidate review', () => {
+  it('shows the pending candidate quote and author counts', async () => {
+    api.candidateQuotes.pendingCount.mockResolvedValue(8)
+    api.candidateAuthors.pendingCount.mockResolvedValue(3)
+    render(<CandidateReview />)
+    expect(await screen.findByText(/Candidate quotes left: 8/)).toBeTruthy()
+    expect(screen.getByText(/Candidate authors pending: 3/)).toBeTruthy()
+  })
+
   it('keeps Coming Soon signed out and shows the review panel only after login', async () => {
     const view = render(<App />)
     await screen.findByText('Coming Soon')

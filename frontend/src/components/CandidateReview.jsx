@@ -4,7 +4,7 @@ import AddAuthorDialog from './AddAuthorDialog'
 import AddQuoteDialog from './AddQuoteDialog'
 import '../styles/CandidateReview.css'
 
-function ReviewDialog({candidate, candidateAuthor, progress, onClose, onCompleted, onAuthorCreated, onQuoteCreated, onCharacterCreated}) {
+function ReviewDialog({candidate, candidateAuthor, progress, onClose, onCompleted, onCountsChanged, onAuthorCreated, onQuoteCreated, onCharacterCreated}) {
   const [publishedAuthor, setPublishedAuthor] = useState(progress.authors.get(candidateAuthor.id) ?? null)
   const [publishedQuote, setPublishedQuote] = useState(progress.quotes.get(candidate.id) ?? null)
   const authorApproved = candidateAuthor.status === 'APPROVED' && candidateAuthor.publishedAuthorId != null
@@ -24,6 +24,7 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
       status: 'APPROVED',
       publishedAuthorId: author.id,
     })
+    onCountsChanged()
     return author
   }
 
@@ -87,13 +88,52 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [review, setReview] = useState(null)
+  const [counts, setCounts] = useState(null)
+  const [countsLoading, setCountsLoading] = useState(true)
+  const [countsError, setCountsError] = useState('')
   const buttonRef = useRef(null)
   const loadingRef = useRef(false)
   const requestVersion = useRef(0)
+  const countsVersion = useRef(0)
   // Keep successful publications across dialog cancellation for safe in-session retries.
   const progress = useRef({authors: new Map(), quotes: new Map()})
 
-  useEffect(() => () => { requestVersion.current += 1 }, [])
+  async function fetchCounts() {
+    const [quotes, authors] = await Promise.all([
+      api.candidateQuotes.pendingCount(),
+      api.candidateAuthors.pendingCount(),
+    ])
+    return {quotes, authors}
+  }
+
+  useEffect(() => {
+    const version = ++countsVersion.current
+    fetchCounts().then((result) => {
+      if (version === countsVersion.current) setCounts(result)
+    }).catch((failure) => {
+      if (version === countsVersion.current) setCountsError(`Unable to load pending candidate counts: ${failure.message}`)
+    }).finally(() => {
+      if (version === countsVersion.current) setCountsLoading(false)
+    })
+    return () => {
+      requestVersion.current += 1
+      countsVersion.current += 1
+    }
+  }, [])
+
+  async function loadCounts() {
+    const version = ++countsVersion.current
+    setCountsLoading(true)
+    setCountsError('')
+    try {
+      const result = await fetchCounts()
+      if (version === countsVersion.current) setCounts(result)
+    } catch (failure) {
+      if (version === countsVersion.current) setCountsError(`Unable to load pending candidate counts: ${failure.message}`)
+    } finally {
+      if (version === countsVersion.current) setCountsLoading(false)
+    }
+  }
 
   async function next(completedMessage = '') {
     if (loadingRef.current || (review && !completedMessage)) return
@@ -102,7 +142,10 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
     setLoading(true)
     setError('')
     setMessage(completedMessage)
-    if (completedMessage) close()
+    if (completedMessage) {
+      close()
+      loadCounts()
+    }
     try {
       const result = await api.candidateQuotes.listPage({status: 'PENDING', page: 0, size: 1})
       if (version !== requestVersion.current) return
@@ -134,6 +177,18 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
   return (
     <section className="candidate-review" aria-labelledby="candidate-review-title">
       <h2 id="candidate-review-title">Candidate review</h2>
+      {counts && (
+        <p className="candidate-review-counts">
+          Candidate quotes left: {counts.quotes}<br />
+          Candidate authors pending: {counts.authors}
+        </p>
+      )}
+      {countsLoading && !counts && <p role="status">Loading candidate counts...</p>}
+      {countsError && (
+        <p role="alert">
+          {countsError} <button type="button" onClick={loadCounts} disabled={countsLoading}>Retry counts</button>
+        </p>
+      )}
       <p>Review the next pending quote before publishing it.</p>
       <button ref={buttonRef} type="button" onClick={() => next()} disabled={loading} aria-haspopup="dialog">
         {loading ? 'Loading candidate...' : 'Review next candidate'}
@@ -144,6 +199,7 @@ export default function CandidateReview({onAuthorCreated, onQuoteCreated, onChar
       {review && (
         <ReviewDialog key={review.candidate.id} {...review} onClose={close}
           onCompleted={next}
+          onCountsChanged={loadCounts}
           onAuthorCreated={onAuthorCreated}
           onQuoteCreated={onQuoteCreated}
           onCharacterCreated={onCharacterCreated}
