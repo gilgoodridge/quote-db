@@ -3,6 +3,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {api} from '../api'
 import App from '../App'
 import AboutAuthorDialog from './AboutAuthorDialog'
+import AddAuthorDialog from './AddAuthorDialog'
+import {authorFields} from '../authorFields'
 import QuotesList from './QuotesList'
 
 const author = {
@@ -50,6 +52,19 @@ function submitEditor() {
 }
 
 describe('author details', () => {
+  it.each([null, author])('uses compact labels and hover guidance in create/edit author forms', (existingAuthor) => {
+    render(<AddAuthorDialog author={existingAuthor} onClose={vi.fn()} onCreated={vi.fn()} onUpdated={vi.fn()} />)
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.hasAttribute('aria-describedby')).toBe(false)
+    expect(dialog.querySelector('.add-quote-description')).toBeNull()
+    for (const {name, label, required, description} of authorFields) {
+      const input = screen.getByLabelText(`${label}${required ? ' *' : ''}`)
+      expect(input.required).toBe(Boolean(required))
+      expect(dialog.querySelector(`label[for="author-${name}"]`).title).toBe(description)
+    }
+    expect(screen.getByRole('button', {name: 'Save author'}).closest('.dialog-header')).toBeNull()
+  })
+
   it('opens from quote attribution, shows all details read-only, and restores focus on close', async () => {
     render(<QuotesList authorId={7} />)
     const trigger = await screen.findByRole('button', {name: 'Mark Twain'})
@@ -160,21 +175,21 @@ describe('author details', () => {
     render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={onClose} onUpdated={onUpdated} />)
     const editor = await openEditor()
     for (const [label, value] of [
-      ['Full name (required)', author.fullName], ['Known as', author.knownAs],
-      ['Date of birth (required)', author.dateOfBirth], ['Date of death', author.dateOfDeath],
+      ['Full name *', author.fullName], ['Known as', author.knownAs],
+      ['Date of birth *', author.dateOfBirth], ['Date of death', author.dateOfDeath],
       ['Place of birth', author.placeOfBirth], ['Nationality', author.nationality], ['Biography', author.bio],
     ]) {
       expect(within(editor).getByLabelText(label).value).toBe(value)
     }
-    expect(screen.getByLabelText('Full name (required)').required).toBe(true)
-    const birthDate = screen.getByLabelText('Date of birth (required)')
+    expect(screen.getByLabelText('Full name *').required).toBe(true)
+    const birthDate = screen.getByLabelText('Date of birth *')
     expect(birthDate.required).toBe(true)
     fireEvent.change(birthDate, {target: {value: ''}})
     expect(editor.querySelector('form').checkValidity()).toBe(false)
     fireEvent.change(birthDate, {target: {value: author.dateOfBirth}})
-    expect(screen.getByLabelText('Full name (required)').maxLength).toBe(255)
+    expect(screen.getByLabelText('Full name *').maxLength).toBe(255)
     expect(screen.getByLabelText('Biography').maxLength).toBe(1024)
-    fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: ' Updated Name '}})
+    fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: ' Updated Name '}})
     fireEvent.change(screen.getByLabelText('Known as'), {target: {value: ''}})
     fireEvent.change(screen.getByLabelText('Biography'), {target: {value: ''}})
     submitEditor()
@@ -196,7 +211,7 @@ describe('author details', () => {
     const onClose = vi.fn()
     render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={onClose} onUpdated={vi.fn()} />)
     await openEditor()
-    fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: 'Unsaved'}})
+    fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: 'Unsaved'}})
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     expect(screen.getByText('Samuel Clemens')).toBeTruthy()
     expect(document.activeElement).toBe(screen.getByRole('button', {name: 'Edit author'}))
@@ -230,11 +245,11 @@ describe('author details', () => {
     api.authors.update.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
     render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={vi.fn()} onUpdated={vi.fn()} />)
     await openEditor()
-    fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: '  '}})
+    fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: '  '}})
     submitEditor()
     expect(screen.getByRole('alert').textContent).toContain('Enter a full name')
     expect(api.authors.update).not.toHaveBeenCalled()
-    fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: author.fullName}})
+    fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: author.fullName}})
     const form = screen.getByRole('button', {name: 'Save author'}).closest('form')
     fireEvent.submit(form)
     fireEvent.submit(form)

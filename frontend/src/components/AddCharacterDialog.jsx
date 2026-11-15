@@ -55,7 +55,7 @@ export default function AddCharacterDialog({character = null, onClose, onCreated
 
   return (
     <dialog ref={dialogRef} className="add-quote-dialog" aria-labelledby="character-form-title"
-      aria-describedby="character-form-description" onClose={onClose}
+      onClose={onClose}
       onCancel={(event) => {
         event.preventDefault()
         if (!submittingRef.current) dialogRef.current.close()
@@ -64,22 +64,16 @@ export default function AddCharacterDialog({character = null, onClose, onCreated
         closeLabel="Close character form" disabled={saving}
         onClose={() => { if (!submittingRef.current) dialogRef.current.close() }} />
       <div className="dialog-body">
-        <p id="character-form-description" className="add-quote-description">
-          A character is a fictional speaker, not the author. Full name is required.
-          {character
-            ? ' Saving replaces all details; clearing optional fields removes them.'
-            : ' Saving creates the character immediately, even if you later cancel the quote.'}
-        </p>
         <form onSubmit={submit} aria-busy={saving}>
           <fieldset disabled={saving}>
-            {characterFields.map(({name, label, required, multiline}, index) => {
+            {characterFields.map(({name, label, required, multiline, description}, index) => {
               const props = {
                 id: `character-${name}`, name, value: fields[name], required, autoFocus: index === 0,
                 onChange: (event) => setFields((current) => ({...current, [name]: event.target.value})),
               }
               return (
                 <div className="author-form-field" key={name}>
-                  <label htmlFor={props.id}>{label}{required ? ' (required)' : ''}</label>
+                  <label htmlFor={props.id} title={description}>{label}{required ? ' *' : ''}</label>
                   {multiline
                     ? <textarea {...props} rows={4} maxLength={1024} />
                     : <input {...props} maxLength={255} />}

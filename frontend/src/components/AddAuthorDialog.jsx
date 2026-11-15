@@ -61,7 +61,6 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
       ref={dialogRef}
       className="add-quote-dialog add-author-dialog"
       aria-labelledby="add-author-title"
-      aria-describedby="add-author-description"
       onClose={onClose}
       onCancel={(event) => {
         event.preventDefault()
@@ -78,15 +77,10 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
         }}
       />
       <div className="dialog-body">
-      <p id="add-author-description" className="add-quote-description">
-        Full name and date of birth are required. Known as is optional and is used as the display name when provided. {author
-          ? 'Saving replaces all author details. Clearing an optional field removes its value.'
-          : 'Saving creates the author immediately, even if you later cancel the quote.'}
-      </p>
       {publishedAuthor && <p role="status">Author saved. Retry approval to link the candidate without creating another author.</p>}
       <form onSubmit={submit} aria-busy={saving}>
         <fieldset disabled={saving || Boolean(publishedAuthor)}>
-          {authorFields.map(({ name, label, required, type, multiline }, index) => {
+          {authorFields.map(({ name, label, required, type, multiline, description }, index) => {
             const props = {
               id: `author-${name}`,
               name,
@@ -100,7 +94,7 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
             }
             return (
               <div className="author-form-field" key={name}>
-                <label htmlFor={props.id}>{label}{required ? ' (required)' : ''}</label>
+                <label htmlFor={props.id} title={description}>{label}{required ? ' *' : ''}</label>
                 {multiline
                   ? <textarea {...props} rows={4} maxLength={1024} />
                   : <input {...props} type={type || 'text'} maxLength={type === 'date' ? undefined : 255} />}

@@ -18,9 +18,8 @@
   background: var(--modal-backdrop);
 }
 
-.add-quote-description {
-  margin: 12px 0 20px;
-  color: var(--text-light);
+.add-quote-dialog > .dialog-body {
+  padding-top: 16px;
 }
 
 .add-quote-dialog fieldset {
@@ -62,6 +61,17 @@
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 24px;
+}
+
+.quote-review-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quote-review-header-actions button {
+  padding: 8px 10px;
+  font-size: 0.875rem;
 }
 
 .quote-reference-field {
@@ -136,17 +146,21 @@
   font-weight: 400;
 }
 
-.add-quote-dialog .quote-category-group {
-  display: block;
-  margin-top: 16px;
-  padding: 12px;
+.quote-category-group {
+  margin-top: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
 }
 
-.quote-category-group legend {
-  padding: 0 4px;
+.quote-category-group summary {
+  padding: 10px 12px;
+  cursor: pointer;
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.add-quote-dialog .quote-category-group > fieldset {
+  padding: 0 12px 12px;
 }
 
 .quote-category-heading {

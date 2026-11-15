@@ -210,6 +210,31 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
     addCharacterButtonRef.current?.focus()
   }
 
+  const actionsDisabled = saving || showAddAuthor || showAddCharacter
+  const saveDisabled = actionsDisabled || (!review?.publishedQuote && (
+    loadingAuthors || Boolean(authorError) || authors.length === 0 ||
+    loadingCharacters || Boolean(characterError) || loadingCategories || Boolean(categoryError)
+  ))
+  const saveLabel = saving ? 'Saving...' : review?.publishedQuote ? 'Retry approval' : review ? 'Approve' : 'Save quote'
+
+  function reviewActions(inHeader = false) {
+    return (
+      <>
+        <button type="button" className="add-quote-cancel"
+          aria-label={inHeader ? 'Reject candidate' : undefined}
+          disabled={actionsDisabled || Boolean(review.publishedQuote)} onClick={reject}>Reject</button>
+        {review.status === 'PENDING' && (
+          <button type="button" className="add-quote-cancel"
+            aria-label={inHeader ? 'Snooze candidate' : undefined}
+            disabled={actionsDisabled || Boolean(review.publishedQuote)} onClick={snooze}>Snooze</button>
+        )}
+        <button type="submit" form="quote-form" className="add-quote-submit"
+          aria-label={inHeader ? review.publishedQuote ? 'Retry candidate approval' : 'Approve candidate' : undefined}
+          disabled={saveDisabled}>{saveLabel}</button>
+      </>
+    )
+  }
+
   return (
     <>
     <dialog
@@ -229,16 +254,21 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         onClose={() => {
           if (!submittingRef.current && !showAddAuthor && !showAddCharacter) dialogRef.current.close()
         }}
-      />
+      >
+        {review && (
+          <div className="quote-review-header-actions" role="group" aria-label="Quote review actions">
+            {reviewActions(true)}
+          </div>
+        )}
+      </DialogHeader>
       <div className="dialog-body">
-      <p className="add-quote-description">Quote text and author are required. Other fields are optional.</p>
       {review?.publishedQuote && <p role="status">Quote saved. Retry approval to link the candidate without creating another quote.</p>}
-      <form onSubmit={submit} aria-busy={saving}>
+      <form id="quote-form" onSubmit={submit} aria-busy={saving}>
         <fieldset disabled={saving || Boolean(review?.publishedQuote)}>
-          <label htmlFor="quote-text">Quote text (required)</label>
+          <label htmlFor="quote-text" title="The words of the quote.">Quote text *</label>
           <textarea id="quote-text" name="text" value={fields.text} onChange={updateField} required maxLength={2048} rows={5} autoFocus />
 
-          <label htmlFor="quote-author">Author (required)</label>
+          <label htmlFor="quote-author" title="The writer or real person to whom the quote is attributed.">Author *</label>
           {loadingAuthors && <p role="status">Loading authors...</p>}
           {authorError && (
             <div role="alert">
@@ -280,8 +310,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           </div>
           {authorAdded && <p role="status">Author added and selected.</p>}
 
-          <label htmlFor="quote-character">Character (optional)</label>
-          <p className="add-quote-description">The fictional speaker, if any. The writer is still the author.</p>
+          <label htmlFor="quote-character" title="The fictional speaker, if any. The writer is still the author.">Character</label>
           {loadingCharacters && <p role="status">Loading characters...</p>}
           {characterError && (
             <div className="add-quote-error" role="alert">
@@ -309,16 +338,16 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           </div>
           {characterAdded && <p role="status">Character added and selected.</p>}
 
-          <label htmlFor="quote-date">Date</label>
+          <label htmlFor="quote-date" title="The date the quote was written, published, or spoken, if known.">Date</label>
           <input id="quote-date" name="date" type="date" value={fields.date} onChange={updateField} />
-          <label htmlFor="quote-location">Location</label>
+          <label htmlFor="quote-location" title="Where to find the quote in its source, such as a chapter, act, or page.">Location</label>
           <input id="quote-location" name="location" value={fields.location} onChange={updateField} maxLength={255} />
-          <label htmlFor="quote-primary-reference">Primary reference</label>
+          <label htmlFor="quote-primary-reference" title="A source citation or URL supporting the quote.">Primary reference</label>
           <div className="quote-reference-field">
             <input id="quote-primary-reference" name="primaryReference" value={fields.primaryReference} onChange={updateField} maxLength={255} />
             <ExternalLink url={fields.primaryReference} />
           </div>
-          <label htmlFor="quote-secondary-reference">Secondary reference</label>
+          <label htmlFor="quote-secondary-reference" title="An additional source citation or URL corroborating the quote.">Secondary reference</label>
           <div className="quote-reference-field">
             <input id="quote-secondary-reference" name="secondaryReference" value={fields.secondaryReference} onChange={updateField} maxLength={255} />
             <ExternalLink url={fields.secondaryReference} />
@@ -348,16 +377,11 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         {saveError && <p className="add-quote-error" role="alert">{saveError}</p>}
         <div className="add-quote-actions">
           {review
-            ? <>
-              <button type="button" className="add-quote-cancel" disabled={saving || Boolean(review.publishedQuote)} onClick={reject}>Reject</button>
-              {review.status === 'PENDING' && (
-                <button type="button" className="add-quote-cancel" disabled={saving || Boolean(review.publishedQuote)} onClick={snooze}>Snooze</button>
-              )}
-            </>
-            : <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>}
-          <button type="submit" className="add-quote-submit" disabled={saving || (!review?.publishedQuote && (loadingAuthors || Boolean(authorError) || authors.length === 0 || loadingCharacters || Boolean(characterError) || loadingCategories || Boolean(categoryError)))}>
-            {saving ? 'Saving...' : review?.publishedQuote ? 'Retry approval' : review ? 'Approve' : 'Save quote'}
-          </button>
+            ? reviewActions()
+            : <>
+              <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>
+              <button type="submit" className="add-quote-submit" disabled={saveDisabled}>{saveLabel}</button>
+            </>}
         </div>
         {saving && <p role="status">Saving quote...</p>}
       </form>

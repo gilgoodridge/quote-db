@@ -7,6 +7,7 @@ import AddQuoteDialog from './AddQuoteDialog'
 import AddCharacterDialog from './AddCharacterDialog'
 import AboutCharacterDialog from './AboutCharacterDialog'
 import QuotesList from './QuotesList'
+import {characterFields} from '../characterFields'
 
 const author = {id: 7, fullName: 'William Shakespeare'}
 const character = {id: 4, fullName: 'Hamlet', knownAs: 'Prince Hamlet', workTitle: 'Hamlet', description: 'First line\nSecond line'}
@@ -183,19 +184,32 @@ it('retries character details and restores focus after cancelling and saving edi
   expect(screen.getAllByText('Not provided')).toHaveLength(3)
 })
 
+it.each([null, character])('uses compact labels and hover guidance in create/edit character forms', (existingCharacter) => {
+  render(<AddCharacterDialog character={existingCharacter} onClose={vi.fn()} onCreated={vi.fn()} onUpdated={vi.fn()} />)
+  const dialog = screen.getByRole('dialog')
+  expect(dialog.hasAttribute('aria-describedby')).toBe(false)
+  expect(dialog.querySelector('.add-quote-description')).toBeNull()
+  for (const {name, label, required, description} of characterFields) {
+    const input = screen.getByLabelText(`${label}${required ? ' *' : ''}`)
+    expect(input.required).toBe(Boolean(required))
+    expect(dialog.querySelector(`label[for="character-${name}"]`).title).toBe(description)
+  }
+  expect(screen.getByRole('button', {name: 'Save character'}).closest('.dialog-header')).toBeNull()
+})
+
 it('validates names and retains failed character drafts; blocks duplicate saves and dismissal', async () => {
   const onClose = vi.fn()
   const onCreated = vi.fn()
   render(<AddCharacterDialog onClose={onClose} onCreated={onCreated} />)
-  fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: '  '}})
+  fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: '  '}})
   fireEvent.click(screen.getByRole('button', {name: 'Save character'}))
   expect(screen.getByRole('alert').textContent).toContain('not just whitespace')
   expect(api.characters.create).not.toHaveBeenCalled()
-  fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: ' Hamlet '}})
+  fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: ' Hamlet '}})
   api.characters.create.mockRejectedValueOnce(new Error('Session expired'))
   fireEvent.click(screen.getByRole('button', {name: 'Save character'}))
   await screen.findByText(/Session expired/)
-  expect(screen.getByLabelText('Full name (required)').value).toBe(' Hamlet ')
+  expect(screen.getByLabelText('Full name *').value).toBe(' Hamlet ')
   let resolveSave
   api.characters.create.mockImplementationOnce(() => new Promise((resolve) => {resolveSave = resolve}))
   fireEvent.click(screen.getByRole('button', {name: 'Save character'}))
@@ -211,14 +225,14 @@ it('validates names and retains failed character drafts; blocks duplicate saves 
 it('preserves an existing character on scalar-only quote edits and explicitly clears it', async () => {
   const {unmount} = render(<AddQuoteDialog quote={quote} onClose={vi.fn()} onUpdated={vi.fn()} />)
   await readyQuote()
-  expect(screen.getByLabelText('Character (optional)').value).toBe('4')
+  expect(screen.getByLabelText('Character').value).toBe('4')
   fireEvent.change(screen.getByLabelText('Location'), {target: {value: 'Act II'}})
   fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
   await waitFor(() => expect(api.quotes.update).toHaveBeenCalledWith(42, expect.objectContaining({authorId: 7, characterId: 4, location: 'Act II'})))
   unmount()
   render(<AddQuoteDialog quote={quote} onClose={vi.fn()} onUpdated={vi.fn()} />)
   await readyQuote()
-  fireEvent.change(screen.getByLabelText('Character (optional)'), {target: {value: ''}})
+  fireEvent.change(screen.getByLabelText('Character'), {target: {value: ''}})
   fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
   await waitFor(() => expect(api.quotes.update).toHaveBeenLastCalledWith(42, expect.objectContaining({characterId: null})))
 })
@@ -226,9 +240,9 @@ it('preserves an existing character on scalar-only quote edits and explicitly cl
 it('prefills the selected character on create and permits narration', async () => {
   render(<AddQuoteDialog initialAuthorId={7} initialCharacterId={4} onClose={vi.fn()} onCreated={vi.fn()} />)
   await readyQuote()
-  expect(screen.getByLabelText('Character (optional)').value).toBe('4')
-  fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: 'Narration'}})
-  fireEvent.change(screen.getByLabelText('Character (optional)'), {target: {value: ''}})
+  expect(screen.getByLabelText('Character').value).toBe('4')
+  fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'Narration'}})
+  fireEvent.change(screen.getByLabelText('Character'), {target: {value: ''}})
   fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
   await waitFor(() => expect(api.quotes.create).toHaveBeenCalledWith(expect.objectContaining({characterId: null, authorId: 7})))
 })
@@ -241,19 +255,19 @@ it('retries failed character options without losing drafts or silently clearing 
   fireEvent.change(screen.getByLabelText('Location'), {target: {value: 'Kept location'}})
   fireEvent.click(screen.getByRole('button', {name: 'Retry loading characters'}))
   await readyQuote()
-  expect(screen.getByLabelText('Character (optional)').value).toBe('4')
+  expect(screen.getByLabelText('Character').value).toBe('4')
   expect(screen.getByLabelText('Location').value).toBe('Kept location')
   api.quotes.update.mockRejectedValueOnce(new Error('Invalid characterId'))
   fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
   await screen.findByText(/Invalid characterId/)
-  expect(screen.getByLabelText('Character (optional)').value).toBe('4')
+  expect(screen.getByLabelText('Character').value).toBe('4')
 })
 
 it('does not silently clear a character missing from loaded options', async () => {
   api.characters.list.mockResolvedValue([])
   render(<AddQuoteDialog quote={quote} onClose={vi.fn()} onUpdated={vi.fn()} />)
   await readyQuote()
-  expect(screen.getByLabelText('Character (optional)').value).toBe('4')
+  expect(screen.getByLabelText('Character').value).toBe('4')
   fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
   expect(screen.getByRole('alert').textContent).toContain('no longer available')
   expect(api.quotes.update).not.toHaveBeenCalled()
@@ -268,12 +282,12 @@ it('creates and selects a character in a nested form without changing the quote 
   fireEvent.change(screen.getByLabelText('Location'), {target: {value: 'Kept location'}})
   fireEvent.click(screen.getByRole('button', {name: 'Add new character'}))
   expect(screen.getByRole('button', {name: 'Close quote form'}).disabled).toBe(true)
-  fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: 'Hamlet'}})
+  fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: 'Hamlet'}})
   fireEvent.click(screen.getByRole('button', {name: 'Save character'}))
   await screen.findByText('Character added and selected.')
   expect(onCharacterCreated).toHaveBeenCalledWith(created)
   expect(screen.getByLabelText('Location').value).toBe('Kept location')
-  expect(screen.getByLabelText('Character (optional)').value).toBe('6')
+  expect(screen.getByLabelText('Character').value).toBe('6')
   expect(document.activeElement).toBe(screen.getByRole('button', {name: 'Add new character'}))
 })
 

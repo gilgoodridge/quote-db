@@ -66,11 +66,63 @@ function renderForm(props = {}) {
 }
 
 async function ready() {
-  await screen.findByRole('checkbox', { name: 'Funny' })
+  await screen.findByText('Tone')
   await waitFor(() => expect(screen.getByRole('button', { name: 'Save quote' }).disabled).toBe(false))
+  for (const summary of document.querySelectorAll('.quote-category-group > summary')) {
+    fireEvent.click(summary)
+  }
 }
 
 describe('quote category editing', () => {
+  it.each([undefined, quote])('keeps create/edit actions out of the header', async (existingQuote) => {
+    renderForm({quote: existingQuote})
+    await ready()
+    expect(screen.queryByRole('group', {name: 'Quote review actions'})).toBeNull()
+    expect(screen.getByRole('button', {name: 'Save quote'}).closest('.dialog-header')).toBeNull()
+  })
+
+  it('uses compact required labels and field guidance on hover', async () => {
+    renderForm()
+    await ready()
+    expect(screen.queryByText('Quote text and author are required. Other fields are optional.')).toBeNull()
+    expect(screen.queryByText('The fictional speaker, if any. The writer is still the author.')).toBeNull()
+    for (const name of ['Quote text *', 'Author *']) {
+      expect(screen.getByLabelText(name).required).toBe(true)
+    }
+    for (const name of ['Quote text *', 'Author *', 'Character', 'Date', 'Location', 'Primary reference', 'Secondary reference']) {
+      const input = screen.getByLabelText(name)
+      expect(document.querySelector(`label[for="${input.id}"]`).title).not.toBe('')
+    }
+    expect(screen.getByText('Character').title).toBe('The fictional speaker, if any. The writer is still the author.')
+  })
+
+  it('starts every category collapsed, showing saved counts, and preserves selections across toggles', async () => {
+    renderForm({quote})
+    await screen.findByText('Tone')
+    const groups = [...document.querySelectorAll('.quote-category-group')]
+    expect(groups).toHaveLength(4)
+    for (const group of groups) {
+      expect(group.open).toBe(false)
+      expect(group.querySelector('summary').textContent).toContain('(2 selected)')
+    }
+    fireEvent.click(groups[0].querySelector('summary'))
+    expect(groups[0].open).toBe(true)
+    expect(groups.slice(1).every((group) => !group.open)).toBe(true)
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Funny'}))
+    fireEvent.click(groups[0].querySelector('summary'))
+    expect(groups[0].open).toBe(false)
+    expect(groups[0].querySelector('summary').textContent).toContain('(1 selected)')
+    fireEvent.click(groups[0].querySelector('summary'))
+    expect(screen.getByRole('checkbox', {name: 'Funny'}).checked).toBe(false)
+    expect(screen.getByRole('checkbox', {name: 'Insightful'}).checked).toBe(true)
+    fireEvent.click(screen.getByRole('button', {name: 'Clear tone selections'}))
+    fireEvent.click(groups[0].querySelector('summary'))
+    expect(groups[0].querySelector('summary').textContent).toContain('(0 selected)')
+    fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
+    await waitFor(() => expect(api.quotes.update).toHaveBeenCalledWith(42,
+      expect.objectContaining({...allSelections, toneIds: []})))
+  })
+
   it('uses backend descriptions as hover text and accessible checkbox descriptions', async () => {
     renderForm()
     await ready()
@@ -97,7 +149,7 @@ describe('quote category editing', () => {
   it('creates a quote with multiple optional selections in every dimension', async () => {
     const callbacks = renderForm()
     await ready()
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), { target: { value: 'New quote' } })
+    fireEvent.change(screen.getByLabelText('Quote text *'), { target: { value: 'New quote' } })
     for (const options of Object.values(catalog)) {
       for (const option of options) fireEvent.click(screen.getByRole('checkbox', { name: option.name }))
     }
@@ -113,7 +165,7 @@ describe('quote category editing', () => {
   it('allows creating a quote without any selections', async () => {
     renderForm()
     await ready()
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), { target: { value: 'Plain quote' } })
+    fireEvent.change(screen.getByLabelText('Quote text *'), { target: { value: 'Plain quote' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save quote' }))
     await waitFor(() => expect(api.quotes.create).toHaveBeenCalledWith(expect.objectContaining(noSelections)))
   })
@@ -154,13 +206,13 @@ describe('quote category editing', () => {
     await screen.findByRole('button', { name: 'Retry loading categories' })
     expect(screen.getByRole('alert').textContent).toContain('Service unavailable')
     expect(screen.getByRole('button', { name: 'Save quote' }).disabled).toBe(true)
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), { target: { value: 'Kept draft' } })
+    fireEvent.change(screen.getByLabelText('Quote text *'), { target: { value: 'Kept draft' } })
     fireEvent.click(screen.getByRole('button', { name: 'Retry loading categories' }))
     expect(screen.getByText('Loading categories...')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Save quote' }).disabled).toBe(true)
     await act(async () => resolveCatalog(catalog))
     await ready()
-    expect(screen.getByLabelText('Quote text (required)').value).toBe('Kept draft')
+    expect(screen.getByLabelText('Quote text *').value).toBe('Kept draft')
     expect(screen.getAllByRole('checkbox').every((input) => input.checked)).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Save quote' }))
     await waitFor(() => expect(api.quotes.update).toHaveBeenCalledWith(42,
@@ -187,8 +239,8 @@ describe('quote category editing', () => {
     const callbacks = renderForm({ quote })
     await ready()
     fireEvent.click(screen.getByRole('button', { name: 'Add new author' }))
-    fireEvent.change(screen.getByLabelText('Full name (required)'), { target: { value: newAuthor.fullName } })
-    fireEvent.change(screen.getByLabelText('Date of birth (required)'), { target: { value: newAuthor.dateOfBirth } })
+    fireEvent.change(screen.getByLabelText('Full name *'), { target: { value: newAuthor.fullName } })
+    fireEvent.change(screen.getByLabelText('Date of birth *'), { target: { value: newAuthor.dateOfBirth } })
     fireEvent.click(screen.getByRole('button', { name: 'Save author' }))
     await screen.findByText('Author added and selected.')
     expect(callbacks.onAuthorCreated).toHaveBeenCalledWith(newAuthor)

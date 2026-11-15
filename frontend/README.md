@@ -70,6 +70,10 @@ current queue opens automatically. Empty queues and retryable next-item failures
 cancellation or failed approval/rejection does not advance the queue.
 An author already saved is not deleted by cancelling/rejecting the quote.
 
+Review actions also appear in the fixed title bar and remain visible while
+scrolling. Both copies share validation and saving/retry state; Snooze is only
+available for pending candidates. Create/Edit Quote keep actions at the bottom only.
+
 Publication and candidate approval are separate requests. After partial success,
 the saved form is locked and a retry updates only the candidate; quote rejection
 is disabled once published. Published IDs survive closing/reopening a review
@@ -177,6 +181,26 @@ dates, birthplace, nationality, biography and age when available;
 `AboutCharacterDialog` shows full name, known-as name, work title and
 description. Missing values are marked Not provided.
 
+### Dialog conventions
+
+Quote, author and character create/edit/review forms use compact labels:
+mandatory fields have ` *`, not `(required)`/`(optional)`, while native required
+validation remains active. Field-label hovertext replaces introductory guidance;
+author/character descriptions live in their shared field definitions. Character
+guidance distinguishes the fictional speaker from the author. Known as controls
+the display name when provided.
+
+Use the shared fixed `DialogHeader` outside the scrolling body, with its top-right
+close button and 16px of space above the first field. Keep create/edit actions at
+the bottom; only Review Quote duplicates its actions in the title bar, sharing
+validation and saving/retry state. Category groups start collapsed, expand
+independently, and retain visible selection counts and stored selections.
+
+New authors and characters are saved immediately, even if the quote is later
+cancelled. Editing replaces all details and clears optional fields left empty.
+Keep visible retryable errors, failed drafts, focus restoration and saving guards.
+Use theme variables and wrapping so dialogs remain usable on narrow screens.
+
 Signed-in users can create characters from the quote form and edit them from
 details. The sidebar lists and filters characters but does not offer creation.
 `AddCharacterDialog` requires a full name (255 characters
@@ -196,10 +220,13 @@ without discarding quote fields or categories; cancelling the quote does not
 delete an already-created character.
 
 ## Quote categories
-Add Quote and Edit Quote load `/api/categories` and offer optional multi-select
+Add Quote, Edit Quote, and Review Quote mark required fields with an asterisk
+and provide field guidance on label hover instead of inline explanations.
+They load `/api/categories` and offer optional multi-select
 checkbox groups for Tone, Theme, Form, and Source. Options use server-provided
 IDs and labels, not a hardcoded catalog. Every group shows its selection count
-and has a Clear action. All groups may be empty.
+in its summary, including when collapsed, and has a Clear action when expanded.
+Groups start collapsed and can be toggled independently. All groups may be empty.
 
 Editing prefills current categories. Every save submits `toneIds`, `themeIds`,
 `formIds`, and `sourceIds`, preserving selections when other fields change and

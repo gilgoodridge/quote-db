@@ -82,6 +82,9 @@ categories, then marks the candidate APPROVED with its edited text and
 `publishedQuoteId`. Reject marks only the candidate REJECTED, preserving its
 stored text and publication link; it does not publish or save draft edits.
 The top-right close button cancels review without changing the quote candidate.
+Review actions are duplicated in the fixed title bar so they remain visible
+while scrolling, with the same validation and saving/retry state as the bottom
+buttons. Create/Edit Quote retain bottom actions only.
 Successful approval or rejection automatically opens the next pending candidate;
 an empty queue or loading failure returns to the panel with a visible message.
 Created authors remain published even if the quote is cancelled or rejected.
@@ -452,9 +455,11 @@ Omitted, null, and empty arrays mean no selections on POST. On **PUT**, they
 fields. Include all selections you want to retain. Quote writes still require
 authentication and CSRF.
 
-The **Add Quote / Edit Quote** dialog loads these catalogs and provides checkbox
+The **Add Quote / Edit Quote / Review Quote** dialog uses asterisks for required
+fields and label hovertext for field guidance. It loads these catalogs and provides checkbox
 groups for all four dimensions, with selection counts and a **Clear** action
-per group. No selection is required. Editing prefills existing selections;
+per group. Groups start collapsed, retain visible selection counts in their
+summaries, and expand independently. No selection is required. Editing prefills existing selections;
 saving includes all four ID arrays, so changing text or other metadata does not
 clear categories unintentionally. Unchecking options or clearing a group removes
 those selections on save.
@@ -589,10 +594,29 @@ header for future dialogs too. The icon has no surrounding border or background;
 keyboard focus retains a visible outline for accessibility.
 Form close buttons are disabled while saving.
 
+**Form dialog conventions:** Quote, author and character forms mark mandatory
+fields with ` *` instead of required/optional parentheticals, preserving native
+validation. Concise label hovertext replaces introductory guidance. Author and
+character field descriptions are shared with their field definitions. Use
+`DialogHeader` outside the scrolling body, with 16px of top body padding, theme-aware
+colors and narrow-screen wrapping. Create/edit actions remain at the bottom;
+only Review Quote duplicates actions in the fixed title bar, sharing validation,
+saving guards and retry state. Quote category groups start collapsed and expand
+independently, keeping selection counts visible and selections intact.
+Preserve retryable errors, failed drafts, focus restoration and full-replacement
+save semantics when simplifying dialog presentation.
+
 Signed-in users also see an unboxed **Edit** action with a small pencil beside
 the title, separate from the close button. It opens
 the author form prefilled for editing; saving sends a full replacement, so
 clearing optional fields removes them. Failed saves preserve the draft.
+Create/edit/review author forms use asterisks for required full name and birth
+date, with label hovertext for field guidance instead of an introductory paragraph.
+Known as remains the display name when provided. Saving a new author publishes
+it immediately, even if the surrounding quote form is later cancelled.
+Character create/edit forms follow the same presentation, requiring only full
+name; hovertext explains the fictional-speaker role and other fields. New
+characters also remain saved when a surrounding quote is cancelled.
 Cancel returns to the unchanged details. A successful save updates the dialog,
 quote attribution, quote results, and Authors sidebar without changing filters.
 Anonymous users can view all details but cannot edit.

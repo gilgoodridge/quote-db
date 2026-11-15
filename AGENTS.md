@@ -57,6 +57,9 @@
   from pending review and pending counts; show pending, snoozed and author counts
   in the review panel.
   Reuse AddAuthorDialog/AddQuoteDialog for review, preserving normal creation/editing.
+  Duplicate quote review actions in the fixed dialog header, sharing handlers,
+  validation and disabled/retry state with the footer; header approval submits
+  the same form through its form ID. Create/edit keep footer-only actions.
   Approved candidate authors preselect their publication link; otherwise prompt
   for author creation (including required birth date). Closing leaves author empty.
   Author Save and quote Approve publish first, then PUT the candidate with the
@@ -364,7 +367,10 @@ retryable; writes refresh totals and recover pages that no longer exist.
   Deleting a quote removes only its associations, not categories or its author.
 - Frontend AddQuoteDialog loads catalogs via `api.categories.list()` and uses
   QuoteCategoryFields for optional checkbox groups, selection counts, and clear
-  actions. Options/IDs come from the API, never hardcoded frontend catalogs.
+  actions. Groups use native details/summary, start collapsed, and keep selection
+  counts visible in their summaries. Shared create/edit/review quote forms use
+  asterisks for required fields and label hovertext for guidance.
+  Options/IDs come from the API, never hardcoded frontend catalogs.
 - Checkbox labels and quote tags use backend descriptions as native hover
   text. Checkboxes associate descriptions via aria-describedby; tags include
   screen-reader text. Missing descriptions remain compatible with older backends.
@@ -429,6 +435,26 @@ This allows the frontend dev server to call the backend API without browser CORS
 ---
 
 ## Frontend Architecture
+
+### Dialog Conventions
+
+- Keep quote, author and character create/edit/review forms compact and consistent.
+  Mark mandatory labels with ` *`, never `(required)` or `(optional)`, and preserve
+  native `required` validation. Avoid introductory requirement/optional-field paragraphs.
+- Put concise field guidance in label `title` hovertext; keep author/character
+  descriptions in their shared field definitions. Character guidance must distinguish
+  fictional speaker from author. Keep labels associated with controls.
+- Use `DialogHeader` outside the scrolling `.dialog-body`, a top-right close button,
+  and 16px of body top padding. Use theme variables and wrapping for narrow screens.
+- Create/edit actions stay at the bottom. Only Review Quote duplicates Reject,
+  pending-only Snooze and Approve in the fixed title bar; share handlers, form
+  validation, disabled/saving state and publication retry behavior across both copies.
+- Quote category dimensions use independent native details/summary disclosures,
+  initially collapsed, with selection counts visible when collapsed. Collapsing
+  never clears selections; retain explicit Clear actions inside each group.
+- Removing guidance must not change full-replacement payloads, draft/error handling,
+  focus restoration, or save/dismissal guards. Document immediate publication of
+  nested authors/characters and optional-field clearing in the READMEs.
 
 ### Project Structure
 ```
@@ -582,6 +608,9 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - Render date-only author values without timezone shifts and preserve biography line breaks
 - Only authenticated users see the top-right pencil, which opens AddAuthorDialog prefilled for editing
 - Share field definitions through `authorFields.js`; AddAuthorDialog supports both existing creation and full-replacement PUT updates
+- Author form labels use asterisks for required fields and hovertext from shared
+  `authorFields` descriptions, without an introductory paragraph. Keep top padding
+  between the fixed dialog header and form content.
 - Submit all editable fields, trim text, and send cleared optional fields as null; full name and birth date remain required
 - Preserve drafts on failed saves, including conflicts and expired sessions; prevent duplicate submissions and dismissal while saving
 - Cancel returns to unchanged details; successful saves update the details and notify QuotesList/App to refresh other author surfaces

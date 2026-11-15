@@ -71,11 +71,54 @@ function pendingAuthor(status = 'PENDING') {
 }
 
 function saveAuthor() {
-  fireEvent.change(screen.getByLabelText('Date of birth (required)'), {target: {value: '1950-01-02'}})
+  fireEvent.change(screen.getByLabelText('Date of birth *'), {target: {value: '1950-01-02'}})
   fireEvent.click(screen.getByRole('button', {name: 'Save author'}))
 }
 
 describe('candidate review', () => {
+  it.each([
+    ['Reject candidate', 'REJECTED'],
+    ['Snooze candidate', 'SNOOZED'],
+    ['Approve candidate', 'APPROVED'],
+  ])('runs %s from the fixed header while retaining footer actions', async (name, status) => {
+    render(<CandidateReview />)
+    await openNext()
+    await ready()
+    const header = screen.getByRole('group', {name: 'Quote review actions'})
+    expect(header.closest('.dialog-header')).toBeTruthy()
+    expect(header.closest('.dialog-body')).toBeNull()
+    for (const action of ['Reject', 'Snooze', 'Approve']) {
+      expect(screen.getByRole('button', {name: action}).closest('.add-quote-actions')).toBeTruthy()
+    }
+    const approve = within(header).getByRole('button', {name: 'Approve candidate'})
+    expect(approve.form).toBe(screen.getByRole('dialog').querySelector('form'))
+    fireEvent.click(within(header).getByRole('button', {name}))
+    await waitFor(() => expect(api.candidateQuotes.update).toHaveBeenCalledWith(12,
+      expect.objectContaining({status})))
+    expect(api.quotes.create).toHaveBeenCalledTimes(status === 'APPROVED' ? 1 : 0)
+  })
+
+  it('validates header approval and disables both copies during submission', async () => {
+    const publication = deferred()
+    api.quotes.create.mockReturnValueOnce(publication.promise)
+    render(<CandidateReview />)
+    await openNext()
+    await ready()
+    const approve = screen.getByRole('button', {name: 'Approve candidate'})
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: ''}})
+    fireEvent.click(approve)
+    expect(api.quotes.create).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'Edited quote'}})
+    fireEvent.click(approve)
+    for (const name of ['Reject', 'Snooze', 'Saving...', 'Reject candidate', 'Snooze candidate', 'Approve candidate']) {
+      expect(screen.getByRole('button', {name}).disabled).toBe(true)
+    }
+    fireEvent.click(approve)
+    expect(api.quotes.create).toHaveBeenCalledTimes(1)
+    await act(async () => publication.resolve(savedQuote))
+    await screen.findByText(/Candidate approved\./)
+  })
+
   it('shows the pending candidate quote and author counts', async () => {
     api.candidateQuotes.pendingCount.mockResolvedValue(8)
     api.candidateQuotes.snoozedCount.mockResolvedValue(5)
@@ -110,8 +153,8 @@ describe('candidate review', () => {
     expect(api.candidateQuotes.listPage).toHaveBeenCalledWith({status: 'PENDING', page: 0, size: 1})
     expect(api.candidateAuthors.get).toHaveBeenCalledWith(3)
     expect(screen.getByRole('dialog', {name: 'Review Quote'})).toBeTruthy()
-    expect(screen.getByLabelText('Author (required)').value).toBe('7')
-    expect(screen.getByLabelText('Quote text (required)').value).toBe(candidate.text)
+    expect(screen.getByLabelText('Author *').value).toBe('7')
+    expect(screen.getByLabelText('Quote text *').value).toBe(candidate.text)
     expect(screen.getByLabelText('Primary reference').value).toBe(candidate.sourceUrl)
     const source = screen.getByRole('link', {name: 'Open source in a new tab'})
     expect(source.href).toBe(candidate.sourceUrl)
@@ -127,8 +170,8 @@ describe('candidate review', () => {
     render(<CandidateReview onAuthorCreated={onAuthorCreated} />)
     await openNext()
     expect(screen.getByRole('dialog', {name: 'Review author'})).toBeTruthy()
-    expect(screen.getByLabelText('Full name (required)').value).toBe(candidateAuthor.fullName)
-    fireEvent.change(screen.getByLabelText('Full name (required)'), {target: {value: ' Published Author '}})
+    expect(screen.getByLabelText('Full name *').value).toBe(candidateAuthor.fullName)
+    fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: ' Published Author '}})
     saveAuthor()
     await screen.findByRole('dialog', {name: 'Review Quote'})
     await ready()
@@ -137,7 +180,7 @@ describe('candidate review', () => {
       fullName: author.fullName, status: 'APPROVED', publishedAuthorId: 7,
     })
     expect(api.authors.create.mock.invocationCallOrder[0]).toBeLessThan(api.candidateAuthors.update.mock.invocationCallOrder[0])
-    expect(screen.getByLabelText('Author (required)').value).toBe('7')
+    expect(screen.getByLabelText('Author *').value).toBe('7')
     expect(onAuthorCreated).toHaveBeenCalledWith(author)
   })
 
@@ -148,10 +191,10 @@ describe('candidate review', () => {
     await screen.findByRole('button', {name: 'Close author form'})
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     await ready()
-    expect(screen.getByLabelText('Author (required)').value).toBe('')
+    expect(screen.getByLabelText('Author *').value).toBe('')
     expect(api.authors.create).not.toHaveBeenCalled()
     expect(api.candidateAuthors.update).not.toHaveBeenCalled()
-    fireEvent.change(screen.getByLabelText('Author (required)'), {target: {value: '7'}})
+    fireEvent.change(screen.getByLabelText('Author *'), {target: {value: '7'}})
     fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
     await screen.findByText(/Candidate approved\./)
   })
@@ -161,8 +204,9 @@ describe('candidate review', () => {
     render(<CandidateReview onQuoteCreated={onQuoteCreated} />)
     await openNext()
     await ready()
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: 'Edited quote'}})
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'Edited quote'}})
     fireEvent.change(screen.getByLabelText('Location'), {target: {value: 'Chapter 1'}})
+    fireEvent.click(screen.getByText('Tone'))
     fireEvent.click(screen.getByRole('checkbox', {name: 'Funny'}))
     fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
     await screen.findByText(/Candidate approved\./)
@@ -188,7 +232,7 @@ describe('candidate review', () => {
     await screen.findByRole('button', {name: 'Close author form'})
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     await screen.findByRole('button', {name: 'Retry loading categories'})
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: ''}})
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: ''}})
     fireEvent.click(screen.getByRole('button', {name: 'Reject'}))
     await screen.findByText(/Candidate rejected\./)
     expect(api.candidateQuotes.update).toHaveBeenCalledWith(12, {
@@ -202,7 +246,7 @@ describe('candidate review', () => {
     render(<CandidateReview />)
     await openNext()
     await ready()
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: 'Unsaved edit'}})
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'Unsaved edit'}})
     fireEvent.click(screen.getByRole('button', {name: 'Snooze'}))
     await screen.findByText('Candidate snoozed. No pending candidates.')
     expect(api.candidateQuotes.update).toHaveBeenCalledWith(12, {
@@ -221,6 +265,7 @@ describe('candidate review', () => {
     await ready()
     expect(api.candidateQuotes.listPage).toHaveBeenCalledWith({status: 'SNOOZED', page: 0, size: 1})
     expect(screen.queryByRole('button', {name: 'Snooze'})).toBeNull()
+    expect(screen.queryByRole('button', {name: 'Snooze candidate'})).toBeNull()
     fireEvent.click(screen.getByRole('button', {name: 'Reject'}))
     await screen.findByText('Candidate rejected. No snoozed candidates.')
     expect(api.candidateQuotes.listPage).toHaveBeenLastCalledWith({status: 'SNOOZED', page: 0, size: 1})
@@ -254,8 +299,8 @@ describe('candidate review', () => {
     expect(api.candidateAuthors.get).toHaveBeenLastCalledWith(4)
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     await ready()
-    expect(screen.getByLabelText('Quote text (required)').value).toBe('Next quote')
-    expect(screen.getByLabelText('Author (required)').value).toBe('')
+    expect(screen.getByLabelText('Quote text *').value).toBe('Next quote')
+    expect(screen.getByLabelText('Author *').value).toBe('')
     expect(screen.getByLabelText('Location').value).toBe('')
     fireEvent.click(screen.getByRole('button', {name: 'Close quote form'}))
     expect(api.candidateQuotes.listPage).toHaveBeenCalledTimes(2)
@@ -283,7 +328,7 @@ describe('candidate review', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     await openNext()
     await ready()
-    expect(screen.getByLabelText('Quote text (required)').value).toBe('Next quote')
+    expect(screen.getByLabelText('Quote text *').value).toBe('Next quote')
     expect(api.candidateQuotes.update).toHaveBeenCalledTimes(1)
   })
 
@@ -327,7 +372,7 @@ describe('candidate review', () => {
     expect(api.candidateAuthors.update).not.toHaveBeenCalled()
     await act(async () => pending.resolve(Promise.reject(new Error('Session expired'))))
     expect((await screen.findByRole('alert')).textContent).toContain('Session expired')
-    expect(screen.getByLabelText('Full name (required)').value).toBe(candidateAuthor.fullName)
+    expect(screen.getByLabelText('Full name *').value).toBe(candidateAuthor.fullName)
     saveAuthor()
     await screen.findByRole('dialog', {name: 'Review Quote'})
     await ready()
@@ -344,10 +389,10 @@ describe('candidate review', () => {
     saveAuthor()
     expect((await screen.findByRole('alert')).textContent).toContain('Link failed')
     expect(screen.getByRole('button', {name: 'Retry author approval'})).toBeTruthy()
-    expect(screen.getByLabelText('Full name (required)').matches(':disabled')).toBe(true)
+    expect(screen.getByLabelText('Full name *').matches(':disabled')).toBe(true)
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
     await ready()
-    expect(screen.getByLabelText('Author (required)').value).toBe('')
+    expect(screen.getByLabelText('Author *').value).toBe('')
     fireEvent.click(screen.getByRole('button', {name: 'Close quote form'}))
     await openNext()
     fireEvent.click(screen.getByRole('button', {name: 'Retry author approval'}))
@@ -356,7 +401,7 @@ describe('candidate review', () => {
     expect(api.authors.create).toHaveBeenCalledTimes(1)
     expect(api.candidateAuthors.update).toHaveBeenCalledTimes(2)
     expect(onAuthorCreated).toHaveBeenCalledTimes(1)
-    expect(screen.getByLabelText('Author (required)').value).toBe('7')
+    expect(screen.getByLabelText('Author *').value).toBe('7')
   })
 
   it('finds an exact duplicate, lets the reviewer inspect it, and links it without creating an author', async () => {
@@ -384,7 +429,7 @@ describe('candidate review', () => {
       fullName: duplicate.fullName, status: 'APPROVED', publishedAuthorId: duplicate.id,
     })
     expect(api.authors.create).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('Author (required)').value).toBe(String(duplicate.id))
+    expect(screen.getByLabelText('Author *').value).toBe(String(duplicate.id))
   })
 
   it('lets the reviewer continue with a new author after finding a possible duplicate', async () => {
@@ -395,7 +440,7 @@ describe('candidate review', () => {
     await openNext()
     fireEvent.click(screen.getByRole('button', {name: 'Create a new author'}))
     expect(await screen.findByRole('dialog', {name: 'Review author'})).toBeTruthy()
-    expect(screen.getByLabelText('Full name (required)').value).toBe(candidateAuthor.fullName)
+    expect(screen.getByLabelText('Full name *').value).toBe(candidateAuthor.fullName)
   })
 
   it('keeps author review blocked and offers a retry when duplicate search fails', async () => {
@@ -416,7 +461,7 @@ describe('candidate review', () => {
     render(<CandidateReview />)
     await openNext()
     await ready()
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: 'Kept draft'}})
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'Kept draft'}})
     const form = screen.getByRole('button', {name: 'Approve'}).closest('form')
     fireEvent.submit(form)
     fireEvent.submit(form)
@@ -428,7 +473,7 @@ describe('candidate review', () => {
     await act(async () => pending.resolve(Promise.reject(new Error('Publish failed'))))
     expect((await screen.findByRole('alert')).textContent).toContain('Publish failed')
     expect(api.candidateQuotes.listPage).toHaveBeenCalledTimes(1)
-    expect(screen.getByLabelText('Quote text (required)').value).toBe('Kept draft')
+    expect(screen.getByLabelText('Quote text *').value).toBe('Kept draft')
     expect(api.candidateQuotes.update).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
     await screen.findByText(/Candidate approved\./)
@@ -441,16 +486,19 @@ describe('candidate review', () => {
     render(<CandidateReview onQuoteCreated={onQuoteCreated} />)
     await openNext()
     await ready()
-    fireEvent.change(screen.getByLabelText('Quote text (required)'), {target: {value: 'Saved edit'}})
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'Saved edit'}})
     fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
     expect((await screen.findByRole('alert')).textContent).toContain('Approval failed')
     expect(api.candidateQuotes.listPage).toHaveBeenCalledTimes(1)
-    expect(screen.getByLabelText('Quote text (required)').matches(':disabled')).toBe(true)
+    expect(screen.getByLabelText('Quote text *').matches(':disabled')).toBe(true)
     expect(screen.getByRole('button', {name: 'Reject'}).disabled).toBe(true)
+    expect(screen.getByRole('button', {name: 'Reject candidate'}).disabled).toBe(true)
+    expect(screen.getByRole('button', {name: 'Snooze candidate'}).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', {name: 'Close quote form'}))
     await openNext()
-    expect(screen.getByLabelText('Quote text (required)').value).toBe('Saved edit')
-    fireEvent.click(screen.getByRole('button', {name: 'Retry approval'}))
+    expect(screen.getByLabelText('Quote text *').value).toBe('Saved edit')
+    expect(screen.getByRole('button', {name: 'Retry approval'}).disabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', {name: 'Retry candidate approval'}))
     await screen.findByText(/Candidate approved\./)
     expect(api.quotes.create).toHaveBeenCalledTimes(1)
     expect(api.candidateQuotes.update).toHaveBeenCalledTimes(2)
@@ -473,7 +521,7 @@ describe('candidate review', () => {
     await screen.findByText(/Candidate quotes pending: 1/)
     await openNext()
     await ready()
-    expect(screen.getByLabelText('Quote text (required)').matches(':disabled')).toBe(false)
+    expect(screen.getByLabelText('Quote text *').matches(':disabled')).toBe(false)
     expect(screen.getByRole('button', {name: 'Reject'}).disabled).toBe(false)
     fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
     await screen.findByText(/Candidate approved\./)
