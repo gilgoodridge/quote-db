@@ -4,9 +4,11 @@ import {authorFields} from '../authorFields'
 import DialogHeader from './DialogHeader'
 import '../styles/AddQuoteDialog.css'
 
-const dateLookups = {
-  dateOfBirth: {type: 'AUTHOR_DATE_OF_BIRTH', label: 'birth date'},
-  dateOfDeath: {type: 'AUTHOR_DATE_OF_DEATH', label: 'death date'},
+const authorLookups = {
+  dateOfBirth: {type: 'AUTHOR_DATE_OF_BIRTH', label: 'birth date', date: true, maxLength: 10},
+  dateOfDeath: {type: 'AUTHOR_DATE_OF_DEATH', label: 'death date', date: true, maxLength: 10},
+  placeOfBirth: {type: 'AUTHOR_PLACE_OF_BIRTH', label: 'place of birth', maxLength: 255},
+  bio: {type: 'AUTHOR_BIOGRAPHY', label: 'biography', maxLength: 1024},
 }
 
 export default function AddAuthorDialog({ author = null, onClose, onCreated, onUpdated, initialValues, onSave, onSnooze, onReject, reviewing = false, publishedAuthor = null }) {
@@ -39,23 +41,25 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
     }
   }, [])
 
-  async function lookupDate(name) {
+  async function lookupField(name) {
     if (lookupRef.current || submittingRef.current || publishedAuthor || retryRequest) return
     const fullName = fields.fullName.trim()
     if (!fullName) return
     lookupRef.current = true
-    const lookup = dateLookups[name]
+    const lookup = authorLookups[name]
     setLookingUp(name)
     setLookupMessage('')
     setLookupError('')
     try {
       const result = await api.ai.lookup(lookup.type, {fullName})
       if (!activeRef.current) return
-      if (result?.status === 'FOUND' && /^\d{4}-\d{2}-\d{2}$/.test(result.value)) {
+      if (result?.status === 'FOUND' && typeof result.value === 'string'
+        && result.value.trim() && result.value.length <= lookup.maxLength
+        && (!lookup.date || /^\d{4}-\d{2}-\d{2}$/.test(result.value))) {
         setFields((current) => ({...current, [name]: result.value}))
-        setLookupMessage('Gemini suggested this date. Verify it before saving; AI confidence is not a guarantee.')
+        setLookupMessage(`Gemini suggested this ${lookup.date ? 'date' : lookup.label}. Verify it before saving; AI confidence is not a guarantee.`)
       } else if (result?.status === 'UNKNOWN') {
-        setLookupMessage(`Gemini wasn't sure of the exact ${lookup.label}. The existing date was not changed.`)
+        setLookupMessage(`Gemini wasn't sure of the ${lookup.date ? 'exact ' : ''}${lookup.label}. The existing ${lookup.date ? 'date' : 'value'} was not changed.`)
       } else {
         throw new Error(`The lookup returned an invalid ${lookup.label} response.`)
       }
@@ -149,7 +153,7 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
               autoFocus: index === 0,
               onChange: (event) => {
                 const { value } = event.target
-                if (name === 'fullName' || dateLookups[name]) {
+                if (name === 'fullName' || authorLookups[name]) {
                   setLookupMessage('')
                   setLookupError('')
                 }
@@ -159,13 +163,15 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
             return (
               <div className="author-form-field" key={name}>
                 <label htmlFor={props.id} title={description}>{label}{required ? ' *' : ''}</label>
-                {dateLookups[name] ? (
-                  <div className="author-date-controls">
-                    <input {...props} type="date" />
+                {authorLookups[name] ? (
+                  <div className={`author-lookup-controls${multiline ? ' author-lookup-multiline' : ''}`}>
+                    {multiline
+                      ? <textarea {...props} rows={4} maxLength={1024} />
+                      : <input {...props} type={type || 'text'} maxLength={type === 'date' ? undefined : 255} />}
                     <button type="button" disabled={!fields.fullName.trim() || Boolean(lookingUp)}
-                      aria-label={`Look up ${dateLookups[name].label} with AI`}
-                      title="Send the full name to Gemini for an AI suggestion. Verify the date before saving."
-                      onClick={() => lookupDate(name)}>
+                      aria-label={`Look up ${authorLookups[name].label} with AI`}
+                      title={`Send the full name to Gemini for an AI suggestion. Verify the ${authorLookups[name].label} before saving.`}
+                      onClick={() => lookupField(name)}>
                       {lookingUp === name ? 'Looking up...' : 'Look up with AI'}
                     </button>
                   </div>
@@ -176,7 +182,7 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
             )
           })}
         </fieldset>
-        {lookingUp && <p role="status">Asking Gemini for the exact {dateLookups[lookingUp].label}...</p>}
+        {lookingUp && <p role="status">Asking Gemini for the {authorLookups[lookingUp].date ? 'exact ' : ''}{authorLookups[lookingUp].label}...</p>}
         {lookupMessage && <p role="status">{lookupMessage}</p>}
         {lookupError && <p className="add-quote-error add-author-error" role="alert">{lookupError}</p>}
         {error && (

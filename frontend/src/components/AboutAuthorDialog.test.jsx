@@ -52,6 +52,88 @@ function submitEditor() {
 }
 
 describe('author details', () => {
+  describe.each([
+    {field: 'placeOfBirth', label: 'Place of birth', lookupLabel: 'place of birth',
+      type: 'AUTHOR_PLACE_OF_BIRTH', value: 'Florida, Missouri, United States', limit: 255},
+    {field: 'bio', label: 'Biography', lookupLabel: 'biography',
+      type: 'AUTHOR_BIOGRAPHY', value: 'An American novelist and humorist known for incisive social commentary.', limit: 1024},
+  ])('$label AI lookup', ({field, label, lookupLabel, type, value, limit}) => {
+    it.each(['create', 'edit', 'review'])('populates only its editable draft in %s mode', async (mode) => {
+      vi.spyOn(api.ai, 'lookup').mockResolvedValue({status: 'FOUND', value})
+      const onSave = vi.fn()
+      render(<AddAuthorDialog author={mode === 'edit' ? author : null}
+        initialValues={{...author, fullName: '  Samuel Clemens  '}} reviewing={mode === 'review'}
+        onSave={mode === 'review' ? onSave : undefined}
+        onClose={vi.fn()} onCreated={vi.fn()} onUpdated={vi.fn()} />)
+      fireEvent.click(screen.getByRole('button', {name: `Look up ${lookupLabel} with AI`}))
+      await screen.findByText(`Gemini suggested this ${lookupLabel}. Verify it before saving; AI confidence is not a guarantee.`)
+      expect(api.ai.lookup).toHaveBeenCalledWith(type, {fullName: 'Samuel Clemens'})
+      expect(screen.getByLabelText(label).value).toBe(value)
+      expect(screen.getByLabelText(label).maxLength).toBe(limit)
+      expect(screen.getByLabelText(label).required).toBe(false)
+      expect(screen.getByLabelText('Date of birth *').value).toBe(author.dateOfBirth)
+      expect(screen.getByLabelText('Date of death').value).toBe(author.dateOfDeath)
+      expect(screen.getByLabelText(field === 'bio' ? 'Place of birth' : 'Biography').value)
+        .toBe(field === 'bio' ? author.placeOfBirth : author.bio)
+      expect(api.authors.create).not.toHaveBeenCalled()
+      expect(api.authors.update).not.toHaveBeenCalled()
+      expect(onSave).not.toHaveBeenCalled()
+      fireEvent.change(screen.getByLabelText(label), {target: {value: 'Edited suggestion'}})
+      fireEvent.submit(screen.getByRole('button', {name: 'Save author'}).closest('form'))
+      await waitFor(() => {
+        const save = mode === 'review' ? onSave : mode === 'edit' ? api.authors.update : api.authors.create
+        expect(save).toHaveBeenCalled()
+        const payload = save.mock.calls[0][mode === 'edit' ? 1 : 0]
+        expect(payload[field]).toBe('Edited suggestion')
+        expect(payload.dateOfBirth).toBe(author.dateOfBirth)
+      })
+    })
+
+    it('preserves existing text on uncertainty, quota errors and malformed results, then retries', async () => {
+      vi.spyOn(api.ai, 'lookup')
+        .mockResolvedValueOnce({status: 'UNKNOWN'})
+        .mockRejectedValueOnce(new Error('Gemini quota exceeded'))
+        .mockResolvedValueOnce({status: 'FOUND', value: 123})
+        .mockResolvedValueOnce({status: 'FOUND', value})
+      render(<AddAuthorDialog author={author} onClose={vi.fn()} onUpdated={vi.fn()} />)
+      const lookup = () => fireEvent.click(screen.getByRole('button', {name: `Look up ${lookupLabel} with AI`}))
+      lookup()
+      await screen.findByText(`Gemini wasn't sure of the ${lookupLabel}. The existing value was not changed.`)
+      expect(screen.getByLabelText(label).value).toBe(author[field])
+      lookup()
+      expect((await screen.findByRole('alert')).textContent).toContain('Gemini quota exceeded')
+      expect(screen.getByLabelText(label).value).toBe(author[field])
+      lookup()
+      expect((await screen.findByRole('alert')).textContent).toContain(`invalid ${lookupLabel} response`)
+      expect(screen.getByLabelText(label).value).toBe(author[field])
+      lookup()
+      await screen.findByText(new RegExp(`Gemini suggested this ${lookupLabel}`))
+      expect(screen.getByLabelText(label).value).toBe(value)
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('requires a name, blocks competing lookups/saves, and ignores results after dismissal', async () => {
+      let resolveLookup
+      vi.spyOn(api.ai, 'lookup').mockReturnValue(new Promise((resolve) => { resolveLookup = resolve }))
+      const {unmount} = render(<AddAuthorDialog onClose={vi.fn()} onCreated={vi.fn()} />)
+      expect(screen.getByRole('button', {name: `Look up ${lookupLabel} with AI`}).disabled).toBe(true)
+      fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: author.fullName}})
+      fireEvent.click(screen.getByRole('button', {name: `Look up ${lookupLabel} with AI`}))
+      await screen.findByText(`Asking Gemini for the ${lookupLabel}...`)
+      for (const button of screen.getAllByRole('button', {name: /Look up .* with AI/})) {
+        expect(button.disabled).toBe(true)
+        fireEvent.click(button)
+      }
+      expect(api.ai.lookup).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', {name: 'Save author'}).disabled).toBe(true)
+      expect(screen.getByRole('button', {name: 'Close author form'}).disabled).toBe(false)
+      unmount()
+      render(<AddAuthorDialog author={author} onClose={vi.fn()} onUpdated={vi.fn()} />)
+      await act(async () => resolveLookup({status: 'FOUND', value}))
+      expect(screen.getByLabelText(label).value).toBe(author[field])
+    })
+  })
+
   it.each(['create', 'edit', 'review'])('looks up an editable birth date without saving in %s mode', async (mode) => {
     vi.spyOn(api.ai, 'lookup').mockResolvedValue({status: 'FOUND', value: '1775-12-16'})
     const onSave = vi.fn()
@@ -116,6 +198,8 @@ describe('author details', () => {
     render(<AddAuthorDialog reviewing publishedAuthor={author} initialValues={author} onClose={vi.fn()} />)
     expect(screen.getByRole('button', {name: 'Look up birth date with AI'}).closest('fieldset').disabled).toBe(true)
     expect(screen.getByRole('button', {name: 'Look up death date with AI'}).closest('fieldset').disabled).toBe(true)
+    expect(screen.getByRole('button', {name: 'Look up place of birth with AI'}).closest('fieldset').disabled).toBe(true)
+    expect(screen.getByRole('button', {name: 'Look up biography with AI'}).closest('fieldset').disabled).toBe(true)
   })
 
   it.each(['create', 'edit', 'review'])('looks up only the editable death date in %s mode', async (mode) => {

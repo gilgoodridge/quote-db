@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -54,7 +55,7 @@ class AiLookupControllerTest {
             "{\"type\":\"AUTHOR_DATE_OF_BIRTH\",\"context\":{}}",
             "{\"type\":\"AUTHOR_DATE_OF_BIRTH\",\"context\":{\"fullName\":null}}",
             "{\"type\":\"AUTHOR_DATE_OF_BIRTH\",\"context\":{\"fullName\":\"  \"}}",
-            "{\"type\":\"AUTHOR_PLACE_OF_BIRTH\",\"context\":{\"fullName\":\"Jane\"}}",
+            "{\"type\":\"AUTHOR_NATIONALITY\",\"context\":{\"fullName\":\"Jane\"}}",
             "{\"type\":\"AUTHOR_DATE_OF_DEATH\",\"context\":{\"fullName\":\"  \"}}",
             "{\"type\":\"QUOTE_SOURCE\",\"context\":{\"fullName\":\"Jane\"}}",
             "{\"type\":\"AUTHOR_DATE_OF_BIRTH\",\"context\":{\"fullName\":{}}}",
@@ -100,5 +101,30 @@ class AiLookupControllerTest {
                 .andExpect(jsonPath("$.status").value("FOUND"))
                 .andExpect(jsonPath("$.value").value("1817-07-18"));
         verify(service).lookup(request);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AiLookupRequest.Type.class, names = {"AUTHOR_PLACE_OF_BIRTH", "AUTHOR_BIOGRAPHY"})
+    void acceptsTextLookupsAndValidatesTheirContext(AiLookupRequest.Type type) throws Exception {
+        String value = type == AiLookupRequest.Type.AUTHOR_PLACE_OF_BIRTH
+                ? "Steventon, Hampshire, England, United Kingdom"
+                : "An English novelist known for social observation and irony.";
+        var request = new AiLookupRequest(type, new AiLookupRequest.Context("Jane Austen"));
+        when(service.lookup(request)).thenReturn(new AiLookupResponse(AiLookupResponse.Status.FOUND, value));
+        mvc.perform(post("/api/ai/lookups").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"" + type + "\",\"context\":{\"fullName\":\"Jane Austen\"}}"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.status").value("FOUND"))
+                .andExpect(jsonPath("$.value").value(value));
+        verify(service).lookup(request);
+        clearInvocations(service);
+        for (String context : new String[]{"null", "{}", "{\"fullName\":\"  \"}",
+                "{\"fullName\":\"" + "a".repeat(256) + "\"}"}) {
+            mvc.perform(post("/api/ai/lookups").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"type\":\"" + type + "\",\"context\":" + context + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(service);
     }
 }

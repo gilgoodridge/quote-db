@@ -10,10 +10,12 @@
 
 ## AI Editorial Lookups
 
-- Shared AddAuthorDialog exposes draft-only Gemini lookup beside Date of birth/death
+- Shared AddAuthorDialog exposes draft-only Gemini lookup beside Date of birth/death,
+  Place of birth and Biography
   for create/edit/review. Single POST `/api/ai/lookups` requires login and CSRF,
   accepts `{type, context}`, and never writes published/candidate content.
-  AiLookupRequest.Type permits AUTHOR_DATE_OF_BIRTH and AUTHOR_DATE_OF_DEATH, requiring
+  AiLookupRequest.Type permits AUTHOR_DATE_OF_BIRTH, AUTHOR_DATE_OF_DEATH,
+  AUTHOR_PLACE_OF_BIRTH and AUTHOR_BIOGRAPHY, requiring
   nonblank context.fullName (255 max); missing/unsupported types or invalid
   context return 400 before any provider call. No client-supplied prompts.
 - AiLookupController owns the shared endpoint; AiLookupService dispatches
@@ -33,7 +35,21 @@
   burial-date substitution or prediction. Both date lookups share strict parsing
   and UI handlers; only the selected field changes, death date stays optional,
   and a pending lookup prevents starting either lookup again.
-- Preserve draft dates on uncertainty/errors. Disable fields/saves/review
+- Birthplace prompt requests 99% confidence, most-specific known city/town plus
+  intervening administrative divisions and country, fully spelled out. Fall back
+  to a known broader region/country, not an ambiguous city; no addresses/hospitals.
+- Biography prompt requests factual professional prose without controversies,
+  person names/aliases, birth/death dates/years or birthplace. All lookup prompts
+  describe a person, not an author: do not assume a writing profession.
+  Biography requests best-effort reliable facts without IDK instructions or a
+  confidence threshold; dates/birthplace retain their abstention rules. At most three
+  sentences in one paragraph; backend uses English BreakIterator for sentence
+  bounds. Text results must be single-line and fit existing limits (place 255,
+  bio 1024); reject invalid output explicitly, never truncate. Semantic rules and
+  facts remain prompt-based and require editorial verification.
+- Shared authorLookups metadata and lookupField handler populate only the target
+  draft field for dates/text, preserving other fields and optional-field semantics.
+- Preserve draft values on uncertainty/errors. Disable fields/saves/review
   mutations during lookup, allow dismissal, ignore responses after unmount,
   and preserve published-author/promotion-retry locks. Suggestions require
   manual verification and normal Save; never automatically publish.

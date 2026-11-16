@@ -208,19 +208,33 @@ Keep visible retryable errors, failed drafts, focus restoration and saving guard
 Use theme variables and wrapping so dialogs remain usable on narrow screens.
 
 Create, edit and review author forms have **Look up with AI** beside Date of
-birth and Date of death. Enter a full name, then click to request a Gemini suggestion through
-`api.ai.lookup(type, {fullName})`, using `AUTHOR_DATE_OF_BIRTH` or
-`AUTHOR_DATE_OF_DEATH` (`POST /api/ai/lookups`,
+birth, Date of death, Place of birth and Biography. Enter a full name, then click
+to request a Gemini suggestion through `api.ai.lookup(type, {fullName})`, using
+`AUTHOR_DATE_OF_BIRTH`, `AUTHOR_DATE_OF_DEATH`, `AUTHOR_PLACE_OF_BIRTH` or
+`AUTHOR_BIOGRAPHY` (`POST /api/ai/lookups`,
 session cookies and fresh CSRF required). Requests use `{type, context}`; replies
-use `{status: 'FOUND', value: 'YYYY-MM-DD'}` or `{status: 'UNKNOWN'}`.
+use `{status: 'FOUND', value: '...'}` (ISO `YYYY-MM-DD` for dates, text otherwise)
+or `{status: 'UNKNOWN'}`.
 Only the name is sent to Google, via the backend. The single typed endpoint is
 shared infrastructure for future author/quote lookups; unsupported types return 400.
-A found date populates only the selected editable date field without saving or
-changing the other date. Date of death remains optional. Living authors and
+A suggestion populates only the selected editable field without saving or
+changing other fields. Date of death, birthplace and biography remain optional. Living authors and
 unconfirmed deaths should return UNKNOWN, never predicted or burial dates.
 Verify suggestions before
 saving, since the prompt's 99.9% confidence request is not an accuracy guarantee.
-If Gemini is unsure, the dialog says so and leaves the date unchanged. Quota,
+Birthplace requests 99% confidence and prefers city/town, intervening known
+administrative divisions, and country, with fully spelled-out names. No street
+addresses, hospitals or buildings; when necessary it falls back to a confidently
+known region or country, never an ambiguous city alone. Biography requests factual,
+professional, neutral prose: one paragraph, no more than three sentences, excluding
+controversies, the person's name/aliases, birth/death dates or years, and birthplace.
+All prompts refer to a person rather than assuming a writing profession.
+Biography asks Gemini to do its best with reliable known facts, without an IDK
+option or confidence threshold; date and birthplace confidence rules are unchanged.
+Location text is limited to 255 characters, biography to 1024. The backend rejects
+invalid length/paragraph/sentence structure without truncation. Content rules are
+prompt-based and still need editorial verification.
+If Gemini is unsure, the dialog says so and leaves the field unchanged. Quota,
 configuration, network and provider/response failures are visible and retryable
 without losing the draft. During lookup, fields, Save and review mutations are
 disabled, but Close/Cancel still work; responses after unmount are ignored.

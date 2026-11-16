@@ -135,20 +135,29 @@
   gap: 8px;
 }
 
-.author-date-controls {
+.author-lookup-controls {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.author-date-controls input {
+.author-lookup-controls input,
+.author-lookup-controls textarea {
   flex: 1;
   min-width: 0;
 }
 
-.author-date-controls button {
+.author-lookup-controls button {
   background: var(--bg-secondary);
   color: var(--text);
+}
+
+.author-lookup-multiline {
+  flex-direction: column;
+}
+
+.author-lookup-multiline button {
+  align-self: flex-start;
 }
 
 .quote-category-fields {

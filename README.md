@@ -252,8 +252,9 @@ heuristics. DTOs expose related IDs, never ORM entities or collections.
 **AI editorial lookups:** `POST /api/ai/lookups` is the single lookup endpoint for
 editor/reviewer suggestions. It requires login and CSRF, never saves content,
 and does not cache responses. Select a server-defined `type` and supply structured
-`context`; clients cannot supply prompts. Supports `AUTHOR_DATE_OF_BIRTH` and
-`AUTHOR_DATE_OF_DEATH`, both with required nonblank `context.fullName` (255 characters max):
+`context`; clients cannot supply prompts. Supports `AUTHOR_DATE_OF_BIRTH`,
+`AUTHOR_DATE_OF_DEATH`, `AUTHOR_PLACE_OF_BIRTH` and `AUTHOR_BIOGRAPHY`, all with
+required nonblank `context.fullName` (255 characters max):
 
 ```json
 {
@@ -271,7 +272,28 @@ provider transport/error handling. Add future author/quote lookup types through
 this same contract rather than new controllers/routes. For death dates, send
 `AUTHOR_DATE_OF_DEATH`; a found date uses the same ISO string `value`.
 
-**Optional Gemini date lookups:** Set `GEMINI_API_KEY` in the backend process
+For birthplace, send `AUTHOR_PLACE_OF_BIRTH`. The prompt requests **99% confidence**,
+preferring city/town followed by confidently known intervening divisions
+(county/province/state/region as applicable) and the fully spelled-out country,
+never an ambiguous city name alone. It excludes street addresses, hospitals and
+buildings. If the town is uncertain, it requests the most specific confidently
+known broader location, down to country-only if necessary; otherwise UNKNOWN.
+The response `value` is the location text (255 characters max).
+
+For biography, send `AUTHOR_BIOGRAPHY`. The prompt requests a factual,
+professional, neutral account of work, career and achievements, excluding
+controversies, speculation, the person's name/aliases, birth/death dates or
+years, and birthplace. It requests at most three sentences in one paragraph
+(1024 characters max). Biography asks for the best summary using reliable known
+facts, without an IDK option or confidence threshold. All lookup prompts describe
+a person, not an author, so they do not assume a writing profession.
+The response `value` is the biography text. The backend rejects
+overlength/multiline text and biographies exceeding three sentences rather than
+silently truncating them. Factual accuracy, geographic completeness and semantic
+exclusions are prompt instructions, not independently verified facts: review
+suggestions before saving.
+
+**Optional Gemini author lookups:** Set `GEMINI_API_KEY` in the backend process
 environment (local run configuration or production service environment), then
 restart the backend. Create a key in [Google AI Studio](https://aistudio.google.com/api-keys).
 Never commit the key or put it in `VITE_*` variables. Without a key, the app still
@@ -668,10 +690,11 @@ the author form prefilled for editing; saving sends a full replacement, so
 clearing optional fields removes them. Failed saves preserve the draft.
 Create/edit/review author forms use asterisks for required full name and birth
 date, with label hovertext for field guidance instead of an introductory paragraph.
-**Look up with AI** beside Date of birth and Date of death uses the current full
-name in all three forms. Each suggestion populates only its own editable draft
-field, never saves it, and leaves the other date unchanged. Date of death remains optional.
-Uncertainty and errors leave any existing date unchanged and are shown in the
+**Look up with AI** beside Date of birth, Date of death, Place of birth and
+Biography uses the current full name in all three forms. Each suggestion populates
+only its own editable draft field, never saves it, and leaves other fields unchanged.
+Date of death, birthplace and biography remain optional.
+Uncertainty and errors leave any existing value unchanged and are shown in the
 dialog. Form edits, saves and review mutations are disabled while looking up;
 closing/cancelling remains available and late responses are ignored. Lookup is
 also disabled for locked promotion retries or already-published review authors.
