@@ -51,4 +51,12 @@ public class CandidateQuoteController {
                                           @Valid @RequestBody UpdateCandidateQuoteRequest request) {
         return candidates.updateQuote(id, request);
     }
+
+    @PostMapping("/{id}/promote")
+    @Operation(summary = "Publish and approve a candidate quote atomically",
+            description = "Creates the quote and approves the candidate in one transaction. Repeated calls return the existing promotion.")
+    public CandidateQuotePromotionResponse promote(@PathVariable Long id,
+                                                   @Valid @RequestBody CreateQuoteRequest request) {
+        return candidates.promoteQuote(id, request);
+    }
 }

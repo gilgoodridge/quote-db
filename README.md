@@ -54,8 +54,8 @@ established name rules from editorial policies still to be defined.
 published authors/quotes. Flyway **V9** creates the tables without changing
 existing content. Signed-in users can review candidates near the top of the
 right-hand panel; signed-out visitors see Coming Soon in the same area.
-Enrichment, automatic author matching,
-transactional promotion, and Python importer integration are not implemented.
+Enrichment, automatic author matching, and Python importer integration are not
+implemented.
 
 **Review workflow:** Review next candidate requests
 `GET /api/candidate-quotes?status=PENDING&page=0&size=1` (oldest ID first).
@@ -70,16 +70,19 @@ case-insensitive full-name or known-as match prompts the reviewer to view the
 author details, use the existing author, or create a new one; searching can be
 retried if it fails. Using an existing author links and approves the candidate
 author without creating a duplicate. With no match, Review author uses the
-existing author form (including its required date of birth). Saving creates a
-published author, then marks the candidate author APPROVED with
-`publishedAuthorId` and the saved name. Closing the author prompt/form opens
-Review Quote with no author selected. Review Quote
+existing author form (including its required date of birth). **Snooze quotes**
+marks every quote candidate linked to this author `SNOOZED` and leaves the
+author pending; **Reject author and quotes** marks the author and all its quote
+candidates `REJECTED`. Both actions preserve quote text and any published quote
+links, do not delete data, and continue with the pending quote queue. Saving a
+new author or linking an existing one promotes the candidate atomically.
+Closing the author prompt/form opens Review Quote with no author selected. Review Quote
 prefills the candidate text and source URL as Primary reference; the external-link icon
 opens HTTP/HTTPS references in a new tab. Both references retain the published quote's
 255-character limit; longer imported URLs must be edited before publication.
 Approve creates a normal quote with the selected author, optional character and
 categories, then marks the candidate APPROVED with its edited text and
-`publishedQuoteId`. Reject marks only the candidate REJECTED, preserving its
+`publishedQuoteId` in the same transaction. Reject marks only the candidate REJECTED, preserving its
 stored text and publication link; it does not publish or save draft edits.
 The top-right close button cancels review without changing the quote candidate.
 Review actions are duplicated in the fixed title bar so they remain visible
@@ -88,26 +91,27 @@ buttons. Create/Edit Quote retain bottom actions only.
 Successful approval or rejection automatically opens the next pending candidate;
 an empty queue or loading failure returns to the panel with a visible message.
 Created authors remain published even if the quote is cancelled or rejected.
+Promotion endpoints lock their candidate records and atomically create/link the
+published record and mark the candidate APPROVED. Retrying after a lost or
+ambiguous response returns the existing linked record without creating a
+duplicate; concurrent promotion requests are serialized. Quote promotion also
+locks the candidate author, so rejecting that author prevents a concurrent or
+later quote promotion. GET does not claim or reserve a queue item, so reviewers
+may still open the same item concurrently. Row locks serialize mutations, but
+review forms do not use revision/version checks: a reviewer can submit a stale
+decision after another reviewer has acted. In that case the later mutation may
+overwrite the candidate's status or publication link; for example, a pending
+quote can be rejected and then promoted by a stale approval if its candidate
+author has not been rejected. Duplicate promotions of an already-linked
+candidate reuse the same published record, but this is not general conflict
+detection or a reservation system.
 
-**TODO: atomic promotion.** Author/quote publication and candidate approval
-currently require separate requests and are **not transactional**. Replace these
-with backend transactional, idempotent promotion operations, including concurrency
-control, so reviewers cannot publish the same candidate twice. The current GET
-does not claim/reserve a queue item. If publication succeeds but approval fails,
-the UI retains the published record in memory and retries only the candidate
-update, locking the saved form and disallowing rejection of an already-published
-quote. This recovery survives dialog cancellation within the current signed-in
-page session, but not a reload or logout. An ambiguous publication response can
-also leave a published record without its ID in the UI; reconcile existing
-published records before retrying after reload or such failures to avoid duplicates.
-
-**Temporary access policy:** All candidate endpoints permit anonymous access,
-including writes. CSRF protection remains enabled: fetch `/api/auth/csrf`,
-retain its session cookie, and send the returned header/token on POST/PUT.
-No Google login is required for direct candidate API access; the frontend review
-panel requires login, as does publishing authors/quotes. These endpoints are not an admin
-boundary: anyone with access to the backend can read/import/edit staging data.
-Existing published-content write endpoints still require login and CSRF.
+**Temporary access policy:** Candidate reads, imports, and review-field updates
+permit anonymous access. Promotion endpoints require authentication because
+they create published content; all mutations require CSRF. These endpoints are
+not an admin boundary: anyone with access to the backend can read/import/edit
+staging data. Existing published-content write endpoints still require login
+and CSRF.
 
 | Method | Endpoint | Behavior |
 |--------|----------|----------|
@@ -117,6 +121,11 @@ Existing published-content write endpoints still require login and CSRF.
 | POST | `/api/candidate-authors` | Import one author candidate |
 | POST | `/api/candidate-quotes` | Import one quote attached to an existing candidate author |
 | POST | `/api/candidates/batch` | Atomically import up to 100 authors and 100 quotes |
+| POST | `/api/candidate-authors/{id}/promote` | Create and link an author and approve its candidate atomically (authenticated) |
+| POST | `/api/candidate-authors/{id}/link` | Link an existing author and approve its candidate atomically (authenticated) |
+| POST | `/api/candidate-quotes/{id}/promote` | Create and link a quote and approve its candidate atomically (authenticated) |
+| POST | `/api/candidate-authors/{id}/snooze-quotes` | Set all linked quote candidates to `SNOOZED`; keep the author unchanged |
+| POST | `/api/candidate-authors/{id}/reject` | Set the author and all linked quote candidates to `REJECTED` |
 | PUT | `/api/candidate-authors/{id}` | Replace `fullName`, `status`, optional `publishedAuthorId` |
 | PUT | `/api/candidate-quotes/{id}` | Replace `text`, `status`, optional `publishedQuoteId` |
 
@@ -126,6 +135,7 @@ return 400. Candidate authors support `PENDING`, `APPROVED`, and `REJECTED`;
 candidate quotes additionally support `SNOOZED`.
 There are no candidate DELETE endpoints: reject unwanted candidates so import
 retries do not bring them back.
+New quotes cannot be imported for a rejected candidate author.
 
 Author import example:
 

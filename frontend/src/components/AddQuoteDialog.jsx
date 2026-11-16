@@ -20,6 +20,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [retryRequest, setRetryRequest] = useState(null)
   const [showAddAuthor, setShowAddAuthor] = useState(false)
   const [authorAdded, setAuthorAdded] = useState(false)
   const [characters, setCharacters] = useState([])
@@ -111,6 +112,10 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       await saveQuote(null)
       return
     }
+    if (retryRequest) {
+      await saveQuote(retryRequest)
+      return
+    }
     if (loadingCharacters || characterError) {
       setSaveError('Load the character options before saving. Your draft has been kept.')
       return
@@ -160,6 +165,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
         ? await api.quotes.update(quote.id, request)
         : await api.quotes.create(request)
     } catch (error) {
+      if (review && request && (!error.status || error.status >= 500)) setRetryRequest(request)
       setSaveError(`Unable to ${review ? 'approve' : quote ? 'update' : 'add'} quote: ${error.message}`)
       return
     } finally {
@@ -171,7 +177,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   }
 
   async function reject() {
-    if (submittingRef.current || showAddAuthor || showAddCharacter || review.publishedQuote) return
+    if (submittingRef.current || showAddAuthor || showAddCharacter || review.publishedQuote || retryRequest) return
     submittingRef.current = true
     setSaving(true)
     setSaveError('')
@@ -186,7 +192,7 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   }
 
   async function snooze() {
-    if (submittingRef.current || showAddAuthor || showAddCharacter || review.publishedQuote) return
+    if (submittingRef.current || showAddAuthor || showAddCharacter || review.publishedQuote || retryRequest) return
     submittingRef.current = true
     setSaving(true)
     setSaveError('')
@@ -211,22 +217,22 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
   }
 
   const actionsDisabled = saving || showAddAuthor || showAddCharacter
-  const saveDisabled = actionsDisabled || (!review?.publishedQuote && (
+  const saveDisabled = actionsDisabled || (!retryRequest && !review?.publishedQuote && (
     loadingAuthors || Boolean(authorError) || authors.length === 0 ||
     loadingCharacters || Boolean(characterError) || loadingCategories || Boolean(categoryError)
   ))
-  const saveLabel = saving ? 'Saving...' : review?.publishedQuote ? 'Retry approval' : review ? 'Approve' : 'Save quote'
+  const saveLabel = saving ? 'Saving...' : review?.publishedQuote || retryRequest ? 'Retry approval' : review ? 'Approve' : 'Save quote'
 
   function reviewActions(inHeader = false) {
     return (
       <>
         <button type="button" className="add-quote-cancel"
           aria-label={inHeader ? 'Reject candidate' : undefined}
-          disabled={actionsDisabled || Boolean(review.publishedQuote)} onClick={reject}>Reject</button>
+          disabled={actionsDisabled || Boolean(review.publishedQuote) || Boolean(retryRequest)} onClick={reject}>Reject</button>
         {review.status === 'PENDING' && (
           <button type="button" className="add-quote-cancel"
             aria-label={inHeader ? 'Snooze candidate' : undefined}
-            disabled={actionsDisabled || Boolean(review.publishedQuote)} onClick={snooze}>Snooze</button>
+            disabled={actionsDisabled || Boolean(review.publishedQuote) || Boolean(retryRequest)} onClick={snooze}>Snooze</button>
         )}
         <button type="submit" form="quote-form" className="add-quote-submit"
           aria-label={inHeader ? review.publishedQuote ? 'Retry candidate approval' : 'Approve candidate' : undefined}
@@ -263,8 +269,9 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       </DialogHeader>
       <div className="dialog-body">
       {review?.publishedQuote && <p role="status">Quote saved. Retry approval to link the candidate without creating another quote.</p>}
+      {retryRequest && !review?.publishedQuote && <p role="status">Retry sends the same quote details to safely confirm promotion.</p>}
       <form id="quote-form" onSubmit={submit} aria-busy={saving}>
-        <fieldset disabled={saving || Boolean(review?.publishedQuote)}>
+        <fieldset disabled={saving || Boolean(review?.publishedQuote) || Boolean(retryRequest)}>
           <label htmlFor="quote-text" title="The words of the quote.">Quote text *</label>
           <textarea id="quote-text" name="text" value={fields.text} onChange={updateField} required maxLength={2048} rows={5} autoFocus />
 

@@ -72,6 +72,53 @@ test('candidate review PUTs retain complete review fields and use fresh CSRF tok
   await assert.rejects(api.candidateQuotes.update(12, quote), /Session expired/)
 })
 
+test('candidate author snooze and reject actions use CSRF-protected POSTs', async () => {
+  const calls = []
+  let token = 0
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return new Response(JSON.stringify(url.endsWith('/csrf')
+      ? {headerName: 'X-CSRF-TOKEN', token: `token-${++token}`} : {id: 3}))
+  }
+  await api.candidateAuthors.snoozeQuotes(3)
+  await api.candidateAuthors.reject(3)
+  assert.deepEqual(calls.map(({url}) => url), [
+    '/api/auth/csrf', '/api/candidate-authors/3/snooze-quotes',
+    '/api/auth/csrf', '/api/candidate-authors/3/reject',
+  ])
+  for (const [index, tokenValue] of [[1, 'token-1'], [3, 'token-2']]) {
+    assert.equal(calls[index].options.method, 'POST')
+    assert.equal(calls[index].options.headers['X-CSRF-TOKEN'], tokenValue)
+    assert.ok(calls[index].options.credentials === 'include')
+  }
+})
+
+test('candidate promotion requests send full payloads with CSRF and session credentials', async () => {
+  const calls = []
+  let token = 0
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return new Response(JSON.stringify(url.endsWith('/csrf')
+      ? {headerName: 'X-CSRF-TOKEN', token: `token-${++token}`} : {}))
+  }
+  const author = {fullName: 'Reviewed Author', dateOfBirth: '1900-01-01'}
+  const quote = {text: 'Reviewed quote.', authorId: 7, characterId: null, toneIds: []}
+  await api.candidateAuthors.promote(3, author)
+  await api.candidateAuthors.link(4, 7)
+  await api.candidateQuotes.promote(12, quote)
+  assert.deepEqual(calls.filter(({url}) => !url.endsWith('/csrf')).map(({url}) => url), [
+    '/api/candidate-authors/3/promote',
+    '/api/candidate-authors/4/link',
+    '/api/candidate-quotes/12/promote',
+  ])
+  for (const [index, request] of [[1, author], [3, {publishedAuthorId: 7}], [5, quote]]) {
+    assert.equal(calls[index].options.method, 'POST')
+    assert.equal(calls[index].options.headers['X-CSRF-TOKEN'], `token-${(index + 1) / 2}`)
+    assert.deepEqual(JSON.parse(calls[index].options.body), request)
+    assert.equal(calls[index].options.credentials, 'include')
+  }
+})
+
 test('character lists encode queries, collect every matching page and preserve credentials', async () => {
   const calls = []
   globalThis.fetch = async (url, options) => {

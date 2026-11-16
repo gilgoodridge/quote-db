@@ -127,6 +127,18 @@ export const api = {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(data),
     }),
+    promote: (id, data) => requestJson(`/candidate-authors/${id}/promote`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    }),
+    link: (id, publishedAuthorId) => requestJson(`/candidate-authors/${id}/link`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({publishedAuthorId}),
+    }),
+    snoozeQuotes: (id) => requestJson(`/candidate-authors/${id}/snooze-quotes`, {method: 'POST'}),
+    reject: (id) => requestJson(`/candidate-authors/${id}/reject`, {method: 'POST'}),
   },
   candidateQuotes: {
     pendingCount: async () => (await api.candidateQuotes.listPage({status: 'PENDING', page: 0, size: 1})).page.totalElements,
@@ -137,6 +149,11 @@ export const api = {
     },
     update: (id, data) => requestJson(`/candidate-quotes/${id}`, {
       method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    }),
+    promote: (id, data) => requestJson(`/candidate-quotes/${id}/promote`, {
+      method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(data),
     }),

@@ -4,12 +4,13 @@ import {authorFields} from '../authorFields'
 import DialogHeader from './DialogHeader'
 import '../styles/AddQuoteDialog.css'
 
-export default function AddAuthorDialog({ author = null, onClose, onCreated, onUpdated, initialValues, onSave, reviewing = false, publishedAuthor = null }) {
+export default function AddAuthorDialog({ author = null, onClose, onCreated, onUpdated, initialValues, onSave, onSnooze, onReject, reviewing = false, publishedAuthor = null }) {
   const dialogRef = useRef(null)
   const submittingRef = useRef(false)
   const [fields, setFields] = useState(() => Object.fromEntries(authorFields.map(({ name }) => [name, author?.[name] ?? initialValues?.[name] ?? ''])))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [retryRequest, setRetryRequest] = useState(null)
 
   useEffect(() => {
     dialogRef.current.showModal()
@@ -34,15 +35,16 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
     submittingRef.current = true
     setSaving(true)
     setError('')
+    const request = retryRequest ?? Object.fromEntries(
+      authorFields.map(({ name }) => [name, fields[name].trim() || null]),
+    )
     let savedAuthor
     try {
-      const payload = Object.fromEntries(
-        authorFields.map(({ name }) => [name, fields[name].trim() || null]),
-      )
-      savedAuthor = onSave ? await onSave(payload) : author
-        ? await api.authors.update(author.id, payload)
-        : await api.authors.create(payload)
+      savedAuthor = onSave ? await onSave(request) : author
+        ? await api.authors.update(author.id, request)
+        : await api.authors.create(request)
     } catch (saveError) {
+      if (onSave && (!saveError.status || saveError.status >= 500)) setRetryRequest(request)
       setError(!onSave && saveError.status === 409
         ? 'The author already exists'
         : `Unable to ${author ? 'update' : 'add'} author: ${saveError.message}`)
@@ -54,6 +56,21 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
     dialogRef.current.close()
     if (author) onUpdated(savedAuthor)
     else onCreated(savedAuthor)
+  }
+
+  async function performReviewAction(action, label) {
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSaving(true)
+    setError('')
+    try {
+      await action()
+    } catch (actionError) {
+      setError(`Unable to ${label}: ${actionError.message}`)
+    } finally {
+      submittingRef.current = false
+      setSaving(false)
+    }
   }
 
   return (
@@ -78,8 +95,9 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
       />
       <div className="dialog-body">
       {publishedAuthor && <p role="status">Author saved. Retry approval to link the candidate without creating another author.</p>}
+      {retryRequest && !publishedAuthor && <p role="status">Retry sends the same author details to safely confirm promotion.</p>}
       <form onSubmit={submit} aria-busy={saving}>
-        <fieldset disabled={saving || Boolean(publishedAuthor)}>
+        <fieldset disabled={saving || Boolean(publishedAuthor) || Boolean(retryRequest)}>
           {authorFields.map(({ name, label, required, type, multiline, description }, index) => {
             const props = {
               id: `author-${name}`,
@@ -113,8 +131,14 @@ export default function AddAuthorDialog({ author = null, onClose, onCreated, onU
         )}
         <div className="add-quote-actions">
           {!reviewing && <button type="button" className="add-quote-cancel" disabled={saving} onClick={() => dialogRef.current.close()}>Cancel</button>}
-          <button type="submit" className="add-quote-submit" disabled={saving}>
-            {saving ? 'Saving...' : publishedAuthor ? 'Retry author approval' : 'Save author'}
+          {reviewing && !publishedAuthor && (
+            <>
+              <button type="button" disabled={saving || Boolean(retryRequest)} onClick={() => performReviewAction(onSnooze, 'snooze quotes')}>Snooze quotes</button>
+              <button type="button" disabled={saving || Boolean(retryRequest)} onClick={() => performReviewAction(onReject, 'reject author and quotes')}>Reject author and quotes</button>
+            </>
+          )}
+          <button type="submit" className="add-quote-submit" disabled={saving || Boolean(retryRequest) && Boolean(publishedAuthor)}>
+            {saving ? 'Saving...' : publishedAuthor ? 'Retry author approval' : retryRequest ? 'Retry author promotion' : 'Save author'}
           </button>
         </div>
         {saving && <p role="status">Saving author...</p>}

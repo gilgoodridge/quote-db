@@ -54,14 +54,19 @@ candidate author without creating another record. Search failures stay visible
 and retryable. If there is no match, the shared author form opens as **Review
 author**, prefilled with the candidate name. Edit the name and fill the existing
 required birth date, then **Save author** to create the author and link/approve
-the candidate author. Closing the author prompt/form continues to **Review Quote**
-with an empty author picker.
+the candidate author. **Snooze quotes** marks every quote candidate linked to
+that author `SNOOZED` and leaves the author pending. **Reject author and quotes**
+marks the author and all its quote candidates `REJECTED`. Both actions preserve
+quote text and any published quote links, do not delete data, and continue with
+the pending quote queue. They are also available when an existing-author match
+is shown. Closing the author prompt/form continues to **Review Quote** with an
+empty author picker.
 
 Review Quote reuses Add Quote's author/character pickers, categories, validation,
 and retryable option loads, with candidate text and source URL prefilled. The
 Primary and secondary reference fields have external-link icons for HTTP/HTTPS URLs, opening a new tab.
-Published references remain limited to 255 characters. **Approve** publishes the
-quote, then links and approves its candidate. **Reject** updates only the
+Published references remain limited to 255 characters. **Approve** atomically
+publishes the quote and approves its candidate. **Reject** updates only the
 candidate status, preserving stored text/link rather than draft edits, and does
 not require an author or loaded form options. **Snooze** likewise preserves stored
 text/link and does not require the quote form options. The top-right close button
@@ -74,15 +79,16 @@ Review actions also appear in the fixed title bar and remain visible while
 scrolling. Both copies share validation and saving/retry state; Snooze is only
 available for pending candidates. Create/Edit Quote keep actions at the bottom only.
 
-Publication and candidate approval are separate requests. After partial success,
-the saved form is locked and a retry updates only the candidate; quote rejection
-is disabled once published. Published IDs survive closing/reopening a review
-in the current signed-in page session, not reload/logout. See the root README's
-atomic-promotion TODO for concurrency and ambiguous-response limitations. The
-queue is not reserved across reviewers. Successful publication refreshes sidebar
-names/quotes without changing browsing filters. Candidate backend endpoints remain
-temporarily anonymous with CSRF on writes; this signed-in UI is not an API access
-restriction.
+Promotion runs transactionally on the backend. Candidate-row locks serialize
+concurrent promotions, and retrying an ambiguous request returns the already
+linked published record rather than creating a duplicate. After an ambiguous
+network or server failure, the form locks the submitted fields and retries the
+same payload; reject/snooze are disabled until its outcome is known. A definite
+client error leaves the form editable. The queue is not reserved across reviewers.
+Successful publication refreshes sidebar
+names/quotes without changing browsing filters. Candidate reads, imports, and
+review-field updates remain temporarily anonymous with CSRF on writes; promotion
+endpoints require authentication and CSRF because they create published content.
 
 ## Deleting quotes linked to candidates
 

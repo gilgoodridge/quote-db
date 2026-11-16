@@ -20,6 +20,9 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,6 +74,11 @@ class CandidateControllerTest {
         assertEquals(authorId, first.path("quotes").get(0).path("candidateAuthorId").asLong());
         assertEquals("** Book, page 42.", first.path("quotes").get(0).path("sourceNotes").asText());
         assertFalse(first.path("quotes").get(0).has("candidateAuthor"));
+        var additional = postJson("/api/candidates/batch", Map.of("authors", List.of(),
+                "quotes", List.of(batchQuote("enwikiquote:second:q", "enwikiquote:batch"),
+                        batchQuote("enwikiquote:third:q", "enwikiquote:batch"))));
+        assertEquals("enwikiquote:second:q", additional.path("quotes").get(0).path("importKey").asText());
+        assertEquals("enwikiquote:third:q", additional.path("quotes").get(1).path("importKey").asText());
         mvc.perform(put("/api/candidate-authors/{id}", authorId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fullName\":\"Edited author\",\"status\":\"REJECTED\"}"))
@@ -88,11 +96,6 @@ class CandidateControllerTest {
         assertEquals("Edited quote", retry.path("quotes").get(0).path("text").asText());
         assertEquals("REJECTED", retry.path("quotes").get(0).path("status").asText());
         assertEquals("* ''Original quotation.''", retry.path("quotes").get(0).path("rawWikitext").asText());
-        var additional = postJson("/api/candidates/batch", Map.of("authors", List.of(),
-                "quotes", List.of(batchQuote("enwikiquote:second:q", "enwikiquote:batch"),
-                        batchQuote("enwikiquote:third:q", "enwikiquote:batch"))));
-        assertEquals("enwikiquote:second:q", additional.path("quotes").get(0).path("importKey").asText());
-        assertEquals("enwikiquote:third:q", additional.path("quotes").get(1).path("importKey").asText());
         assertEquals(1, candidateAuthors.count());
         assertEquals(3, candidateQuotes.count());
         assertEquals(0, authors.count());
@@ -291,6 +294,300 @@ class CandidateControllerTest {
                 .andExpect(jsonPath("$.page.totalElements").value(1));
         mvc.perform(get("/api/candidate-quotes/{id}", second))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.candidateAuthorId").value(a));
+    }
+
+    @Test
+    void snoozesEveryQuoteForAnAuthorWithoutChangingTheAuthorOrOtherQuotes() throws Exception {
+        long authorId = postJson("/api/candidate-authors", author("enwikiquote:snooze-author"))
+                .path("id").asLong();
+        long otherAuthorId = postJson("/api/candidate-authors", author("enwikiquote:other-author"))
+                .path("id").asLong();
+        long firstQuoteId = postJson("/api/candidate-quotes", quote("enwikiquote:snooze-one", authorId))
+                .path("id").asLong();
+        postJson("/api/candidate-quotes", quote("enwikiquote:snooze-two", authorId));
+        long otherQuoteId = postJson("/api/candidate-quotes", quote("enwikiquote:other-quote", otherAuthorId))
+                .path("id").asLong();
+        mvc.perform(put("/api/candidate-quotes/{id}", firstQuoteId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Edited quote.\",\"status\":\"REJECTED\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/candidate-authors/{id}/snooze-quotes", authorId))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/candidate-authors/{id}/snooze-quotes", authorId).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+        mvc.perform(get("/api/candidate-authors/{id}", authorId))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+        mvc.perform(get("/api/candidate-quotes").param("candidateAuthorId", Long.toString(authorId))
+                        .param("status", "SNOOZED"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page.totalElements").value(2));
+        mvc.perform(get("/api/candidate-quotes/{id}", firstQuoteId))
+                .andExpect(jsonPath("$.text").value("Edited quote."))
+                .andExpect(jsonPath("$.status").value("SNOOZED"));
+        mvc.perform(get("/api/candidate-quotes/{id}", otherQuoteId))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void promotesNewAndExistingAuthorsIdempotentlyAndRequiresAuthenticationAndCsrf() throws Exception {
+        long newCandidateId = postJson("/api/candidate-authors", author("enwikiquote:promote-new"))
+                .path("id").asLong();
+        var newAuthorRequest = Map.of("fullName", "Promoted Author", "dateOfBirth", "1900-01-01");
+        mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(newAuthorRequest)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId).with(oidcLogin())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(newAuthorRequest)))
+                .andExpect(status().isForbidden());
+
+        var firstPromotion = json.readTree(mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(newAuthorRequest)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.candidate.status").value("APPROVED"))
+                .andReturn().getResponse().getContentAsString());
+        var retryRequest = Map.of("fullName", "Different retry payload", "dateOfBirth", "1950-01-01");
+        var retriedPromotion = json.readTree(mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(retryRequest)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertEquals(firstPromotion.path("candidate").path("publishedAuthorId"),
+                retriedPromotion.path("candidate").path("publishedAuthorId"));
+        assertEquals("Promoted Author", retriedPromotion.path("author").path("fullName").asText());
+        assertEquals(1, authors.count());
+
+        var existing = new Author("Existing Author");
+        existing.setDateOfBirth(LocalDate.of(1920, 1, 1));
+        existing = authors.saveAndFlush(existing);
+        long linkCandidateId = postJson("/api/candidate-authors", author("enwikiquote:promote-link"))
+                .path("id").asLong();
+        long existingId = existing.getId();
+        var linkRequest = Map.of("publishedAuthorId", existingId);
+        mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(linkRequest)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId).with(oidcLogin())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(linkRequest)))
+                .andExpect(status().isForbidden());
+        var linked = mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(linkRequest)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.candidate.status").value("APPROVED"))
+                .andReturn().getResponse().getContentAsString();
+        mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("publishedAuthorId", firstPromotion
+                                .path("author").path("id").asLong()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.author.id").value(existingId));
+        assertEquals(existingId, json.readTree(linked).path("author").path("id").asLong());
+        assertEquals(2, authors.count());
+
+        long previouslyLinkedId = postJson("/api/candidate-authors", author("enwikiquote:previously-linked"))
+                .path("id").asLong();
+        mvc.perform(put("/api/candidate-authors/{id}", previouslyLinkedId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                                "fullName", "Existing Author", "status", "PENDING", "publishedAuthorId", existingId))))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/candidate-authors/{id}/link", previouslyLinkedId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(linkRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.candidate.status").value("APPROVED"))
+                .andExpect(jsonPath("$.author.id").value(existingId));
+    }
+
+    @Test
+    void atomicallyPromotesQuotesIdempotentlyAndRejectsPromotionAfterRejection() throws Exception {
+        long authorId = postJson("/api/candidate-authors", author("enwikiquote:quote-promote-parent"))
+                .path("id").asLong();
+        Author publishedAuthor = new Author("Quote Author");
+        publishedAuthor.setDateOfBirth(LocalDate.of(1900, 1, 1));
+        publishedAuthor = authors.saveAndFlush(publishedAuthor);
+        long candidateQuoteId = postJson("/api/candidate-quotes",
+                quote("enwikiquote:quote-promote", authorId)).path("id").asLong();
+        var request = Map.of("text", "Promoted quotation.", "authorId", publishedAuthor.getId());
+
+        mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId).with(oidcLogin())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+        var first = json.readTree(mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(request)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.candidate.status").value("APPROVED"))
+                .andReturn().getResponse().getContentAsString());
+        var differentRetry = Map.of("text", "Different retry payload.", "authorId", publishedAuthor.getId());
+        var retry = json.readTree(mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(differentRetry)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertEquals(first.path("quote").path("id"), retry.path("quote").path("id"));
+        assertEquals("Promoted quotation.", retry.path("quote").path("text").asText());
+        assertEquals("Promoted quotation.", retry.path("candidate").path("text").asText());
+        assertEquals(1, quotes.count());
+
+        long previouslyLinkedQuoteId = postJson("/api/candidate-quotes",
+                quote("enwikiquote:previously-linked-quote", authorId)).path("id").asLong();
+        mvc.perform(put("/api/candidate-quotes/{id}", previouslyLinkedQuoteId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                                "text", "Promoted quotation.", "status", "PENDING",
+                                "publishedQuoteId", first.path("quote").path("id").asLong()))))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/candidate-quotes/{id}/promote", previouslyLinkedQuoteId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(differentRetry)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.candidate.status").value("APPROVED"))
+                .andExpect(jsonPath("$.quote.id").value(first.path("quote").path("id").asLong()));
+
+        long afterRejectionId = postJson("/api/candidate-quotes",
+                quote("enwikiquote:quote-after-author-rejection", authorId)).path("id").asLong();
+        mvc.perform(post("/api/candidate-authors/{id}/reject", authorId).with(csrf()))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/candidate-quotes/{id}", afterRejectionId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Still staged.\",\"status\":\"PENDING\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/candidate-quotes/{id}/promote", afterRejectionId).with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
+                .andExpect(status().isConflict());
+        assertPostStatus("/api/candidate-quotes", quote("enwikiquote:quote-import-after-rejection", authorId), 409);
+        assertEquals(1, quotes.count());
+    }
+
+    @Test
+    void rollsBackPublishedRecordWhenCandidatePromotionCannotComplete() throws Exception {
+        long candidateAuthorId = postJson("/api/candidate-authors", author("enwikiquote:rollback-author"))
+                .path("id").asLong();
+        jdbc.execute("ALTER TABLE candidate_authors ADD CONSTRAINT block_author_promotion CHECK (status <> 'APPROVED')");
+        try {
+            var request = Map.of("fullName", "Must Roll Back", "dateOfBirth", "1900-01-01");
+            assertThrows(jakarta.servlet.ServletException.class, () ->
+                    mvc.perform(post("/api/candidate-authors/{id}/promote", candidateAuthorId)
+                                    .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                                    .content(json.writeValueAsString(request))));
+            assertEquals(0, authors.count());
+            mvc.perform(get("/api/candidate-authors/{id}", candidateAuthorId))
+                    .andExpect(jsonPath("$.status").value("PENDING"))
+                    .andExpect(jsonPath("$.publishedAuthorId").doesNotExist());
+        } finally {
+            jdbc.execute("ALTER TABLE candidate_authors DROP CONSTRAINT block_author_promotion");
+        }
+
+        long publishedAuthorId;
+        var publishedAuthor = new Author("Quote Rollback Author");
+        publishedAuthor.setDateOfBirth(LocalDate.of(1900, 1, 1));
+        publishedAuthorId = authors.saveAndFlush(publishedAuthor).getId();
+        long candidateQuoteId = postJson("/api/candidate-quotes",
+                quote("enwikiquote:rollback-quote", candidateAuthorId)).path("id").asLong();
+        jdbc.execute("ALTER TABLE candidate_quotes ADD CONSTRAINT block_quote_promotion CHECK (status <> 'APPROVED')");
+        try {
+            var request = Map.of("text", "Must roll back.", "authorId", publishedAuthorId);
+            assertThrows(jakarta.servlet.ServletException.class, () ->
+                    mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId)
+                                    .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                                    .content(json.writeValueAsString(request))));
+            assertEquals(0, quotes.count());
+            mvc.perform(get("/api/candidate-quotes/{id}", candidateQuoteId))
+                    .andExpect(jsonPath("$.status").value("PENDING"))
+                    .andExpect(jsonPath("$.publishedQuoteId").doesNotExist());
+        } finally {
+            jdbc.execute("ALTER TABLE candidate_quotes DROP CONSTRAINT block_quote_promotion");
+        }
+    }
+
+    @Test
+    void concurrentAuthorPromotionsReturnTheSamePublishedAuthor() throws Exception {
+        long candidateId = postJson("/api/candidate-authors", author("enwikiquote:concurrent-author"))
+                .path("id").asLong();
+        var request = json.writeValueAsString(Map.of("fullName", "Concurrent Author", "dateOfBirth", "1900-01-01"));
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> promoteAuthorConcurrently(candidateId, request, start));
+            var second = executor.submit(() -> promoteAuthorConcurrently(candidateId, request, start));
+            start.countDown();
+            var firstResponse = first.get(10, TimeUnit.SECONDS);
+            var secondResponse = second.get(10, TimeUnit.SECONDS);
+            assertEquals(firstResponse.path("author").path("id"), secondResponse.path("author").path("id"));
+            assertEquals(1, authors.count());
+            assertEquals(1, candidateAuthors.count());
+        }
+    }
+
+    @Test
+    void concurrentQuotePromotionsReturnTheSamePublishedQuote() throws Exception {
+        long candidateAuthorId = postJson("/api/candidate-authors", author("enwikiquote:concurrent-quote-author"))
+                .path("id").asLong();
+        Author publishedAuthor = new Author("Concurrent Quote Author");
+        publishedAuthor.setDateOfBirth(LocalDate.of(1900, 1, 1));
+        long publishedAuthorId = authors.saveAndFlush(publishedAuthor).getId();
+        long candidateQuoteId = postJson("/api/candidate-quotes",
+                quote("enwikiquote:concurrent-quote", candidateAuthorId)).path("id").asLong();
+        var request = json.writeValueAsString(Map.of("text", "Concurrent quote.", "authorId", publishedAuthorId));
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> promoteQuoteConcurrently(candidateQuoteId, request, start));
+            var second = executor.submit(() -> promoteQuoteConcurrently(candidateQuoteId, request, start));
+            start.countDown();
+            var firstResponse = first.get(10, TimeUnit.SECONDS);
+            var secondResponse = second.get(10, TimeUnit.SECONDS);
+            assertEquals(firstResponse.path("quote").path("id"), secondResponse.path("quote").path("id"));
+            assertEquals(1, quotes.count());
+        }
+    }
+
+    private JsonNode promoteAuthorConcurrently(long candidateId, String request, CountDownLatch start)
+            throws Exception {
+        assertTrue(start.await(5, TimeUnit.SECONDS));
+        var response = mvc.perform(post("/api/candidate-authors/{id}/promote", candidateId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return json.readTree(response);
+    }
+
+    private JsonNode promoteQuoteConcurrently(long candidateId, String request, CountDownLatch start)
+            throws Exception {
+        assertTrue(start.await(5, TimeUnit.SECONDS));
+        var response = mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateId)
+                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return json.readTree(response);
+    }
+
+    @Test
+    void rejectsCandidateAuthorAndAllItsQuotesWithoutDeletingQuoteData() throws Exception {
+        var publishedAuthor = new Author("Published Author");
+        publishedAuthor.setDateOfBirth(LocalDate.of(1900, 1, 1));
+        publishedAuthor = authors.saveAndFlush(publishedAuthor);
+        long publishedQuoteId = quotes.saveAndFlush(new Quote("Published quote.", publishedAuthor)).getId();
+        long authorId = postJson("/api/candidate-authors", author("enwikiquote:reject-author"))
+                .path("id").asLong();
+        long linkedQuoteId = postJson("/api/candidate-quotes", quote("enwikiquote:reject-one", authorId))
+                .path("id").asLong();
+        long otherQuoteId = postJson("/api/candidate-quotes", quote("enwikiquote:reject-other", authorId))
+                .path("id").asLong();
+        mvc.perform(put("/api/candidate-quotes/{id}", linkedQuoteId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                                "text", "Reviewed quote.", "status", "APPROVED",
+                                "publishedQuoteId", publishedQuoteId))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/candidate-authors/{id}/reject", authorId).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+        mvc.perform(get("/api/candidate-quotes").param("candidateAuthorId", Long.toString(authorId))
+                        .param("status", "REJECTED"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page.totalElements").value(2));
+        mvc.perform(get("/api/candidate-quotes/{id}", linkedQuoteId))
+                .andExpect(jsonPath("$.text").value("Reviewed quote."))
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.publishedQuoteId").value(publishedQuoteId));
+        mvc.perform(get("/api/candidate-quotes/{id}", otherQuoteId))
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+        assertTrue(quotes.existsById(publishedQuoteId));
     }
 
     @Test

@@ -10,9 +10,11 @@ function normalizeName(name) {
   return name?.trim().toLocaleLowerCase()
 }
 
-function ExistingAuthorDialog({candidateName, authors, status, error, onRetry, onClose, onUse, onCreate, onView, linkingAuthorId, linkError}) {
+function ExistingAuthorDialog({candidateName, authors, status, error, onRetry, onClose, onUse, onCreate, onView, onSnooze, onReject, linkingAuthorId, linkError}) {
   const dialogRef = useRef(null)
   const creatingNewAuthorRef = useRef(false)
+  const [decision, setDecision] = useState('')
+  const [decisionError, setDecisionError] = useState('')
 
   useEffect(() => {
     dialogRef.current.showModal()
@@ -22,6 +24,19 @@ function ExistingAuthorDialog({candidateName, authors, status, error, onRetry, o
     creatingNewAuthorRef.current = true
     dialogRef.current.close()
     onCreate()
+  }
+
+  async function decide(action, label) {
+    if (decision || linkingAuthorId != null) return
+    setDecision(label)
+    setDecisionError('')
+    try {
+      await action()
+    } catch (failure) {
+      setDecisionError(`Unable to ${label.toLowerCase()}: ${failure.message}`)
+    } finally {
+      setDecision('')
+    }
   }
 
   return (
@@ -34,7 +49,7 @@ function ExistingAuthorDialog({candidateName, authors, status, error, onRetry, o
       }}
       onCancel={(event) => {
         event.preventDefault()
-        if (linkingAuthorId == null) dialogRef.current.close()
+        if (linkingAuthorId == null && !decision) dialogRef.current.close()
       }}
     >
       <DialogHeader
@@ -43,9 +58,9 @@ function ExistingAuthorDialog({candidateName, authors, status, error, onRetry, o
           ? 'Checking existing authors'
           : status === 'error' ? 'Unable to search authors' : 'Existing author found'}
         closeLabel="Close author lookup"
-        disabled={linkingAuthorId != null}
+        disabled={linkingAuthorId != null || Boolean(decision)}
         onClose={() => {
-          if (linkingAuthorId == null) dialogRef.current.close()
+          if (linkingAuthorId == null && !decision) dialogRef.current.close()
         }}
         autoFocus
       />
@@ -77,10 +92,21 @@ function ExistingAuthorDialog({candidateName, authors, status, error, onRetry, o
             </ul>
             {linkError && <p className="add-quote-error" role="alert">{linkError}</p>}
             <div className="add-quote-actions">
-              <button type="button" onClick={createNewAuthor} disabled={linkingAuthorId != null}>Create a new author</button>
+              <button type="button" onClick={createNewAuthor} disabled={linkingAuthorId != null || Boolean(decision)}>Create a new author</button>
             </div>
           </>
         )}
+        {decisionError && <p className="add-quote-error" role="alert">{decisionError}</p>}
+        <div className="add-quote-actions">
+          <button type="button" disabled={linkingAuthorId != null || Boolean(decision)}
+            onClick={() => decide(onSnooze, 'Snooze quotes')}>
+            {decision === 'Snooze quotes' ? 'Snoozing quotes...' : 'Snooze quotes'}
+          </button>
+          <button type="button" disabled={linkingAuthorId != null || Boolean(decision)}
+            onClick={() => decide(onReject, 'Reject author and quotes')}>
+            {decision === 'Reject author and quotes' ? 'Rejecting author and quotes...' : 'Reject author and quotes'}
+          </button>
+        </div>
       </div>
     </dialog>
   )
@@ -97,6 +123,16 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
   const [linkingAuthorId, setLinkingAuthorId] = useState(null)
   const [linkError, setLinkError] = useState('')
   const [viewedAuthorId, setViewedAuthorId] = useState(null)
+
+  async function snoozeAuthor() {
+    await api.candidateAuthors.snoozeQuotes(candidateAuthor.id)
+    onCompleted('Candidate author quotes snoozed.', 'PENDING')
+  }
+
+  async function rejectAuthor() {
+    await api.candidateAuthors.reject(candidateAuthor.id)
+    onCompleted('Candidate author and quotes rejected.', 'PENDING')
+  }
 
   useEffect(() => {
     if (!reviewAuthor || publishedAuthor) return
@@ -117,15 +153,11 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
     if (linkingAuthorId != null) return
     setLinkingAuthorId(author.id)
     setLinkError('')
-    progress.authors.set(candidateAuthor.id, author)
-    setPublishedAuthor(author)
     try {
-      await api.candidateAuthors.update(candidateAuthor.id, {
-        fullName: author.fullName,
-        status: 'APPROVED',
-        publishedAuthorId: author.id,
-      })
-      setAuthorId(author.id)
+      const result = await api.candidateAuthors.link(candidateAuthor.id, author.id)
+      progress.authors.set(candidateAuthor.id, result.author)
+      setPublishedAuthor(result.author)
+      setAuthorId(result.author.id)
       setReviewAuthor(false)
       onCountsChanged()
     } catch (failure) {
@@ -136,35 +168,22 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
   }
 
   async function saveAuthor(request) {
-    let author = progress.authors.get(candidateAuthor.id)
-    if (!author) {
-      author = await api.authors.create(request)
-      progress.authors.set(candidateAuthor.id, author)
-      setPublishedAuthor(author)
-      onAuthorCreated?.(author)
-    }
-    await api.candidateAuthors.update(candidateAuthor.id, {
-      fullName: author.fullName,
-      status: 'APPROVED',
-      publishedAuthorId: author.id,
-    })
+    const result = await api.candidateAuthors.promote(candidateAuthor.id, request)
+    const author = result.author
+    progress.authors.set(candidateAuthor.id, author)
+    setPublishedAuthor(author)
+    onAuthorCreated?.(author)
     onCountsChanged()
     return author
   }
 
   async function approve(request) {
-    let quote = progress.quotes.get(candidate.id)
-    if (!quote) {
-      quote = await api.quotes.create(request)
-      progress.quotes.set(candidate.id, quote)
-      setPublishedQuote(quote)
-      onQuoteCreated?.(quote)
-    }
-    await api.candidateQuotes.update(candidate.id, {
-      text: quote.text,
-      status: 'APPROVED',
-      publishedQuoteId: quote.id,
-    })
+    const result = await api.candidateQuotes.promote(candidate.id, request)
+    const quote = result.quote
+    progress.quotes.set(candidate.id, quote)
+    setPublishedQuote(quote)
+    onQuoteCreated?.(quote)
+    onCountsChanged()
     return quote
   }
 
@@ -175,6 +194,8 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
           initialValues={publishedAuthor ?? {fullName: candidateAuthor.fullName}}
           publishedAuthor={publishedAuthor}
           onSave={saveAuthor}
+          onSnooze={snoozeAuthor}
+          onReject={rejectAuthor}
           onClose={() => setReviewAuthor(false)}
           onCreated={(author) => {
             setAuthorId(author.id)
@@ -196,6 +217,8 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
           }}
           onClose={() => setReviewAuthor(false)}
           onUse={useExistingAuthor}
+          onSnooze={snoozeAuthor}
+          onReject={rejectAuthor}
           onCreate={() => setAuthorLookup({status: 'none', authors: [], error: ''})}
           onView={setViewedAuthorId}
           linkingAuthorId={linkingAuthorId}

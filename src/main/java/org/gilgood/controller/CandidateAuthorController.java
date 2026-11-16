@@ -48,4 +48,34 @@ public class CandidateAuthorController {
                                            @Valid @RequestBody UpdateCandidateAuthorRequest request) {
         return candidates.updateAuthor(id, request);
     }
+
+    @PostMapping("/{id}/snooze-quotes")
+    @Operation(summary = "Snooze all quotes linked to a candidate author",
+            description = "Sets all linked candidate quote statuses to SNOOZED without changing the author.")
+    public CandidateAuthorResponse snoozeQuotes(@PathVariable Long id) {
+        return candidates.snoozeAuthorQuotes(id);
+    }
+
+    @PostMapping("/{id}/reject")
+    @Operation(summary = "Reject a candidate author and all linked quotes",
+            description = "Sets the author and all linked candidate quote statuses to REJECTED without deleting data.")
+    public CandidateAuthorResponse reject(@PathVariable Long id) {
+        return candidates.rejectAuthorAndQuotes(id);
+    }
+
+    @PostMapping("/{id}/promote")
+    @Operation(summary = "Create and link a published author atomically",
+            description = "Creates the author and approves the candidate in one transaction. Repeated calls return the existing promotion.")
+    public CandidateAuthorPromotionResponse promote(@PathVariable Long id,
+                                                    @Valid @RequestBody CreateAuthorRequest request) {
+        return candidates.promoteNewAuthor(id, request);
+    }
+
+    @PostMapping("/{id}/link")
+    @Operation(summary = "Link an existing published author atomically",
+            description = "Links and approves the candidate in one transaction. Repeated calls return the existing promotion.")
+    public CandidateAuthorPromotionResponse link(@PathVariable Long id,
+                                                 @Valid @RequestBody LinkCandidateAuthorRequest request) {
+        return candidates.promoteExistingAuthor(id, request);
+    }
 }

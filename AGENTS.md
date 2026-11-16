@@ -12,10 +12,10 @@
 
 - V9 introduces CandidateAuthor and CandidateQuote in separate staging tables.
   Keep candidate content out of published author/quote queries and UI.
-- `/api/candidate-authors` and `/api/candidate-quotes` currently permit anonymous
-  reads and writes by explicit request. Preserve CSRF on mutations and existing
-  authentication requirements for published-content endpoints. Admin authorization
-  is deferred; do not describe candidate endpoints as admin-restricted.
+- Candidate reads, imports and review-field updates permit anonymous access by
+  explicit request. Preserve CSRF on mutations. Promotion endpoints require
+  authentication because they create published content. Admin authorization is
+  deferred; do not describe candidate endpoints as admin-restricted.
 - POST imports one candidate, with a lowercase ASCII stable importKey unique
   per candidate type. Repeat keys return stored DTOs unchanged, preserving rejected
   state, edits and original provenance. Conflicting source/page or quote parent
@@ -33,6 +33,16 @@
   raw wikitext and optional source notes. These and candidate quote parent are
   immutable. CandidateRecord and ImportCandidateRequest share provenance fields;
   CandidateMapper uses MapStruct for conversion, and CandidateService owns transactions.
+- POST `/api/candidate-authors/{id}/promote` creates and links a published Author
+  from CreateAuthorRequest and approves the candidate in one transaction.
+  POST `/{id}/link` links an existing published author. POST
+  `/api/candidate-quotes/{id}/promote` creates and links a Quote from
+  CreateQuoteRequest and approves the candidate atomically. These endpoints
+  require authentication and CSRF; pessimistic candidate-row locks serialize
+  retries/concurrent requests, returning the existing linked DTO without
+  duplicate publication. Quote promotion also locks its candidate author and
+  fails with 409 if that author was rejected. Rejecting an author rejects every
+  linked quote; later imports for rejected authors conflict.
 - GET/HEAD lists use existing Pagination/PagedModel, ID ascending and optional
   status; quotes additionally filter candidateAuthorId with AND in the database.
 - PUT fully replaces review name/text, required PENDING/APPROVED/REJECTED status
@@ -62,24 +72,25 @@
   the same form through its form ID. Create/edit keep footer-only actions.
   Approved candidate authors preselect their publication link; otherwise prompt
   for author creation (including required birth date). Closing leaves author empty.
-  Author Save and quote Approve publish first, then PUT the candidate with the
-  saved name/text, APPROVED status and publication ID. Reject updates only stored
-  quote review fields/status; closing makes no candidate quote changes.
+  Author Save and quote Approve call the corresponding atomic promotion API.
+  Existing-author selection uses atomic author linking. After an ambiguous
+  network/5xx failure, promotion retries submit the same locked form payload;
+  definite client errors leave the form editable. Backend idempotency recovers
+  a successful commit even when its response was lost. Reject updates only
+  stored quote review fields/status; closing makes no candidate quote changes.
   Snooze updates only the candidate status, preserving stored quote text/link,
   then continues the pending queue. Successful quote approval/rejection
   automatically fetches and opens the next item from the queue being reviewed;
   cancellation and failed mutations never advance the queue.
-  Separate writes are nontransactional: retain successful published records in
-  memory across dialog closes, lock saved forms and retry only candidate approval.
   Do not allow rejecting a quote after publication from the review form; the
   explicit quote-deletion recovery above is separate. Reload/logout and concurrent
-  reviewers still need backend transactional/idempotent promotion (README TODO).
+  reviewers still do not reserve queue items, but transactional/idempotent
+  promotion prevents duplicate publication.
   ExternalLink allows only HTTP/HTTPS and opens references with noopener/noreferrer.
 - Quotes have optional `primaryReference` and `secondaryReference` (double-sourcing; neither is
   required). Flyway V10 renamed `reference` to `primary_reference`, preserving data, and added
   `secondary_reference`. Candidate tables are unchanged; candidate sourceUrl prefills the primary.
-- No candidate DELETE, backend promotion validation, matching or enrichment
-  yet. CandidateControllerTest exercises
+- No candidate DELETE, automatic matching or enrichment yet. CandidateControllerTest exercises
   H2-backed endpoints with OSIV disabled; CandidateMigrationTest verifies V9.
 
 ## DTO-to-Entity Mapping Strategy
