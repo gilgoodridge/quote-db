@@ -135,6 +135,22 @@
   gap: 8px;
 }
 
+.author-date-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.author-date-controls input {
+  flex: 1;
+  min-width: 0;
+}
+
+.author-date-controls button {
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+
 .quote-category-fields {
   margin-top: 20px;
 }

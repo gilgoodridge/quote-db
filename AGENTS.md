@@ -8,6 +8,36 @@
   keep shared behavior consistent. Update `AGENTS.md` when architecture,
   conventions or implementation guidance changes.
 
+## AI Editorial Lookups
+
+- Shared AddAuthorDialog exposes draft-only Gemini lookup beside Date of birth/death
+  for create/edit/review. Single POST `/api/ai/lookups` requires login and CSRF,
+  accepts `{type, context}`, and never writes published/candidate content.
+  AiLookupRequest.Type permits AUTHOR_DATE_OF_BIRTH and AUTHOR_DATE_OF_DEATH, requiring
+  nonblank context.fullName (255 max); missing/unsupported types or invalid
+  context return 400 before any provider call. No client-supplied prompts.
+- AiLookupController owns the shared endpoint; AiLookupService dispatches
+  server-defined types and owns prompts/result validation/normalization.
+  Add future author/quote lookup types here without controllers/routes per
+  field. Keep context structured and validated as supported types expand.
+  AiLookupResponse uses FOUND with a normalized string value or UNKNOWN.
+- GeminiClient handles provider transport only, using backend-only `GEMINI_API_KEY`;
+  optional `GEMINI_MODEL` defaults to free-tier-capable `gemini-3.5-flash-lite`.
+  Missing credentials must not prevent startup or manual entry. Do not expose
+  keys/provider response bodies, retry automatically, or fall back to paid models.
+- Prompt requests an exact MM/DD/YYYY at 99.9% confidence or IDK, with explicit
+  abstention for ambiguity/incomplete dates. This is not a calibrated accuracy
+  guarantee. Validate strict calendar/nonfuture dates; return FOUND plus ISO
+  date in value or UNKNOWN. Invalid/blocked/truncated output is an explicit error.
+- Death-date prompt abstains for living authors/unconfirmed deaths and forbids
+  burial-date substitution or prediction. Both date lookups share strict parsing
+  and UI handlers; only the selected field changes, death date stays optional,
+  and a pending lookup prevents starting either lookup again.
+- Preserve draft dates on uncertainty/errors. Disable fields/saves/review
+  mutations during lookup, allow dismissal, ignore responses after unmount,
+  and preserve published-author/promotion-retry locks. Suggestions require
+  manual verification and normal Save; never automatically publish.
+
 ## Candidate Staging
 
 - V9 introduces CandidateAuthor and CandidateQuote in separate staging tables.

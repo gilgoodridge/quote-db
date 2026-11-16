@@ -207,6 +207,32 @@ cancelled. Editing replaces all details and clears optional fields left empty.
 Keep visible retryable errors, failed drafts, focus restoration and saving guards.
 Use theme variables and wrapping so dialogs remain usable on narrow screens.
 
+Create, edit and review author forms have **Look up with AI** beside Date of
+birth and Date of death. Enter a full name, then click to request a Gemini suggestion through
+`api.ai.lookup(type, {fullName})`, using `AUTHOR_DATE_OF_BIRTH` or
+`AUTHOR_DATE_OF_DEATH` (`POST /api/ai/lookups`,
+session cookies and fresh CSRF required). Requests use `{type, context}`; replies
+use `{status: 'FOUND', value: 'YYYY-MM-DD'}` or `{status: 'UNKNOWN'}`.
+Only the name is sent to Google, via the backend. The single typed endpoint is
+shared infrastructure for future author/quote lookups; unsupported types return 400.
+A found date populates only the selected editable date field without saving or
+changing the other date. Date of death remains optional. Living authors and
+unconfirmed deaths should return UNKNOWN, never predicted or burial dates.
+Verify suggestions before
+saving, since the prompt's 99.9% confidence request is not an accuracy guarantee.
+If Gemini is unsure, the dialog says so and leaves the date unchanged. Quota,
+configuration, network and provider/response failures are visible and retryable
+without losing the draft. During lookup, fields, Save and review mutations are
+disabled, but Close/Cancel still work; responses after unmount are ignored.
+Published-author and ambiguous-promotion-retry locks also disable lookup.
+
+Set `GEMINI_API_KEY` only in the backend environment, never in `VITE_*` variables
+or source control, and restart the backend. The default is the free-tier-capable
+`gemini-3.5-flash-lite`; `GEMINI_MODEL` can override it server-side. Manual entry
+works without configuration. Free-tier usage is quota-limited and Google may
+use submitted names to improve its products; billing-enabled projects follow
+Google's pricing. See the root README for setup and endpoint/error details.
+
 Signed-in users can create characters from the quote form and edit them from
 details. The sidebar lists and filters characters but does not offer creation.
 `AddCharacterDialog` requires a full name (255 characters

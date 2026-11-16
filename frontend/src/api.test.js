@@ -6,6 +6,46 @@ import {categorySelections} from './quoteCategories.js'
 
 const originalFetch = globalThis.fetch
 
+test('birth-date lookup sends the name with session cookies and a fresh CSRF token', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return new Response(JSON.stringify(url.endsWith('/csrf')
+      ? {headerName: 'X-CSRF-TOKEN', token: 'lookup-token'}
+      : {status: 'FOUND', value: '1775-12-16'}))
+  }
+  assert.deepEqual(await api.ai.lookup('AUTHOR_DATE_OF_BIRTH', {fullName: 'Jane Austen'}),
+    {status: 'FOUND', value: '1775-12-16'})
+  assert.deepEqual(calls.map(({url}) => url), ['/api/auth/csrf', '/api/ai/lookups'])
+  assert.equal(calls[1].options.method, 'POST')
+  assert.equal(calls[1].options.headers['X-CSRF-TOKEN'], 'lookup-token')
+  assert.deepEqual(JSON.parse(calls[1].options.body),
+    {type: 'AUTHOR_DATE_OF_BIRTH', context: {fullName: 'Jane Austen'}})
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+  globalThis.fetch = async (url) => url.endsWith('/csrf')
+    ? new Response('{"headerName":"X-CSRF-TOKEN","token":"fresh"}')
+    : new Response('Gemini quota exceeded', {status: 429})
+  await assert.rejects(api.ai.lookup('AUTHOR_DATE_OF_BIRTH', {fullName: 'Jane Austen'}), /Gemini quota exceeded/)
+})
+
+test('death-date lookup reuses the typed endpoint with CSRF and session cookies', async () => {
+  const calls = []
+  globalThis.fetch = async (url, options) => {
+    calls.push({url, options})
+    return new Response(JSON.stringify(url.endsWith('/csrf')
+      ? {headerName: 'X-CSRF-TOKEN', token: 'death-token'}
+      : {status: 'FOUND', value: '1817-07-18'}))
+  }
+  assert.deepEqual(await api.ai.lookup('AUTHOR_DATE_OF_DEATH', {fullName: 'Jane Austen'}),
+    {status: 'FOUND', value: '1817-07-18'})
+  assert.deepEqual(calls.map(({url}) => url), ['/api/auth/csrf', '/api/ai/lookups'])
+  assert.equal(calls[1].options.method, 'POST')
+  assert.equal(calls[1].options.headers['X-CSRF-TOKEN'], 'death-token')
+  assert.deepEqual(JSON.parse(calls[1].options.body),
+    {type: 'AUTHOR_DATE_OF_DEATH', context: {fullName: 'Jane Austen'}})
+  assert.ok(calls.every(({options}) => options.credentials === 'include'))
+})
+
 test('candidate review reads the pending queue and candidate author with session cookies', async () => {
   const calls = []
   globalThis.fetch = async (url, options) => {

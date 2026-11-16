@@ -249,6 +249,52 @@ heuristics. DTOs expose related IDs, never ORM entities or collections.
   ```
 - `DELETE /api/authors/{id}` - Delete author
 
+**AI editorial lookups:** `POST /api/ai/lookups` is the single lookup endpoint for
+editor/reviewer suggestions. It requires login and CSRF, never saves content,
+and does not cache responses. Select a server-defined `type` and supply structured
+`context`; clients cannot supply prompts. Supports `AUTHOR_DATE_OF_BIRTH` and
+`AUTHOR_DATE_OF_DEATH`, both with required nonblank `context.fullName` (255 characters max):
+
+```json
+{
+  "type": "AUTHOR_DATE_OF_BIRTH",
+  "context": {"fullName": "Jane Austen"}
+}
+```
+
+Returns `{"status":"FOUND","value":"1775-12-16"}` or `{"status":"UNKNOWN"}`.
+Dates use ISO `YYYY-MM-DD` in the generic string `value`. Missing/unsupported
+types and invalid context return **400** before contacting Gemini.
+`AiLookupController` handles the API, `AiLookupService` owns server-defined
+prompts and type-specific validation/normalization, and `GeminiClient` owns
+provider transport/error handling. Add future author/quote lookup types through
+this same contract rather than new controllers/routes. For death dates, send
+`AUTHOR_DATE_OF_DEATH`; a found date uses the same ISO string `value`.
+
+**Optional Gemini date lookups:** Set `GEMINI_API_KEY` in the backend process
+environment (local run configuration or production service environment), then
+restart the backend. Create a key in [Google AI Studio](https://aistudio.google.com/api-keys).
+Never commit the key or put it in `VITE_*` variables. Without a key, the app still
+starts and manual author entry works; lookup returns a visible **503** configuration error.
+`GEMINI_MODEL` optionally overrides the default `gemini-3.5-flash-lite`, a
+low-cost stable model with [free-tier input/output](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite).
+Use a free-tier project to stay within free allowances; billing-enabled projects
+follow Google's pricing. There is no automatic paid-model fallback, grounding,
+or retry. Each click sends the entered full name to Google; free-tier requests
+may be used by Google to improve its products.
+
+The backend asks for an exact `MM/DD/YYYY` birth/death date at 99.9% confidence, or
+`IDK` for uncertainty, ambiguous identities, or incomplete/disputed dates.
+Death-date lookup also returns UNKNOWN for living authors or unconfirmed deaths;
+it must never predict a death or substitute a burial date.
+Only a strictly valid, nonfuture date is returned as ISO `YYYY-MM-DD`; malformed,
+blocked or truncated output is an error, not uncertainty. **This prompt does not
+provide a calibrated 99.9% accuracy guarantee: verify suggestions before saving.**
+Quota/rate-limit failures return **429**; provider/key/model/response errors return
+**502**, and network/timeout failures **504**, with safe visible messages.
+Connections time out after 10 seconds and responses after 30 seconds; provider
+response bodies and API keys are never forwarded to the browser.
+
 The optional `query` searches **fullName or knownAs** using case-insensitive substring
 matching; for example, `/api/authors?query=shake` finds William Shakespeare,
 and `/api/authors?query=twain` finds Samuel Langhorne Clemens by his alias Mark Twain.
@@ -622,6 +668,13 @@ the author form prefilled for editing; saving sends a full replacement, so
 clearing optional fields removes them. Failed saves preserve the draft.
 Create/edit/review author forms use asterisks for required full name and birth
 date, with label hovertext for field guidance instead of an introductory paragraph.
+**Look up with AI** beside Date of birth and Date of death uses the current full
+name in all three forms. Each suggestion populates only its own editable draft
+field, never saves it, and leaves the other date unchanged. Date of death remains optional.
+Uncertainty and errors leave any existing date unchanged and are shown in the
+dialog. Form edits, saves and review mutations are disabled while looking up;
+closing/cancelling remains available and late responses are ignored. Lookup is
+also disabled for locked promotion retries or already-published review authors.
 Known as remains the display name when provided. Saving a new author publishes
 it immediately, even if the surrounding quote form is later cancelled.
 Character create/edit forms follow the same presentation, requiring only full

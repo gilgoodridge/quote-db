@@ -97,6 +97,13 @@ class SecurityConfigTest {
     }
 
     @Test
+    void aiLookupRequiresLoginAndCsrf() throws Exception {
+        mvc.perform(post("/api/ai/lookups").with(csrf())).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/ai/lookups").with(oidcLogin())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/ai/lookups").with(oidcLogin()).with(csrf())).andExpect(status().isOk());
+    }
+
+    @Test
     void credentialedCorsAllowsOnlyConfiguredOrigins() throws Exception {
         mvc.perform(options("/api/authors").header("Origin", "http://localhost:5173")
                         .header("Access-Control-Request-Method", "POST")
@@ -134,7 +141,8 @@ class SecurityConfigTest {
 
     @RestController
     static class Resources {
-        @RequestMapping(value = {"/api/authors", "/api/authors/1", "/api/quotes", "/api/quotes/1", "/api/categories"},
+        @RequestMapping(value = {"/api/authors", "/api/authors/1", "/api/ai/lookups",
+                "/api/quotes", "/api/quotes/1", "/api/categories"},
                 produces = MediaType.APPLICATION_JSON_VALUE)
         String resource() {
             return "[]";

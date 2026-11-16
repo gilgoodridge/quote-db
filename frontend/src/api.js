@@ -115,6 +115,13 @@ export function getLoginReturnState(href) {
 }
 
 export const api = {
+  ai: {
+    lookup: (type, context) => requestJson('/ai/lookups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({type, context}),
+    }),
+  },
   candidateAuthors: {
     pendingCount: async () => (await api.candidateAuthors.listPage({status: 'PENDING', page: 0, size: 1})).page.totalElements,
     listPage: async ({status = 'PENDING', page = 0, size = 1} = {}) => {
