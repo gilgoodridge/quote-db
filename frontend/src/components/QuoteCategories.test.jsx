@@ -74,6 +74,36 @@ async function ready() {
 }
 
 describe('quote category editing', () => {
+  it('searches quote text as an exact phrase and location as a regular Google query', async () => {
+    renderForm({quote})
+    await ready()
+
+    const textSearch = screen.getByRole('link', {name: 'Search Google for quote text'})
+    const locationSearch = screen.getByRole('link', {name: 'Search Google for location'})
+    expect(new URL(textSearch.href).searchParams.get('q')).toBe('"A categorized quote"')
+    expect(new URL(locationSearch.href).searchParams.get('q')).toBe('Act 1')
+    expect(textSearch.target).toBe('_blank')
+    expect(textSearch.rel).toBe('noopener noreferrer')
+
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'New exact phrase'}})
+    fireEvent.change(screen.getByLabelText('Location'), {target: {value: 'Chapter 2, Scene 3'}})
+    expect(new URL(textSearch.href).searchParams.get('q')).toBe('"New exact phrase"')
+    expect(new URL(locationSearch.href).searchParams.get('q')).toBe('Chapter 2, Scene 3')
+    expect(textSearch.querySelector('img').getAttribute('src')).toBe('/google.svg')
+    expect(textSearch.textContent).toBe('')
+  })
+
+  it('disables Google searches when the corresponding draft field is empty', async () => {
+    renderForm()
+    await ready()
+
+    for (const label of ['quote text', 'location']) {
+      const link = screen.getByLabelText(`Search Google for ${label}`)
+      expect(link.hasAttribute('href')).toBe(false)
+      expect(link.getAttribute('aria-disabled')).toBe('true')
+    }
+  })
+
   it('updates both reference icons from the draft without changing saved reference fields', async () => {
     const primaryReference = 'https://example.com/primary'
     const secondaryReference = 'http://example.com/secondary'

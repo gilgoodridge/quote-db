@@ -64,8 +64,11 @@ empty author picker.
 
 Review Quote reuses Add Quote's author/character pickers, categories, validation,
 and retryable option loads, with candidate text, source notes as Location, and
-source URL prefilled. The
-Primary and secondary reference fields have external-link icons for HTTP/HTTPS URLs, opening a new tab.
+source URL prefilled. Search Google links next to Quote text search the text as
+an exact phrase; links next to Location search its text normally. Both use the
+current draft and open in a new tab, and are inactive when their field is empty.
+The Primary and secondary reference fields have external-link icons for
+HTTP/HTTPS URLs, opening a new tab.
 These icons use the current draft text, and links in published quote details use
 the saved quote text, to add a browser text fragment for highlighting. Quotes
 over eight whitespace-separated words use their first and last four words.

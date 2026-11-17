@@ -543,6 +543,9 @@ summaries, and expand independently. No selection is required. Editing prefills 
 saving includes all four ID arrays, so changing text or other metadata does not
 clear categories unintentionally. Unchecking options or clearing a group removes
 those selections on save.
+Google search links beside Quote text and Location open the current draft in a
+new tab. Quote text is searched as an exact phrase; Location is searched as
+ordinary terms. The links are inactive when their fields are empty.
 
 The left navigation filters quotes by author and optional category checkboxes.
 Select multiple options within a category dimension to match any of those

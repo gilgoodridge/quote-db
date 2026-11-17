@@ -9,6 +9,21 @@ import ExternalLink from './ExternalLink'
 import {categoryDimensions, categorySelections} from '../quoteCategories'
 import '../styles/AddQuoteDialog.css'
 
+function GoogleSearchLink({value, exact, label}) {
+  const query = value.trim()
+  const href = query
+    ? `https://www.google.com/search?${new URLSearchParams({q: exact ? `"${query}"` : query})}`
+    : undefined
+
+  return (
+    <a className="quote-google-search" href={href} target="_blank" rel="noopener noreferrer"
+      aria-label={`Search Google for ${label}`} title={`Search Google for ${label}`}
+      aria-disabled={!href} tabIndex={href ? undefined : -1}>
+      <img src="/google.svg" alt="" aria-hidden="true" />
+    </a>
+  )
+}
+
 export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthorCreated, onCharacterCreated, initialAuthorId, initialCharacterId, quote, initialValues, review }) {
   const dialogRef = useRef(null)
   const addAuthorButtonRef = useRef(null)
@@ -272,7 +287,10 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
       {retryRequest && !review?.publishedQuote && <p role="status">Retry sends the same quote details to safely confirm promotion.</p>}
       <form id="quote-form" onSubmit={submit} aria-busy={saving}>
         <fieldset disabled={saving || Boolean(review?.publishedQuote) || Boolean(retryRequest)}>
-          <label htmlFor="quote-text" title="The words of the quote.">Quote text *</label>
+          <div className="quote-field-heading">
+            <label htmlFor="quote-text" title="The words of the quote.">Quote text *</label>
+            <GoogleSearchLink value={fields.text} exact label="quote text" />
+          </div>
           <textarea id="quote-text" name="text" value={fields.text} onChange={updateField} required maxLength={2048} rows={5} autoFocus />
 
           <label htmlFor="quote-author" title="The writer or real person to whom the quote is attributed.">Author *</label>
@@ -347,7 +365,10 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
 
           <label htmlFor="quote-date" title="The date the quote was written, published, or spoken, if known.">Date</label>
           <input id="quote-date" name="date" type="date" value={fields.date} onChange={updateField} />
-          <label htmlFor="quote-location" title="Where to find the quote in its source, such as a chapter, act, or page.">Location</label>
+          <div className="quote-field-heading">
+            <label htmlFor="quote-location" title="Where to find the quote in its source, such as a chapter, act, or page.">Location</label>
+            <GoogleSearchLink value={fields.location} label="location" />
+          </div>
           <input id="quote-location" name="location" value={fields.location} onChange={updateField} maxLength={255} />
           <label htmlFor="quote-primary-reference" title="A source citation or URL supporting the quote.">Primary reference</label>
           <div className="quote-reference-field">

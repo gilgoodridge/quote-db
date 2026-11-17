@@ -40,6 +40,51 @@
   resize: vertical;
 }
 
+.quote-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quote-field-heading:not(:first-child) {
+  margin-top: 8px;
+}
+
+.quote-field-heading label {
+  margin: 0;
+}
+
+.quote-google-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+
+.quote-google-search:hover:not([aria-disabled="true"]) {
+  border-color: var(--border);
+  background: var(--bg-secondary);
+}
+
+.quote-google-search img {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.quote-google-search[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .add-author-actions {
   display: flex;
   align-items: center;
