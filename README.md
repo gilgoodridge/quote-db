@@ -733,6 +733,12 @@ saved author. Cancelling the author form returns to the unchanged quote draft.
 After a successful save, the author's quotes are refreshed and displayed.
 Saving failures leave the form and entered values intact.
 
+**Reference sourcing:** In our experience, AI tools such as Gemini do not do a
+reasonable job of finding source material and providing working URLs to the
+quoted material. We have therefore chosen not to use AI to populate the primary
+and secondary references. The intention is to provide tools such as Google
+search links to help the author find them manually.
+
 ### Editing and deleting quotes in the UI
 
 Signed-in users see pencil (edit) and X (delete) buttons at the top-right of
