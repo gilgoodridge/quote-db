@@ -66,6 +66,11 @@ Review Quote reuses Add Quote's author/character pickers, categories, validation
 and retryable option loads, with candidate text, source notes as Location, and
 source URL prefilled. The
 Primary and secondary reference fields have external-link icons for HTTP/HTTPS URLs, opening a new tab.
+These icons use the current draft text, and links in published quote details use
+the saved quote text, to add a browser text fragment for highlighting. Quotes
+over eight whitespace-separated words use their first and last four words.
+URLs containing `#`, or links with an empty draft quote, are unchanged. The
+fragment is not displayed or saved; highlighting depends on the browser and page.
 Published references remain limited to 255 characters. **Approve** atomically
 publishes the quote and approves its candidate. **Reject** updates only the
 candidate status, preserving stored text/link rather than draft edits, and does

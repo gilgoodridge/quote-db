@@ -136,6 +136,9 @@
   reviewers still do not reserve queue items, but transactional/idempotent
   promotion prevents duplicate publication.
   ExternalLink allows only HTTP/HTTPS and opens references with noopener/noreferrer.
+  Shared referenceHref adds a text fragment only to navigation URLs without `#`,
+  using current draft or published quote text; more than eight whitespace-separated
+  words use the first and last four. Never display or save the generated fragment.
 - Quotes have optional `primaryReference` and `secondaryReference` (double-sourcing; neither is
   required). Flyway V10 renamed `reference` to `primary_reference`, preserving data, and added
   `secondary_reference`. Candidate tables are unchanged; candidate sourceUrl prefills the primary.

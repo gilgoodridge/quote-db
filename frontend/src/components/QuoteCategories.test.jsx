@@ -74,6 +74,26 @@ async function ready() {
 }
 
 describe('quote category editing', () => {
+  it('updates both reference icons from the draft without changing saved reference fields', async () => {
+    const primaryReference = 'https://example.com/primary'
+    const secondaryReference = 'http://example.com/secondary'
+    renderForm({quote: {...quote, primaryReference, secondaryReference}})
+    await ready()
+    const [primary, secondary] = screen.getAllByRole('link', {name: 'Open source in a new tab'})
+    expect(primary.getAttribute('href')).toBe(`${primaryReference}#:~:text=A%20categorized%20quote`)
+    expect(secondary.getAttribute('href')).toBe(`${secondaryReference}#:~:text=A%20categorized%20quote`)
+    fireEvent.change(screen.getByLabelText('Quote text *'), {target: {value: 'New, draft!'}})
+    expect(primary.getAttribute('href')).toBe(`${primaryReference}#:~:text=New%2C%20draft%21`)
+    expect(secondary.getAttribute('href')).toBe(`${secondaryReference}#:~:text=New%2C%20draft%21`)
+    fireEvent.change(screen.getByLabelText('Secondary reference'), {target: {value: `${secondaryReference}#section`}})
+    expect(secondary.getAttribute('href')).toBe(`${secondaryReference}#section`)
+    expect(screen.getByLabelText('Primary reference').value).toBe(primaryReference)
+    fireEvent.click(screen.getByRole('button', {name: 'Save quote'}))
+    await waitFor(() => expect(api.quotes.update).toHaveBeenCalledWith(42, expect.objectContaining({
+      text: 'New, draft!', primaryReference, secondaryReference: `${secondaryReference}#section`,
+    })))
+  })
+
   it.each([undefined, quote])('keeps create/edit actions out of the header', async (existingQuote) => {
     renderForm({quote: existingQuote})
     await ready()

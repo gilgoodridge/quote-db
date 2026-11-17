@@ -352,12 +352,12 @@ export default function AddQuoteDialog({ onClose, onCreated, onUpdated, onAuthor
           <label htmlFor="quote-primary-reference" title="A source citation or URL supporting the quote.">Primary reference</label>
           <div className="quote-reference-field">
             <input id="quote-primary-reference" name="primaryReference" value={fields.primaryReference} onChange={updateField} maxLength={255} />
-            <ExternalLink url={fields.primaryReference} />
+            <ExternalLink url={fields.primaryReference} quoteText={fields.text} />
           </div>
           <label htmlFor="quote-secondary-reference" title="An additional source citation or URL corroborating the quote.">Secondary reference</label>
           <div className="quote-reference-field">
             <input id="quote-secondary-reference" name="secondaryReference" value={fields.secondaryReference} onChange={updateField} maxLength={255} />
-            <ExternalLink url={fields.secondaryReference} />
+            <ExternalLink url={fields.secondaryReference} quoteText={fields.text} />
           </div>
           {loadingCategories && <p role="status">Loading categories...</p>}
           {categoryError && (

@@ -5,6 +5,7 @@ import AboutAuthorDialog from './AboutAuthorDialog'
 import AboutCharacterDialog from './AboutCharacterDialog'
 import DeleteLinkedQuoteDialog from './DeleteLinkedQuoteDialog'
 import {categoryDimensions} from '../quoteCategories'
+import {referenceHref} from '../referenceLinks'
 import '../styles/QuotesList.css'
 
 const EMPTY_CATEGORY_IDS = { toneIds: [], themeIds: [], formIds: [], sourceIds: [] }
@@ -182,10 +183,10 @@ export default function QuotesList({
     }
   }
 
-  const renderReference = (reference) => {
+  const renderReference = (reference, quoteText) => {
     if (isHttpsUrl(reference)) {
       return (
-        <a href={reference} target="_blank" rel="noopener noreferrer" className="reference-link">
+        <a href={referenceHref(reference, quoteText)} target="_blank" rel="noopener noreferrer" className="reference-link">
           {reference}
         </a>
       )
@@ -366,7 +367,7 @@ export default function QuotesList({
                           <div className="detail-field">
                             <span className="detail-label">Primary reference:</span>
                             <p className="detail-value">
-                              {renderReference(quote.primaryReference)}
+                              {renderReference(quote.primaryReference, quote.text)}
                             </p>
                           </div>
                         )}
@@ -374,7 +375,7 @@ export default function QuotesList({
                           <div className="detail-field">
                             <span className="detail-label">Secondary reference:</span>
                             <p className="detail-value">
-                              {renderReference(quote.secondaryReference)}
+                              {renderReference(quote.secondaryReference, quote.text)}
                             </p>
                           </div>
                         )}

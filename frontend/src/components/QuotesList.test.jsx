@@ -25,6 +25,26 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+describe('quote references', () => {
+  it('shows original references while adding the quote only to eligible link destinations', async () => {
+    const primaryReference = 'https://example.com/source?part=1'
+    const secondaryReference = 'https://example.com/source#chapter'
+    api.quotes.listPage.mockResolvedValue(quotePage([{
+      ...quote, text: 'One two three four five six seven eight nine',
+      primaryReference, secondaryReference,
+    }]))
+    render(<QuotesList authorId={7} />)
+    fireEvent.click(await screen.findByRole('button', {name: /One two three four/}))
+    const primary = screen.getByRole('link', {name: primaryReference})
+    const secondary = screen.getByRole('link', {name: secondaryReference})
+    expect(primary.getAttribute('href')).toBe(`${primaryReference}#:~:text=One%20two%20three%20four,six%20seven%20eight%20nine`)
+    expect(primary.textContent).toBe(primaryReference)
+    expect(primary.target).toBe('_blank')
+    expect(primary.rel).toBe('noopener noreferrer')
+    expect(secondary.getAttribute('href')).toBe(secondaryReference)
+  })
+})
+
 describe('quote pagination', () => {
   it('loads only the requested page and shows one-based navigation with bounded links', async () => {
     vi.spyOn(api.quotes, 'list')

@@ -739,6 +739,14 @@ quoted material. We have therefore chosen not to use AI to populate the primary
 and secondary references. The intention is to provide tools such as Google
 search links to help the author find them manually.
 
+When opening an HTTPS reference from quote details or an HTTP/HTTPS reference
+from a form's link icon,
+the link includes a browser text fragment for the current quote to help highlight
+it on the destination page. Quotes over eight whitespace-separated words use
+their first and last four words. URLs containing `#` are left unchanged, as are
+links when the draft quote is empty. The fragment is neither displayed nor saved;
+highlighting depends on the destination and browser.
+
 ### Editing and deleting quotes in the UI
 
 Signed-in users see pencil (edit) and X (delete) buttons at the top-right of

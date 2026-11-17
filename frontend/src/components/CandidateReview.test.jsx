@@ -173,7 +173,7 @@ describe('candidate review', () => {
     expect(screen.getByLabelText('Quote text *').value).toBe(candidate.text)
     expect(screen.getByLabelText('Primary reference').value).toBe(candidate.sourceUrl)
     const source = screen.getByRole('link', {name: 'Open source in a new tab'})
-    expect(source.href).toBe(candidate.sourceUrl)
+    expect(source.href).toBe(`${candidate.sourceUrl}#:~:text=Candidate%20quote`)
     expect(source.target).toBe('_blank')
     expect(source.rel).toBe('noopener noreferrer')
     expect(source.querySelector('svg')).toBeTruthy()
