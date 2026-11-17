@@ -35,9 +35,10 @@
   burial-date substitution or prediction. Both date lookups share strict parsing
   and UI handlers; only the selected field changes, death date stays optional,
   and a pending lookup prevents starting either lookup again.
-- Birthplace prompt requests 99% confidence, most-specific known city/town plus
-  intervening administrative divisions and country, fully spelled out. Fall back
-  to a known broader region/country, not an ambiguous city; no addresses/hospitals.
+- Birthplace prompt requests 99% confidence and prefers city/town, administrative
+  divisions and country, omitting uncertain components even if only a city is
+  known. Return IDK for ambiguous identities or entirely unknown birthplaces;
+  never request a location more specific than the city or town.
 - Biography prompt requests factual professional prose without controversies,
   person names/aliases, birth/death dates/years or birthplace. All lookup prompts
   describe a person, not an author: do not assume a writing profession.

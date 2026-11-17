@@ -222,10 +222,11 @@ changing other fields. Date of death, birthplace and biography remain optional. 
 unconfirmed deaths should return UNKNOWN, never predicted or burial dates.
 Verify suggestions before
 saving, since the prompt's 99.9% confidence request is not an accuracy guarantee.
-Birthplace requests 99% confidence and prefers city/town, intervening known
-administrative divisions, and country, with fully spelled-out names. No street
-addresses, hospitals or buildings; when necessary it falls back to a confidently
-known region or country, never an ambiguous city alone. Biography requests factual,
+Birthplace requests 99% confidence and prefers city/town, administrative divisions
+and country. Uncertain components may be omitted, including the country, so
+verify potentially ambiguous locations. The prompt requests nothing more
+specific than the city or town and returns UNKNOWN for ambiguous identities or
+entirely unknown birthplaces. Biography requests factual,
 professional, neutral prose: one paragraph, no more than three sentences, excluding
 controversies, the person's name/aliases, birth/death dates or years, and birthplace.
 All prompts refer to a person rather than assuming a writing profession.

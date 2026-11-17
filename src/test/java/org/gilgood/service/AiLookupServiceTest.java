@@ -152,18 +152,18 @@ class AiLookupServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"Steventon, Hampshire, England, United Kingdom",
-            "Hampshire, England, United Kingdom", "United Kingdom"})
-    void birthplacePromptAllowsConfidentBroaderLocationsAndRequiresCountry(String location) {
+            "Steventon, United Kingdom", "Steventon", "Hampshire, England, United Kingdom", "United Kingdom"})
+    void birthplacePromptAllowsConfidentPartialLocations(String location) {
         server.expect(anything())
                 .andExpect(jsonPath("$.contents[0].parts[0].text").value("Jane Austen"))
                 .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(
                         org.hamcrest.Matchers.allOf(
                                 org.hamcrest.Matchers.containsString("at least 99% confidence"),
-                                org.hamcrest.Matchers.containsString("city or town"),
-                                org.hamcrest.Matchers.containsString("always the country"),
-                                org.hamcrest.Matchers.containsString("intervening administrative divisions"),
-                                org.hamcrest.Matchers.containsString("only the country"),
-                                org.hamcrest.Matchers.containsString("Never include a street address, hospital, building"))))
+                                org.hamcrest.Matchers.containsString("city/town, administrative divisions, country"),
+                                org.hamcrest.Matchers.containsString("any component, just return the components you are 99% confident about"),
+                                org.hamcrest.Matchers.containsString("If unsure about the entire place of birth, return exactly \"IDK\""),
+                                org.hamcrest.Matchers.containsString("If the person's identity is ambiguous, return exactly \"IDK\""),
+                                org.hamcrest.Matchers.containsString("Never return a more specific location than the city or town of birth."))))
                 .andRespond(withSuccess(answer(location), MediaType.APPLICATION_JSON));
         var response = service.lookup(new AiLookupRequest(AiLookupRequest.Type.AUTHOR_PLACE_OF_BIRTH,
                 new AiLookupRequest.Context("  Jane Austen  ")));

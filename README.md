@@ -273,11 +273,10 @@ this same contract rather than new controllers/routes. For death dates, send
 `AUTHOR_DATE_OF_DEATH`; a found date uses the same ISO string `value`.
 
 For birthplace, send `AUTHOR_PLACE_OF_BIRTH`. The prompt requests **99% confidence**,
-preferring city/town followed by confidently known intervening divisions
-(county/province/state/region as applicable) and the fully spelled-out country,
-never an ambiguous city name alone. It excludes street addresses, hospitals and
-buildings. If the town is uncertain, it requests the most specific confidently
-known broader location, down to country-only if necessary; otherwise UNKNOWN.
+preferring city/town, administrative divisions and country, in that order. If
+some components are uncertain, it requests only the confidently known components,
+which may include a city alone. It asks for nothing more specific than a city or
+town, and returns UNKNOWN for an ambiguous identity or entirely unknown birthplace.
 The response `value` is the location text (255 characters max).
 
 For biography, send `AUTHOR_BIOGRAPHY`. The prompt requests a factual,
