@@ -43,7 +43,9 @@
   person names/aliases, birth/death dates/years or birthplace. All lookup prompts
   describe a person, not an author: do not assume a writing profession.
   Biography requests best-effort reliable facts without IDK instructions or a
-  confidence threshold; dates/birthplace retain their abstention rules. At most three
+  confidence threshold; dates/birthplace retain their abstention rules. An
+  encyclopedia-style opening may be a fragment to avoid attributing the person's
+  achievements to anyone in that role. At most three
   sentences in one paragraph; backend uses English BreakIterator for sentence
   bounds. Text results must be single-line and fit existing limits (place 255,
   bio 1024); reject invalid output explicitly, never truncate. Semantic rules and

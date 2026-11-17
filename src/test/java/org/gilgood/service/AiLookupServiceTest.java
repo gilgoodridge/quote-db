@@ -174,6 +174,7 @@ class AiLookupServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "An English playwright, poet, and actor, widely regarded as a leading dramatist.",
             "An English novelist known for social observation and irony.",
             "An English novelist known for social observation and irony. Her fiction explores class and marriage.",
             "An English novelist known for social observation and irony. Her fiction explores class and marriage. Her work remains widely studied."})
@@ -186,6 +187,8 @@ class AiLookupServiceTest {
                                 org.hamcrest.Matchers.containsString("professional, neutral"),
                                 org.hamcrest.Matchers.containsString("Leave out controversies"),
                                 org.hamcrest.Matchers.containsString("three or fewer sentences in one paragraph"),
+                                org.hamcrest.Matchers.containsString("encyclopedia-style opening may be a sentence fragment"),
+                                org.hamcrest.Matchers.containsString("use a fragment or a natural complete sentence instead"),
                                 org.hamcrest.Matchers.containsString("Do not include the person's name"),
                                 org.hamcrest.Matchers.containsString("pen names, aliases"),
                                 org.hamcrest.Matchers.containsString("birth date or birth year"),

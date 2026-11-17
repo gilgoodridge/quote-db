@@ -229,6 +229,8 @@ specific than the city or town and returns UNKNOWN for ambiguous identities or
 entirely unknown birthplaces. Biography requests factual,
 professional, neutral prose: one paragraph, no more than three sentences, excluding
 controversies, the person's name/aliases, birth/death dates or years, and birthplace.
+An encyclopedia-style opening may be a sentence fragment rather than an awkward
+complete sentence that attributes the person's achievements to anyone in that role.
 All prompts refer to a person rather than assuming a writing profession.
 Biography asks Gemini to do its best with reliable known facts, without an IDK
 option or confidence threshold; date and birthplace confidence rules are unchanged.

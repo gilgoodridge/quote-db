@@ -284,7 +284,9 @@ professional, neutral account of work, career and achievements, excluding
 controversies, speculation, the person's name/aliases, birth/death dates or
 years, and birthplace. It requests at most three sentences in one paragraph
 (1024 characters max). Biography asks for the best summary using reliable known
-facts, without an IDK option or confidence threshold. All lookup prompts describe
+facts, without an IDK option or confidence threshold. An encyclopedia-style
+opening may be a sentence fragment, avoiding awkward role descriptions that
+attribute the person's achievements to anyone in that role. All lookup prompts describe
 a person, not an author, so they do not assume a writing profession.
 The response `value` is the biography text. The backend rejects
 overlength/multiline text and biographies exceeding three sentences rather than
