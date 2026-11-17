@@ -77,9 +77,10 @@ candidates `REJECTED`. Both actions preserve quote text and any published quote
 links, do not delete data, and continue with the pending quote queue. Saving a
 new author or linking an existing one promotes the candidate atomically.
 Closing the author prompt/form opens Review Quote with no author selected. Review Quote
-prefills the candidate text and source URL as Primary reference; the external-link icon
-opens HTTP/HTTPS references in a new tab. Both references retain the published quote's
-255-character limit; longer imported URLs must be edited before publication.
+prefills the candidate text, source notes as Location, and source URL as Primary
+reference; the external-link icon opens HTTP/HTTPS references in a new tab. Both
+references retain the published quote's 255-character limit; longer imported URLs
+must be edited before publication.
 Approve creates a normal quote with the selected author, optional character and
 categories, then marks the candidate APPROVED with its edited text and
 `publishedQuoteId` in the same transaction. Reject marks only the candidate REJECTED, preserving its

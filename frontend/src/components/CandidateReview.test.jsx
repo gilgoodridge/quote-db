@@ -290,6 +290,16 @@ describe('candidate review', () => {
     expect(api.candidateQuotes.listPage).toHaveBeenLastCalledWith({status: 'PENDING', page: 0, size: 1})
   })
 
+  it('prefills the quote Location with candidate source notes', async () => {
+    api.candidateQuotes.listPage.mockReset()
+      .mockResolvedValueOnce(page([{...candidate, sourceNotes: '** Book, page 42.'}]))
+      .mockResolvedValue(page([]))
+    render(<CandidateReview />)
+    await openNext()
+    await ready()
+    expect(screen.getByLabelText('Location').value).toBe('** Book, page 42.')
+  })
+
   it('rejects without publishing, even with no author or loaded form options', async () => {
     pendingAuthor()
     api.categories.list.mockRejectedValue(new Error('Catalog offline'))

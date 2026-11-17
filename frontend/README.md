@@ -63,7 +63,8 @@ is shown. Closing the author prompt/form continues to **Review Quote** with an
 empty author picker.
 
 Review Quote reuses Add Quote's author/character pickers, categories, validation,
-and retryable option loads, with candidate text and source URL prefilled. The
+and retryable option loads, with candidate text, source notes as Location, and
+source URL prefilled. The
 Primary and secondary reference fields have external-link icons for HTTP/HTTPS URLs, opening a new tab.
 Published references remain limited to 255 characters. **Approve** atomically
 publishes the quote and approves its candidate. **Reject** updates only the

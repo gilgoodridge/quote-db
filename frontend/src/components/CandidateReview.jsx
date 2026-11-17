@@ -234,7 +234,11 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
   return (
     <AddQuoteDialog
       initialAuthorId={authorId}
-      initialValues={publishedQuote ?? {text: candidate.text, primaryReference: candidate.sourceUrl}}
+      initialValues={publishedQuote ?? {
+        text: candidate.text,
+        location: candidate.sourceNotes ?? '',
+        primaryReference: candidate.sourceUrl,
+      }}
       review={{
         publishedQuote,
         onApprove: approve,
