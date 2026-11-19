@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.gilgood.config.EditorTestLogin.editorLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -337,18 +337,18 @@ class CandidateControllerTest {
         mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(newAuthorRequest)))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId).with(oidcLogin())
+        mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId).with(editorLogin())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(newAuthorRequest)))
                 .andExpect(status().isForbidden());
 
         var firstPromotion = json.readTree(mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(newAuthorRequest)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.candidate.status").value("APPROVED"))
                 .andReturn().getResponse().getContentAsString());
         var retryRequest = Map.of("fullName", "Different retry payload", "dateOfBirth", "1950-01-01");
         var retriedPromotion = json.readTree(mvc.perform(post("/api/candidate-authors/{id}/promote", newCandidateId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(retryRequest)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertEquals(firstPromotion.path("candidate").path("publishedAuthorId"),
@@ -366,16 +366,16 @@ class CandidateControllerTest {
         mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(linkRequest)))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId).with(oidcLogin())
+        mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId).with(editorLogin())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(linkRequest)))
                 .andExpect(status().isForbidden());
         var linked = mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(linkRequest)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.candidate.status").value("APPROVED"))
                 .andReturn().getResponse().getContentAsString();
         mvc.perform(post("/api/candidate-authors/{id}/link", linkCandidateId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(Map.of("publishedAuthorId", firstPromotion
                                 .path("author").path("id").asLong()))))
                 .andExpect(status().isOk())
@@ -390,7 +390,7 @@ class CandidateControllerTest {
                                 "fullName", "Existing Author", "status", "PENDING", "publishedAuthorId", existingId))))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/candidate-authors/{id}/link", previouslyLinkedId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(linkRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.candidate.status").value("APPROVED"))
@@ -411,17 +411,17 @@ class CandidateControllerTest {
         mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId).with(oidcLogin())
+        mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId).with(editorLogin())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
         var first = json.readTree(mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(request)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.candidate.status").value("APPROVED"))
                 .andReturn().getResponse().getContentAsString());
         var differentRetry = Map.of("text", "Different retry payload.", "authorId", publishedAuthor.getId());
         var retry = json.readTree(mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(differentRetry)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
         assertEquals(first.path("quote").path("id"), retry.path("quote").path("id"));
@@ -437,7 +437,7 @@ class CandidateControllerTest {
                                 "publishedQuoteId", first.path("quote").path("id").asLong()))))
                 .andExpect(status().isOk());
         mvc.perform(post("/api/candidate-quotes/{id}/promote", previouslyLinkedQuoteId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(differentRetry)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.candidate.status").value("APPROVED"))
@@ -451,7 +451,7 @@ class CandidateControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"Still staged.\",\"status\":\"PENDING\"}"))
                 .andExpect(status().isOk());
-        mvc.perform(post("/api/candidate-quotes/{id}/promote", afterRejectionId).with(oidcLogin()).with(csrf())
+        mvc.perform(post("/api/candidate-quotes/{id}/promote", afterRejectionId).with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isConflict());
         assertPostStatus("/api/candidate-quotes", quote("enwikiquote:quote-import-after-rejection", authorId), 409);
@@ -467,7 +467,7 @@ class CandidateControllerTest {
             var request = Map.of("fullName", "Must Roll Back", "dateOfBirth", "1900-01-01");
             assertThrows(jakarta.servlet.ServletException.class, () ->
                     mvc.perform(post("/api/candidate-authors/{id}/promote", candidateAuthorId)
-                                    .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                                    .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                                     .content(json.writeValueAsString(request))));
             assertEquals(0, authors.count());
             mvc.perform(get("/api/candidate-authors/{id}", candidateAuthorId))
@@ -488,7 +488,7 @@ class CandidateControllerTest {
             var request = Map.of("text", "Must roll back.", "authorId", publishedAuthorId);
             assertThrows(jakarta.servlet.ServletException.class, () ->
                     mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateQuoteId)
-                                    .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                                    .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                                     .content(json.writeValueAsString(request))));
             assertEquals(0, quotes.count());
             mvc.perform(get("/api/candidate-quotes/{id}", candidateQuoteId))
@@ -543,7 +543,7 @@ class CandidateControllerTest {
             throws Exception {
         assertTrue(start.await(5, TimeUnit.SECONDS));
         var response = mvc.perform(post("/api/candidate-authors/{id}/promote", candidateId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request))
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         return json.readTree(response);
     }
@@ -552,7 +552,7 @@ class CandidateControllerTest {
             throws Exception {
         assertTrue(start.await(5, TimeUnit.SECONDS));
         var response = mvc.perform(post("/api/candidate-quotes/{id}/promote", candidateId)
-                        .with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request))
+                        .with(editorLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         return json.readTree(response);
     }
@@ -607,7 +607,7 @@ class CandidateControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
                                 "text", "Reviewed.", "status", "APPROVED", "publishedQuoteId", publishedQuoteId))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.publishedQuoteId").value(publishedQuoteId));
-        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).with(editorLogin()).with(csrf()))
                 .andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("urn:quote-db:problem:quote-linked-to-candidates"))
@@ -626,9 +626,9 @@ class CandidateControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"Reviewed.\",\"status\":\"APPROVED\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.publishedQuoteId").doesNotExist());
-        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).with(editorLogin()).with(csrf()))
                 .andExpect(status().isOk());
-        mvc.perform(delete("/api/authors/{id}", publishedId).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/authors/{id}", publishedId).with(editorLogin()).with(csrf()))
                 .andExpect(status().isConflict());
         mvc.perform(put("/api/candidate-authors/{id}", a).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -658,12 +658,12 @@ class CandidateControllerTest {
         }
         for (String invalid : new String[]{"APPROVED", "SNOOZED", "UNKNOWN"}) {
             mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", invalid)
-                            .with(oidcLogin()).with(csrf()))
+                            .with(editorLogin()).with(csrf()))
                     .andExpect(status().isBadRequest());
         }
         mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus).with(csrf()))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus).with(oidcLogin()))
+        mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus).with(editorLogin()))
                 .andExpect(status().isForbidden());
 
         jdbc.execute("CREATE TABLE quote_delete_blocker (quote_id BIGINT REFERENCES quotes(id))");
@@ -671,7 +671,7 @@ class CandidateControllerTest {
             jdbc.update("INSERT INTO quote_delete_blocker (quote_id) VALUES (?)", publishedQuoteId);
             assertThrows(jakarta.servlet.ServletException.class, () ->
                     mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus)
-                            .with(oidcLogin()).with(csrf())));
+                            .with(editorLogin()).with(csrf())));
             assertTrue(quotes.existsById(publishedQuoteId));
             for (JsonNode before : linked) {
                 var after = json.readTree(mvc.perform(get("/api/candidate-quotes/{id}", before.path("id").asLong()))
@@ -682,7 +682,7 @@ class CandidateControllerTest {
             jdbc.execute("DROP TABLE quote_delete_blocker");
         }
         mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", candidateStatus)
-                        .with(oidcLogin()).with(csrf()))
+                        .with(editorLogin()).with(csrf()))
                 .andExpect(status().isOk());
         assertFalse(quotes.existsById(publishedQuoteId));
         assertTrue(quotes.existsById(otherQuoteId));
@@ -699,7 +699,7 @@ class CandidateControllerTest {
         }
         // Retrying a completed deletion is harmless and does not change candidate status again.
         mvc.perform(delete("/api/quotes/{id}", publishedQuoteId).param("candidateStatus", "PENDING")
-                        .with(oidcLogin()).with(csrf()))
+                        .with(editorLogin()).with(csrf()))
                 .andExpect(status().isOk());
         mvc.perform(get("/api/candidate-quotes/{id}", linked.getFirst().path("id").asLong()))
                 .andExpect(jsonPath("$.status").value(candidateStatus));

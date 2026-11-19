@@ -149,13 +149,13 @@ describe('candidate review', () => {
     expect(snoozedCount.nextElementSibling).toBe(screen.getByRole('button', {name: 'Review snoozed'}))
   })
 
-  it('keeps Coming Soon signed out and shows the review panel only after login', async () => {
+  it('keeps Coming Soon signed out and shows the review panel only for editors', async () => {
     const view = render(<App />)
     await screen.findByText('Coming Soon')
     expect(screen.queryByRole('button', {name: 'Review next candidate'})).toBeNull()
     expect(api.candidateQuotes.listPage).not.toHaveBeenCalled()
     view.unmount()
-    api.auth.me.mockResolvedValue({authenticated: true, name: 'Reviewer'})
+    api.auth.me.mockResolvedValue({authenticated: true, editor: true, name: 'Reviewer'})
     render(<App />)
     await screen.findByRole('button', {name: 'Review next candidate'})
     expect(screen.queryByText('Coming Soon')).toBeNull()
@@ -602,7 +602,7 @@ describe('candidate review', () => {
   })
 
   it('prevents duplicate queue loads and ignores results after logout', async () => {
-    api.auth.me.mockResolvedValue({authenticated: true, name: 'Reviewer'})
+    api.auth.me.mockResolvedValue({authenticated: true, editor: true, name: 'Reviewer'})
     const pending = deferred()
     api.candidateQuotes.listPage.mockReset().mockReturnValueOnce(pending.promise)
     render(<App />)

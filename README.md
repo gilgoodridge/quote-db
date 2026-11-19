@@ -108,10 +108,10 @@ candidate reuse the same published record, but this is not general conflict
 detection or a reservation system.
 
 **Temporary access policy:** Candidate reads, imports, and review-field updates
-permit anonymous access. Promotion endpoints require authentication because
+permit anonymous access. Promotion and author-linking endpoints require editor access because
 they create published content; all mutations require CSRF. These endpoints are
 not an admin boundary: anyone with access to the backend can read/import/edit
-staging data. Existing published-content write endpoints still require login
+staging data. Existing published-content write endpoints require editor access
 and CSRF.
 
 | Method | Endpoint | Behavior |
@@ -122,9 +122,9 @@ and CSRF.
 | POST | `/api/candidate-authors` | Import one author candidate |
 | POST | `/api/candidate-quotes` | Import one quote attached to an existing candidate author |
 | POST | `/api/candidates/batch` | Atomically import up to 100 authors and 100 quotes |
-| POST | `/api/candidate-authors/{id}/promote` | Create and link an author and approve its candidate atomically (authenticated) |
-| POST | `/api/candidate-authors/{id}/link` | Link an existing author and approve its candidate atomically (authenticated) |
-| POST | `/api/candidate-quotes/{id}/promote` | Create and link a quote and approve its candidate atomically (authenticated) |
+| POST | `/api/candidate-authors/{id}/promote` | Create and link an author and approve its candidate atomically (editor) |
+| POST | `/api/candidate-authors/{id}/link` | Link an existing author and approve its candidate atomically (editor) |
+| POST | `/api/candidate-quotes/{id}/promote` | Create and link a quote and approve its candidate atomically (editor) |
 | POST | `/api/candidate-authors/{id}/snooze-quotes` | Set all linked quote candidates to `SNOOZED`; keep the author unchanged |
 | POST | `/api/candidate-authors/{id}/reject` | Set the author and all linked quote candidates to `REJECTED` |
 | PUT | `/api/candidate-authors/{id}` | Replace `fullName`, `status`, optional `publishedAuthorId` |
@@ -220,7 +220,7 @@ quote in one transaction. Any deletion failure rolls back the candidate changes
 too. Other status values are invalid (400). A completed deletion can be retried
 without changing candidate statuses again. Candidate text, import identity,
 provenance and candidate-author links are preserved; authors and characters
-are never deleted. This recovery requires the same authentication and CSRF as
+are never deleted. This recovery requires the same editor authorization and CSRF as
 normal quote deletion; it does not change candidate endpoint permissions.
 
 Names/titles allow 255 characters, source 64, URLs 2,048 (HTTP/HTTPS),
@@ -251,7 +251,7 @@ heuristics. DTOs expose related IDs, never ORM entities or collections.
 - `DELETE /api/authors/{id}` - Delete author
 
 **AI editorial lookups:** `POST /api/ai/lookups` is the single lookup endpoint for
-editor/reviewer suggestions. It requires login and CSRF, never saves content,
+editor/reviewer suggestions. It requires editor access and CSRF, never saves content,
 and does not cache responses. Select a server-defined `type` and supply structured
 `context`; clients cannot supply prompts. Supports `AUTHOR_DATE_OF_BIRTH`,
 `AUTHOR_DATE_OF_DEATH`, `AUTHOR_PLACE_OF_BIRTH` and `AUTHOR_BIOGRAPHY`, all with
@@ -391,7 +391,7 @@ Example create or replacement body:
 Names are not unique: different works may have characters with the same name.
 The optional `query` follows author search: trimmed, case-insensitive literal
 substring matching on **fullName only**, with ID-ascending database pagination.
-GET/HEAD is public; writes require authentication and CSRF. Invalid fields
+GET/HEAD is public; writes require editor access and CSRF. Invalid fields
 return **400**; missing characters return **404**. Deleting a character linked
 to quotes returns **409 Conflict**; unlink it from those quotes first.
 
@@ -533,7 +533,7 @@ Unassigned dimensions return `[]`.
 Omitted, null, and empty arrays mean no selections on POST. On **PUT**, they
 **clear that dimension**, consistent with full replacement of other optional
 fields. Include all selections you want to retain. Quote writes still require
-authentication and CSRF.
+editor authorization and CSRF.
 
 The **Add Quote / Edit Quote / Review Quote** dialog uses asterisks for required
 fields and label hovertext for field guidance. It loads these catalogs and provides checkbox
@@ -710,14 +710,16 @@ name; hovertext explains the fictional-speaker role and other fields. New
 characters also remain saved when a surrounding quote is cancelled.
 Cancel returns to the unchanged details. A successful save updates the dialog,
 quote attribution, quote results, and Authors sidebar without changing filters.
-Anonymous users can view all details but cannot edit.
+Anonymous users and signed-in non-editors can view all details but cannot edit.
 
 ### Adding a quote in the UI
 
-**Add Quote** is always visible in the right side of the header. **Quote of the
+**Add Quote** is visible in the right side of the header for editors and signed-out
+visitors; signed-in non-editors do not see it. **Quote of the
 Day** sits beside the Quotes DB logo on the left. Anonymous users are prompted
-to sign in with Google before adding a quote; after sign-in, the form opens
-automatically. A tab-scoped session-storage flag preserves only this intent
+to sign in with an editor account before adding a quote; after sign-in, the form opens
+automatically only for editors. Non-editors see an editor-access message instead.
+A tab-scoped session-storage flag preserves only this intent
 across the redirect, not credentials or quote data. Browser session storage must
 be available to resume the action automatically.
 
@@ -752,7 +754,7 @@ highlighting depends on the destination and browser.
 
 ### Editing and deleting quotes in the UI
 
-Signed-in users see pencil (edit) and X (delete) buttons at the top-right of
+Editors see pencil (edit) and X (delete) buttons at the top-right of
 each quote card. Editing opens the same form prefilled with all quote fields,
 including the author, character and category selections. Saving sends a full replacement: clearing an optional
 field removes its value. Results refresh in the current author/search scope,
@@ -767,7 +769,7 @@ Cancel makes no changes. While saving, duplicate submissions and dismissal
 are blocked; failed saves remain visible and retryable. Successful recovery
 refreshes quote results and pending candidate counts. Deleting a quote never deletes its author,
 even when it was their last quote. Both actions use the existing
-session-authenticated, CSRF-protected PUT and DELETE endpoints.
+editor-authorized, CSRF-protected PUT and DELETE endpoints.
 
 From `frontend`, run `npm test` for API contract tests and category form/card
 interaction tests (Vitest, Testing Library, and jsdom), `npm run lint` for
@@ -985,10 +987,40 @@ full suite, replace the Maven command with `mvn clean install`.
 ### Google login
 
 Browsing authors, characters and quotes is public. Creating, updating, or deleting
-published resources requires a Google-authenticated session and a valid CSRF token.
+published resources requires a Google-authenticated editor session and a valid CSRF token.
 Candidate staging endpoints are temporarily anonymous, with CSRF still required
 for writes; see [Candidate staging](#candidate-staging).
-Any signed-in Google user can write; there are no editor/admin roles yet.
+Other signed-in users retain their account display and Logout, but cannot edit.
+AI lookups and candidate promotion/author linking also require editor access;
+anonymous candidate staging/import/review-field permissions are unchanged.
+
+Configure the comma-separated Google OIDC subjects allowed to edit in
+`src/main/resources/application.properties`:
+
+```properties
+app.security.editor-subjects=FIRST_GOOGLE_SUB,SECOND_GOOGLE_SUB
+```
+
+The shipped setting is `app.security.editor-subjects=${EDITOR_SUBJECTS:}`, so
+you can alternatively set `EDITOR_SUBJECTS` in the backend environment without
+tracking account identifiers. The default empty list grants nobody editor access.
+Subjects are case-sensitive strings, not email addresses or OAuth client IDs;
+surrounding spaces and empty comma-separated entries are ignored.
+
+**Finding your Google `sub`:** Sign in normally (editor access is not needed).
+Open browser developer tools, select **Network**, reload the app, and inspect
+the JSON response for `/api/auth/me`. Copy your own `subject` value into the
+allowlist. Alternatively, visit `http://localhost:8080/api/auth/me` in the same
+browser during local development, or `/api/auth/me` on your deployed site.
+No token copying, decoding, or third-party tooling is needed.
+
+Restart the backend after changing the allowlist, then sign out and sign in
+again. At OIDC login, `SecurityConfig.editorAuthoritiesMapper` grants
+`ROLE_EDITOR` only when the validated Google ID token's `sub` is allowlisted.
+Protected request matchers use `hasRole("EDITOR")`. Roles are stored in the
+session, not recomputed on every request; changes take effect on a new login.
+When revoking access, invalidate any surviving sessions (the default in-memory
+sessions are lost on backend restart).
 
 Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the backend environment
 (IntelliJ: **Run > Edit Configurations > Backend > Environment variables**).
@@ -1009,18 +1041,19 @@ and **Logout** after login. Use `localhost` consistently, not `127.0.0.1`.
 The browser uses an HttpOnly, SameSite=Lax session cookie; Google tokens and
 credentials are not exposed to React or stored in browser storage.
 Authentication endpoints:
-- `GET /api/auth/me`: minimal current-user DTO or `{"authenticated":false}`.
+- `GET /api/auth/me`: `authenticated` and `editor` booleans; signed-in users also
+  receive their own `name`, `email`, and `subject`. No Google tokens are returned.
 - `GET /api/auth/csrf`: session-bound token and header name, with caching disabled.
 - `POST /api/auth/logout`: requires CSRF, invalidates the session, returns 204.
 
 The API client includes cookies and fetches a fresh CSRF token before each write.
 Direct API clients and Swagger writes must likewise send the session cookie and
 the header/token returned by `/api/auth/csrf`. Unauthenticated protected requests
-return 401 when CSRF is valid; missing/invalid CSRF returns 403. Anonymous
-seed/import scripts cannot write published content without authentication.
+return 401 when CSRF is valid; signed-in non-editors and missing/invalid CSRF
+return 403. Seed/import scripts cannot write published content without editor access.
 Anonymous clients can write candidate staging data using a session-bound CSRF token.
 
-`seed-data.sh` prompts for the `JSESSIONID` cookie value from a signed-in session
+`seed-data.sh` prompts for the `JSESSIONID` cookie value from an editor session
 for the selected base URL, fetches its CSRF token, and includes both on seed
 requests. Sign into the site first and copy the cookie value from browser
 developer tools; do not save or share it. The session ID is sensitive and

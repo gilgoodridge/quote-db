@@ -15,7 +15,7 @@ export default function QuotesList({
   query = '',
   categoryIds = EMPTY_CATEGORY_IDS,
   refreshKey = 0,
-  isAuthenticated = false,
+  isEditor = false,
   onAuthorCreated,
   onAuthorUpdated,
   characterId = null,
@@ -141,7 +141,7 @@ export default function QuotesList({
   }
 
   async function deleteQuote(quote, event) {
-    if (!isAuthenticated || deletingRef.current) return
+    if (!isEditor || deletingRef.current) return
     if (!window.confirm(`Delete this quote? This cannot be undone. The author will not be deleted.\n\n${quote.text}`)) return
     deleteButtonRef.current = event.currentTarget
     deletingRef.current = true
@@ -196,7 +196,7 @@ export default function QuotesList({
 
   return (
     <div className={`quotes-container${hasFilters ? ' has-filters' : ''}`} ref={containerRef} tabIndex={-1} aria-label="Quotes">
-      {isAuthenticated && linkedQuote && (
+      {isEditor && linkedQuote && (
         <DeleteLinkedQuoteDialog
           quote={linkedQuote}
           onClose={closeLinkedQuote}
@@ -207,7 +207,7 @@ export default function QuotesList({
         />
       )}
       {aboutCharacterId != null && (
-        <AboutCharacterDialog key={aboutCharacterId} characterId={aboutCharacterId} isAuthenticated={isAuthenticated}
+        <AboutCharacterDialog key={aboutCharacterId} characterId={aboutCharacterId} isEditor={isEditor}
           onClose={closeCharacter} onUpdated={(character) => {
             setQuotes((current) => current.map((quote) => quote.character?.id === character.id ? {...quote, character} : quote))
             setEditVersion((version) => version + 1)
@@ -218,7 +218,7 @@ export default function QuotesList({
         <AboutAuthorDialog
           key={aboutAuthorId}
           authorId={aboutAuthorId}
-          isAuthenticated={isAuthenticated}
+          isEditor={isEditor}
           onClose={closeAuthor}
           onUpdated={(author) => {
             setQuotes((current) => current.map((quote) => quote.author.id === author.id ? {...quote, author} : quote))
@@ -229,7 +229,7 @@ export default function QuotesList({
       )}
       {actionError && <p className="quote-action-error" role="alert">{actionError}</p>}
       {actionMessage && <p className="quote-action-message" role="status">{actionMessage}</p>}
-      {isAuthenticated && editingQuote && (
+      {isEditor && editingQuote && (
         <AddQuoteDialog
           quote={editingQuote}
           onClose={closeEdit}
@@ -294,7 +294,7 @@ export default function QuotesList({
                           {quote.text}
                         </blockquote>
                       </button>
-                      {isAuthenticated && (
+                      {isEditor && (
                         <div className="quote-actions">
                           <button
                             type="button"

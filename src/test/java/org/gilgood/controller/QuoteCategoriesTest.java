@@ -21,7 +21,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.gilgood.config.EditorTestLogin.editorLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -89,7 +89,7 @@ class QuoteCategoriesTest {
                 .andExpect(jsonPath("$.forms[1].name").value("Verse"))
                 .andExpect(jsonPath("$.sources[1].name").value("Book"));
         mvc.perform(head("/api/categories")).andExpect(status().isOk());
-        mvc.perform(post("/api/categories").with(oidcLogin()).with(csrf())
+        mvc.perform(post("/api/categories").with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"New\"}"))
                 .andExpect(status().isMethodNotAllowed());
     }
@@ -276,7 +276,7 @@ class QuoteCategoriesTest {
     @ParameterizedTest
     @ValueSource(strings = {"null", "[]"})
     void explicitNullOrEmptySelectionsAreOptionalOnCreate(String value) throws Exception {
-        mvc.perform(post("/api/quotes").with(oidcLogin()).with(csrf())
+        mvc.perform(post("/api/quotes").with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\":\"Uncategorized\",\"authorId\":" + authorId
                                 + ",\"toneIds\":" + value + ",\"themeIds\":" + value
@@ -295,7 +295,7 @@ class QuoteCategoriesTest {
         replacement.put("toneIds", List.of(toneIds.getLast()));
         replacement.put("themeIds", null);
         replacement.put("formIds", List.of());
-        mvc.perform(put("/api/quotes/{id}", id).with(oidcLogin()).with(csrf())
+        mvc.perform(put("/api/quotes/{id}", id).with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(replacement)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tones.length()").value(1))
@@ -321,7 +321,7 @@ class QuoteCategoriesTest {
         for (String dimension : List.of("tones", "themes", "forms", "sources")) {
             assertEquals(1, created.path(dimension).size());
         }
-        mvc.perform(delete("/api/quotes/{id}", created.path("id").asLong()).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/quotes/{id}", created.path("id").asLong()).with(editorLogin()).with(csrf()))
                 .andExpect(status().isOk());
         assertEquals(0, quotes.count());
         assertEquals(1, authors.count());
@@ -336,14 +336,14 @@ class QuoteCategoriesTest {
     void rejectsUnknownIdsWithoutCreatingQuoteOrPartiallyUpdatingIt(String field) throws Exception {
         var invalid = categorizedRequest();
         invalid.put(field, List.of(Long.MAX_VALUE));
-        mvc.perform(post("/api/quotes").with(oidcLogin()).with(csrf())
+        mvc.perform(post("/api/quotes").with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(invalid)))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string(containsString("Unknown " + field)));
         assertEquals(0, quotes.count());
         long id = create(categorizedRequest()).path("id").asLong();
         invalid.put("text", "This change must roll back");
-        mvc.perform(put("/api/quotes/{id}", id).with(oidcLogin()).with(csrf())
+        mvc.perform(put("/api/quotes/{id}", id).with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(invalid)))
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/quotes/{id}", id))
@@ -359,7 +359,7 @@ class QuoteCategoriesTest {
     @ValueSource(strings = {"toneIds", "themeIds", "formIds", "sourceIds"})
     void rejectsNullZeroAndNegativeIdElements(String field) throws Exception {
         for (String value : List.of("null", "0", "-1")) {
-            mvc.perform(post("/api/quotes").with(oidcLogin()).with(csrf())
+            mvc.perform(post("/api/quotes").with(editorLogin()).with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"text\":\"Invalid\",\"authorId\":" + authorId + ",\"" + field + "\":[" + value + "]}"))
                     .andExpect(status().isBadRequest())
@@ -373,13 +373,13 @@ class QuoteCategoriesTest {
         String body = json.writeValueAsString(categorizedRequest());
         mvc.perform(post("/api/quotes").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/quotes").with(oidcLogin()).contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/quotes").with(editorLogin()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
         assertEquals(0, quotes.count());
     }
 
     private JsonNode create(Map<String, Object> request) throws Exception {
-        var result = mvc.perform(post("/api/quotes").with(oidcLogin()).with(csrf())
+        var result = mvc.perform(post("/api/quotes").with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isOk()).andReturn();
         return json.readTree(result.getResponse().getContentAsString());

@@ -315,7 +315,7 @@ describe('author details', () => {
       ]))
       return updated
     })
-    render(<QuotesList query="quote" isAuthenticated onAuthorUpdated={onAuthorUpdated} />)
+    render(<QuotesList query="quote" isEditor onAuthorUpdated={onAuthorUpdated} />)
     fireEvent.click((await screen.findAllByRole('button', {name: 'Mark Twain'}))[0])
     await openEditor()
     fireEvent.change(screen.getByLabelText('Known as'), {target: {value: updated.knownAs}})
@@ -345,7 +345,7 @@ describe('author details', () => {
     let rejectLoad
     api.authors.get.mockReturnValueOnce(new Promise((resolve, reject) => { rejectLoad = reject }))
     api.authors.get.mockResolvedValueOnce({id: 8, fullName: 'Wrong author'})
-    render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={vi.fn()} />)
+    render(<AboutAuthorDialog authorId={7} isEditor onClose={vi.fn()} />)
     expect(screen.getByRole('status').textContent).toBe('Loading author details...')
     expect(screen.queryByRole('button', {name: 'Edit author'})).toBeNull()
     await act(async () => rejectLoad(new Error('Offline')))
@@ -380,7 +380,7 @@ describe('author details', () => {
     api.authors.update.mockResolvedValue(updated)
     const onUpdated = vi.fn()
     const onClose = vi.fn()
-    render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={onClose} onUpdated={onUpdated} />)
+    render(<AboutAuthorDialog authorId={7} isEditor onClose={onClose} onUpdated={onUpdated} />)
     const editor = await openEditor()
     for (const [label, value] of [
       ['Full name *', author.fullName], ['Known as', author.knownAs],
@@ -417,7 +417,7 @@ describe('author details', () => {
 
   it('cancels edits and dismisses with Escape without modifying details or closing About', async () => {
     const onClose = vi.fn()
-    render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={onClose} onUpdated={vi.fn()} />)
+    render(<AboutAuthorDialog authorId={7} isEditor onClose={onClose} onUpdated={vi.fn()} />)
     await openEditor()
     fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: 'Unsaved'}})
     fireEvent.click(screen.getByRole('button', {name: 'Close author form'}))
@@ -437,7 +437,7 @@ describe('author details', () => {
       .mockRejectedValueOnce(Object.assign(new Error('Conflict'), {status: 409}))
       .mockRejectedValueOnce(Object.assign(new Error('Login required'), {status: 401}))
       .mockRejectedValueOnce(new Error('Server error'))
-    render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={vi.fn()} onUpdated={vi.fn()} />)
+    render(<AboutAuthorDialog authorId={7} isEditor onClose={vi.fn()} onUpdated={vi.fn()} />)
     await openEditor()
     fireEvent.change(screen.getByLabelText('Biography'), {target: {value: 'Draft biography'}})
     for (const message of ['The author already exists', 'Login required', 'Server error']) {
@@ -451,7 +451,7 @@ describe('author details', () => {
   it('rejects whitespace names and prevents duplicate saves or dismissal while saving', async () => {
     let resolveSave
     api.authors.update.mockReturnValue(new Promise((resolve) => { resolveSave = resolve }))
-    render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={vi.fn()} onUpdated={vi.fn()} />)
+    render(<AboutAuthorDialog authorId={7} isEditor onClose={vi.fn()} onUpdated={vi.fn()} />)
     await openEditor()
     fireEvent.change(screen.getByLabelText('Full name *'), {target: {value: '  '}})
     submitEditor()
@@ -473,10 +473,10 @@ describe('author details', () => {
     expect(screen.getByText('Author updated.')).toBeTruthy()
   })
 
-  it('removes editing access when authentication is lost', async () => {
-    const {rerender} = render(<AboutAuthorDialog authorId={7} isAuthenticated onClose={vi.fn()} onUpdated={vi.fn()} />)
+  it('removes editing access when editor access is lost', async () => {
+    const {rerender} = render(<AboutAuthorDialog authorId={7} isEditor onClose={vi.fn()} onUpdated={vi.fn()} />)
     await openEditor()
-    rerender(<AboutAuthorDialog authorId={7} isAuthenticated={false} onClose={vi.fn()} onUpdated={vi.fn()} />)
+    rerender(<AboutAuthorDialog authorId={7} isEditor={false} onClose={vi.fn()} onUpdated={vi.fn()} />)
     expect(screen.queryByRole('dialog', {name: 'Edit author'})).toBeNull()
     expect(screen.queryByRole('button', {name: 'Edit author'})).toBeNull()
     expect(api.authors.update).not.toHaveBeenCalled()
@@ -484,7 +484,7 @@ describe('author details', () => {
 
   it('refreshes quote attribution and the sidebar after saving without changing filters', async () => {
     const updated = {...author, knownAs: 'Updated Display Name'}
-    vi.spyOn(api.auth, 'me').mockResolvedValue({authenticated: true, name: 'Editor'})
+    vi.spyOn(api.auth, 'me').mockResolvedValue({authenticated: true, editor: true, name: 'Editor'})
     vi.spyOn(api.authors, 'listPage').mockResolvedValue({
       content: [author], page: {number: 0, size: 10, totalElements: 1, totalPages: 1},
     })

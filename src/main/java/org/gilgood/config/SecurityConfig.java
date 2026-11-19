@@ -7,14 +7,23 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
+import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
 import org.springframework.security.web.SecurityFilterChain;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 
 @Configuration
 public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http, @Value("${app.frontend-url}") String frontendUrl) throws Exception {
+            HttpSecurity http, @Value("${app.frontend-url}") String frontendUrl,
+            GrantedAuthoritiesMapper editorAuthoritiesMapper) throws Exception {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(Customizer.withDefaults())
@@ -22,7 +31,7 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers("/api/candidate-authors/*/promote", "/api/candidate-authors/*/link",
-                                "/api/candidate-quotes/*/promote").authenticated()
+                                "/api/candidate-quotes/*/promote").hasRole("EDITOR")
                         .requestMatchers("/api/candidates/batch",
                                 "/api/candidate-authors", "/api/candidate-authors/**",
                                 "/api/candidate-quotes", "/api/candidate-quotes/**").permitAll()
@@ -33,7 +42,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.HEAD, "/api/authors", "/api/authors/**",
                                 "/api/quotes", "/api/quotes/**", "/api/categories",
                                 "/api/characters", "/api/characters/**").permitAll()
-                        .requestMatchers("/api/**").authenticated()
+                        .requestMatchers("/api/**").hasRole("EDITOR")
                         .anyRequest().denyAll())
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(errors -> errors
@@ -48,6 +57,7 @@ public class SecurityConfig {
                             response.getWriter().write("{\"error\":\"Access denied or invalid CSRF token\"}");
                         }))
                 .oauth2Login(login -> login
+                        .userInfoEndpoint(userInfo -> userInfo.userAuthoritiesMapper(editorAuthoritiesMapper))
                         .defaultSuccessUrl(frontendUrl, true)
                         .failureUrl(frontendUrl + "/?login=error"))
                 .logout(logout -> logout
@@ -57,5 +67,26 @@ public class SecurityConfig {
                         .deleteCookies("JSESSIONID")
                         .logoutSuccessHandler((request, response, authentication) -> response.setStatus(204)));
         return http.build();
+    }
+
+    @Bean
+    public GrantedAuthoritiesMapper editorAuthoritiesMapper(
+            @Value("${app.security.editor-subjects:}") String editorSubjects) {
+        var subjects = Arrays.stream(editorSubjects.split(","))
+                .map(String::trim)
+                .filter(subject -> !subject.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
+        return authorities -> {
+            var mapped = new HashSet<GrantedAuthority>(authorities);
+            for (var authority : authorities) {
+                if (authority instanceof OidcUserAuthority oidc
+                        && oidc.getIdToken().getIssuer() != null
+                        && "https://accounts.google.com".equals(oidc.getIdToken().getIssuer().toString())
+                        && subjects.contains(oidc.getIdToken().getSubject())) {
+                    mapped.add(new SimpleGrantedAuthority("ROLE_EDITOR"));
+                }
+            }
+            return mapped;
+        };
     }
 }

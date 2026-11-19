@@ -413,7 +413,7 @@ describe('category display on quote cards', () => {
   })
 
   it('opens a categorized quote for editing from the card and preserves selections on save', async () => {
-    render(<QuotesList authorId={7} isAuthenticated onAuthorCreated={vi.fn()} />)
+    render(<QuotesList authorId={7} isEditor onAuthorCreated={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Edit quote' }))
     await ready()
     expect(screen.getAllByRole('checkbox').every((input) => input.checked)).toBe(true)

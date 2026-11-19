@@ -27,17 +27,29 @@ session-cookie based; the frontend does not store credentials or session data
 in local storage. The backend provides `GET /api/auth/me`,
 `GET /api/auth/csrf`, and `POST /api/auth/logout` (204 on success).
 
+Sign-in does not grant editing. `/api/auth/me` supplies an `editor` boolean
+separately from `authenticated`; only `editor: true` enables quote creation,
+editing/deletion, author/character editing, and the candidate review panel.
+The menu shows **Editor** or **Read-only access**, while every signed-in user
+can log out. Signed-in non-editors do not see Add Quote. Anonymous visitors can
+still start its sign-in flow, but the saved Add Quote intent opens the form
+only after an editor signs in; other accounts see an editor-access message.
+Missing editor status never grants editing. Backend role checks enforce access
+independently of these UI controls. Configure the Google-sub allowlist and find
+your own subject via `/api/auth/me` as described in the root README; no tokens
+are exposed.
+
 Run API contract tests and component interaction tests with `npm test`.
 Component tests use Vitest, Testing Library, and jsdom. Run `npm run lint` and
 `npm run build` for linting and the production bundle.
 
 ## Candidate review
 
-The right panel shows **Candidate review** near the top only while signed in;
+The right panel shows **Candidate review** near the top only for editors;
 otherwise it retains **Coming Soon**, also top-aligned. **Review next candidate** requests the oldest pending quote
 with `status=PENDING&page=0&size=1`. Empty queues and retryable load failures are
 shown separately. The panel loads and displays total pending quote and author
-pending quote, snoozed quote, and pending author counts on sign-in, and refreshes them after candidate review updates; count
+pending quote, snoozed quote, and pending author counts when editor access is established, and refreshes them after candidate review updates; count
 failures are visible and retryable. It does not automatically open a candidate.
 **Snooze** marks a pending quote `SNOOZED` without saving draft edits or
 publishing it, removing it from the pending queue. **Review snoozed** loads the
@@ -97,7 +109,8 @@ client error leaves the form editable. The queue is not reserved across reviewer
 Successful publication refreshes sidebar
 names/quotes without changing browsing filters. Candidate reads, imports, and
 review-field updates remain temporarily anonymous with CSRF on writes; promotion
-endpoints require authentication and CSRF because they create published content.
+endpoints require editor access and CSRF because they create published content.
+Candidate staging/import/review-field API permissions remain anonymous with CSRF on mutations.
 
 ## Deleting quotes linked to candidates
 
@@ -109,7 +122,7 @@ error prose or treat every 409 as a candidate-link conflict.
 
 Choose **Reject candidates and delete quote** or **Return candidates to Pending
 and delete quote**, or cancel without changes. The selected status is sent as
-`candidateStatus=REJECTED` or `PENDING` on the authenticated, CSRF-protected quote
+`candidateStatus=REJECTED` or `PENDING` on the editor-authorized, CSRF-protected quote
 DELETE. The backend updates all linked candidates, clears their published-quote
 links and deletes the quote in one transaction, rolling everything back on
 failure. Candidate text, source information, candidate-author links and published

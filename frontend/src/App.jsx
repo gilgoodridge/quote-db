@@ -20,7 +20,7 @@ function App() {
   const [authorsVersion, setAuthorsVersion] = useState(0)
   const [searchText, setSearchText] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isEditor, setIsEditor] = useState(false)
   const [deletedCandidateQuoteId, setDeletedCandidateQuoteId] = useState(null)
 
   function handleSearch() {
@@ -52,7 +52,7 @@ function App() {
   return (
     <div className="app-container">
       <Header
-        onAuthenticationChange={setIsAuthenticated}
+        onEditorChange={setIsEditor}
         onQuoteCreated={handleQuoteCreated}
         onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
         selectedAuthorId={selectedAuthorId}
@@ -73,7 +73,7 @@ function App() {
             selectedCharacterId={selectedCharacterId}
             onCharacterSelect={setSelectedCharacterId}
             charactersRefreshKey={charactersVersion}
-            isAuthenticated={isAuthenticated}
+            isEditor={isEditor}
             onAuthorChanged={handleAuthorChanged}
             onCharacterChanged={handleCharacterChanged}
           />
@@ -81,7 +81,7 @@ function App() {
         <main className="content-middle">
           <QuotesList
             onCandidatesChanged={setDeletedCandidateQuoteId}
-            isAuthenticated={isAuthenticated}
+            isEditor={isEditor}
             onAuthorUpdated={handleAuthorChanged}
             onAuthorCreated={() => setAuthorsVersion((version) => version + 1)}
             authorId={selectedAuthorId}
@@ -94,7 +94,7 @@ function App() {
           />
         </main>
         <aside className="sidebar-right">
-          {isAuthenticated
+          {isEditor
             ? <CandidateReview
                 deletedQuoteId={deletedCandidateQuoteId}
                 onAuthorCreated={handleAuthorChanged}

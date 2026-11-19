@@ -25,7 +25,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.gilgood.config.EditorTestLogin.editorLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -75,7 +75,7 @@ class CharacterControllerTest {
                 .andExpect(jsonPath("$.description").value("Prince of Denmark"))
                 .andExpect(jsonPath("$.workTitle").value("Hamlet"))
                 .andExpect(jsonPath("$.quotes").doesNotExist());
-        mvc.perform(put("/api/characters/{id}", id).with(oidcLogin()).with(csrf())
+        mvc.perform(put("/api/characters/{id}", id).with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"id\":999,\"fullName\":\"Prince Hamlet\"}"))
                 .andExpect(status().isOk())
@@ -84,14 +84,14 @@ class CharacterControllerTest {
                 .andExpect(jsonPath("$.knownAs").doesNotExist())
                 .andExpect(jsonPath("$.description").doesNotExist())
                 .andExpect(jsonPath("$.workTitle").doesNotExist());
-        mvc.perform(delete("/api/characters/{id}", id).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/characters/{id}", id).with(editorLogin()).with(csrf()))
                 .andExpect(status().isOk());
         for (var method : new org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder[]{
                 get("/api/characters/{id}", id),
                 put("/api/characters/{id}", id).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fullName\":\"Missing\"}"),
                 delete("/api/characters/{id}", id)}) {
-            mvc.perform(method.with(oidcLogin()).with(csrf())).andExpect(status().isNotFound());
+            mvc.perform(method.with(editorLogin()).with(csrf())).andExpect(status().isNotFound());
         }
     }
 
@@ -145,10 +145,10 @@ class CharacterControllerTest {
                 json.writeValueAsString(Map.of("fullName", "Hamlet", "knownAs", "x".repeat(256))),
                 json.writeValueAsString(Map.of("fullName", "Hamlet", "description", "x".repeat(1025))),
                 json.writeValueAsString(Map.of("fullName", "Hamlet", "workTitle", "x".repeat(256)))}) {
-            mvc.perform(post("/api/characters").with(oidcLogin()).with(csrf())
+            mvc.perform(post("/api/characters").with(editorLogin()).with(csrf())
                             .contentType(MediaType.APPLICATION_JSON).content(invalid))
                     .andExpect(status().isBadRequest());
-            mvc.perform(put("/api/characters/{id}", id).with(oidcLogin()).with(csrf())
+            mvc.perform(put("/api/characters/{id}", id).with(editorLogin()).with(csrf())
                             .contentType(MediaType.APPLICATION_JSON).content(invalid))
                     .andExpect(status().isBadRequest());
         }
@@ -171,7 +171,7 @@ class CharacterControllerTest {
         var request = request(org.springframework.http.HttpMethod.valueOf(method), path)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"fullName\":\"Hamlet\"}");
         mvc.perform(request.with(csrf())).andExpect(status().isUnauthorized());
-        mvc.perform(request(org.springframework.http.HttpMethod.valueOf(method), path).with(oidcLogin())
+        mvc.perform(request(org.springframework.http.HttpMethod.valueOf(method), path).with(editorLogin())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"fullName\":\"Hamlet\"}"))
                 .andExpect(status().isForbidden());
         assertEquals(1, characters.count());
@@ -199,14 +199,14 @@ class CharacterControllerTest {
                     .andExpect(jsonPath(prefix + ".character.quotes").doesNotExist());
         }
         request.remove("authorId");
-        mvc.perform(post("/api/quotes").with(oidcLogin()).with(csrf())
+        mvc.perform(post("/api/quotes").with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
-        mvc.perform(put("/api/quotes/{id}", id).with(oidcLogin()).with(csrf())
+        mvc.perform(put("/api/quotes/{id}", id).with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
         assertEquals(2, quotes.count());
-        mvc.perform(delete("/api/quotes/{id}", id).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/quotes/{id}", id).with(editorLogin()).with(csrf()))
                 .andExpect(status().isOk());
         assertTrue(characters.existsById(characterId));
         assertTrue(authors.existsById(authorId));
@@ -268,11 +268,11 @@ class CharacterControllerTest {
         for (long invalid : new long[]{0, -1, Long.MAX_VALUE}) {
             request.put("characterId", invalid);
             request.put("text", "Must not be saved");
-            mvc.perform(post("/api/quotes").with(oidcLogin()).with(csrf())
+            mvc.perform(post("/api/quotes").with(editorLogin()).with(csrf())
                             .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
                     .andExpect(content().string(containsString("characterId")));
-            mvc.perform(put("/api/quotes/{id}", id).with(oidcLogin()).with(csrf())
+            mvc.perform(put("/api/quotes/{id}", id).with(editorLogin()).with(csrf())
                             .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                     .andExpect(status().isBadRequest());
             mvc.perform(get("/api/quotes/{id}", id)).andExpect(status().isOk())
@@ -296,7 +296,7 @@ class CharacterControllerTest {
         var request = quoteRequest();
         request.put("characterId", characterId);
         long quoteId = createQuote(request).path("id").asLong();
-        mvc.perform(delete("/api/characters/{id}", characterId).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/characters/{id}", characterId).with(editorLogin()).with(csrf()))
                 .andExpect(status().isConflict())
                 .andExpect(content().string(containsString("linked to quotes")));
         mvc.perform(get("/api/quotes/{id}", quoteId)).andExpect(status().isOk())
@@ -304,27 +304,27 @@ class CharacterControllerTest {
                 .andExpect(jsonPath("$.author.id").value(authorId));
         request.remove("characterId");
         replaceQuote(quoteId, request);
-        mvc.perform(delete("/api/characters/{id}", characterId).with(oidcLogin()).with(csrf()))
+        mvc.perform(delete("/api/characters/{id}", characterId).with(editorLogin()).with(csrf()))
                 .andExpect(status().isOk());
         assertTrue(quotes.existsById(quoteId));
         assertTrue(authors.existsById(authorId));
     }
 
     private JsonNode createCharacter(Map<String, Object> request) throws Exception {
-        return json.readTree(mvc.perform(post("/api/characters").with(oidcLogin()).with(csrf())
+        return json.readTree(mvc.perform(post("/api/characters").with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
     }
 
     private JsonNode createQuote(Map<String, Object> request) throws Exception {
-        return json.readTree(mvc.perform(post("/api/quotes").with(oidcLogin()).with(csrf())
+        return json.readTree(mvc.perform(post("/api/quotes").with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
     }
 
     private org.springframework.test.web.servlet.ResultActions replaceQuote(long id, Map<String, Object> request)
             throws Exception {
-        return mvc.perform(put("/api/quotes/{id}", id).with(oidcLogin()).with(csrf())
+        return mvc.perform(put("/api/quotes/{id}", id).with(editorLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isOk());
     }

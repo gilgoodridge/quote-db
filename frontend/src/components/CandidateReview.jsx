@@ -225,7 +225,7 @@ function ReviewDialog({candidate, candidateAuthor, progress, onClose, onComplete
           linkError={linkError}
         />
         {viewedAuthorId != null && (
-          <AboutAuthorDialog authorId={viewedAuthorId} isAuthenticated={false} onClose={() => setViewedAuthorId(null)} />
+          <AboutAuthorDialog authorId={viewedAuthorId} onClose={() => setViewedAuthorId(null)} />
         )}
       </>
     )

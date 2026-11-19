@@ -27,7 +27,7 @@ export default function LoginDialog({ onClose, onGoogleLogin, forAddQuote = fals
       <div className="dialog-body">
       <p id="login-description" className="login-description">
         {forAddQuote
-          ? 'Please log in to add a quote. After signing in with Google, the Add Quote form will open.'
+          ? 'Please log in with an editor account to add a quote. The form will open if your account has editor access.'
           : 'No login is needed to explore quotes. Continue with Google to sign in.'}
       </p>
       {error && <p role="alert">{error}</p>}

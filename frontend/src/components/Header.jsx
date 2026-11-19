@@ -7,7 +7,7 @@ import '../styles/Header.css'
 
 export default function Header({
   onQuoteCreated, onAuthorCreated, selectedAuthorId, searchText, onSearchTextChange, onSearch,
-  onAuthenticationChange,
+  onEditorChange,
   selectedCharacterId, onCharacterCreated,
 }) {
   const [showMenu, setShowMenu] = useState(false)
@@ -28,10 +28,11 @@ export default function Header({
   const addQuoteButtonRef = useRef(null)
   const loginTriggerRef = useRef(null)
   const addQuoteRequestedRef = useRef(false)
+  const isEditor = authStatus === 'authenticated' && user?.editor === true
 
   useEffect(() => {
-    onAuthenticationChange(authStatus === 'authenticated')
-  }, [authStatus, onAuthenticationChange])
+    onEditorChange(isEditor)
+  }, [isEditor, onEditorChange])
 
   useEffect(() => {
     let active = true
@@ -57,8 +58,10 @@ export default function Header({
         }
         if ((pending && !loginReturn.failed) || addQuoteRequestedRef.current) {
           addQuoteRequestedRef.current = false
-          if (session.authenticated) {
+          if (session.authenticated && session.editor === true) {
             setShowAddQuote(true)
+          } else if (session.authenticated) {
+            setQuoteActionError('Editor access is required to add quotes.')
           } else {
             loginTriggerRef.current = addQuoteButtonRef.current
             setLoginForQuote(true)
@@ -125,7 +128,8 @@ export default function Header({
     setQuoteAdded(false)
     setQuoteActionError('')
     if (authStatus === 'authenticated') {
-      setShowAddQuote(true)
+      if (isEditor) setShowAddQuote(true)
+      else setQuoteActionError('Editor access is required to add quotes.')
     } else if (authStatus === 'anonymous') {
       loginTriggerRef.current = addQuoteButtonRef.current
       setLoginForQuote(true)
@@ -180,7 +184,7 @@ export default function Header({
             Unable to check sign-in: {authError}
           </span>
         )}
-        <button
+        {(authStatus !== 'authenticated' || isEditor) && <button
           ref={addQuoteButtonRef}
           type="button"
           className="add-quote-btn"
@@ -188,7 +192,7 @@ export default function Header({
           onClick={addQuote}
         >
           Add Quote
-        </button>
+        </button>}
 
         <div className="menu-container">
           <button
@@ -208,6 +212,7 @@ export default function Header({
                   <span>Signed in as</span>
                   <strong>{displayName}</strong>
                   {user.email && user.name && <span>{user.email}</span>}
+                  <span>{isEditor ? 'Editor' : 'Read-only access'}</span>
                 </div>
               )}
               {authStatus === 'anonymous' && (
@@ -259,7 +264,7 @@ export default function Header({
       {showLogin && (
         <LoginDialog onClose={closeLogin} onGoogleLogin={startGoogleLogin} forAddQuote={loginForQuote} error={quoteActionError} />
       )}
-      {showAddQuote && (
+      {showAddQuote && isEditor && (
         <AddQuoteDialog
           initialAuthorId={selectedAuthorId}
           initialCharacterId={selectedCharacterId}

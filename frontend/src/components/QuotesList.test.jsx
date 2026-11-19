@@ -157,7 +157,7 @@ describe('quote pagination', () => {
     api.quotes.listPage.mockResolvedValueOnce(quotePage([{...quote, id: 43}], 1, 20, 21))
     api.quotes.listPage.mockResolvedValueOnce(quotePage([], 1, 20, 20))
     api.quotes.listPage.mockResolvedValueOnce(quotePage([quote], 0, 20, 20))
-    render(<QuotesList authorId={7} isAuthenticated />)
+    render(<QuotesList authorId={7} isEditor />)
     await screen.findByText('Page 1 of 2')
     fireEvent.click(screen.getByRole('button', {name: 'Next'}))
     await screen.findByText('Page 2 of 2')
@@ -176,7 +176,7 @@ describe('deleting quotes linked to candidates', () => {
 
   async function attemptDelete(props = {}) {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    render(<QuotesList authorId={7} isAuthenticated {...props} />)
+    render(<QuotesList authorId={7} isEditor {...props} />)
     const button = await screen.findByRole('button', {name: 'Delete quote'})
     button.focus()
     fireEvent.click(button)
@@ -252,7 +252,7 @@ describe('deleting quotes linked to candidates', () => {
   it('does not send a request after cancelling the initial confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false)
     vi.spyOn(api.quotes, 'delete')
-    render(<QuotesList authorId={7} isAuthenticated />)
+    render(<QuotesList authorId={7} isEditor />)
     fireEvent.click(await screen.findByRole('button', {name: 'Delete quote'}))
     expect(api.quotes.delete).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -267,7 +267,7 @@ describe('per-quote author attribution', () => {
     expect(screen.getAllByRole('button', {name: 'Mark Twain'})).toHaveLength(2)
     expect(screen.queryByRole('heading', {name: 'Mark Twain'})).toBeNull()
     expect(api.authors.get).not.toHaveBeenCalled()
-    rerender(<QuotesList authorId={7} isAuthenticated />)
+    rerender(<QuotesList authorId={7} isEditor />)
     expect(screen.getAllByRole('button', {name: 'Mark Twain'})).toHaveLength(2)
   })
 

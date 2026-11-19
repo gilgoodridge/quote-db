@@ -191,7 +191,7 @@ it('loads only ten initially and appends more pages on demand until the last pag
 it('opens author details from the sidebar and restores focus when closed', async () => {
   vi.spyOn(api.authors, 'get').mockResolvedValue(author)
   const onAuthorChanged = vi.fn()
-  render(sidebar({isAuthenticated: true, onAuthorChanged}))
+  render(sidebar({isEditor: true, onAuthorChanged}))
   await screen.findByRole('button', {name: 'The Bard'})
 
   const infoButton = screen.getByRole('button', {name: 'About The Bard'})

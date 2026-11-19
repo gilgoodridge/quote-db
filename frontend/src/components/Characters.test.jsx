@@ -165,7 +165,7 @@ it('retries character details and restores focus after cancelling and saving edi
   const onUpdated = vi.fn()
   const updated = {...character, knownAs: null, workTitle: null, description: null}
   api.characters.update.mockResolvedValue(updated)
-  render(<AboutCharacterDialog characterId={4} isAuthenticated onClose={vi.fn()} onUpdated={onUpdated} />)
+  render(<AboutCharacterDialog characterId={4} isEditor onClose={vi.fn()} onUpdated={onUpdated} />)
   await screen.findByRole('alert')
   fireEvent.click(screen.getByRole('button', {name: 'Retry character details'}))
   fireEvent.click(await screen.findByRole('button', {name: 'Edit character'}))
@@ -355,7 +355,7 @@ it('does not fetch or show a character heading when there are no matching quotes
 it('refreshes per-quote character attribution after editing and a later external refresh', async () => {
   const firstUpdate = {...character, knownAs: 'First update'}
   api.characters.update.mockResolvedValue(firstUpdate)
-  const {rerender} = render(<QuotesList characterId={4} isAuthenticated />)
+  const {rerender} = render(<QuotesList characterId={4} isEditor />)
   fireEvent.click(await screen.findByRole('button', {name: 'Prince Hamlet'}))
   fireEvent.click(await screen.findByRole('button', {name: 'Edit character'}))
   fireEvent.change(screen.getByLabelText('Known as'), {target: {value: 'First update'}})
@@ -365,13 +365,13 @@ it('refreshes per-quote character attribution after editing and a later external
   fireEvent.click(screen.getByRole('button', {name: 'Close character details'}))
   await screen.findByRole('button', {name: 'First update'})
   api.quotes.listPage.mockResolvedValue(page([{...quote, character: {...character, knownAs: 'External update'}}], 0, 20))
-  rerender(<QuotesList characterId={4} isAuthenticated charactersRefreshKey={1} />)
+  rerender(<QuotesList characterId={4} isEditor charactersRefreshKey={1} />)
   await screen.findByRole('button', {name: 'External update'})
   expect(screen.queryByRole('heading', {name: /Character:/})).toBeNull()
 })
 
 it('refreshes character filters and quote attribution after editing details through the app', async () => {
-  api.auth.me.mockResolvedValue({authenticated: true, name: 'Editor'})
+  api.auth.me.mockResolvedValue({authenticated: true, editor: true, name: 'Editor'})
   const updated = {...character, knownAs: 'Updated Prince'}
   api.characters.update.mockResolvedValue(updated)
   render(<App />)
@@ -394,7 +394,7 @@ it('refreshes character filters and quote attribution after editing details thro
 })
 
 it('does not offer sidebar character creation to signed-in users and still opens details', async () => {
-  render(sidebar({isAuthenticated: true}))
+  render(sidebar({isEditor: true}))
   expect(await screen.findByRole('button', {name: 'Prince Hamlet (Hamlet)'})).toBeTruthy()
   expect(screen.queryByRole('button', {name: 'Add new character'})).toBeNull()
   fireEvent.click(screen.getByRole('button', {name: 'About Prince Hamlet (Hamlet)'}))

@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.gilgood.config.EditorTestLogin.editorLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -46,15 +47,20 @@ class SecurityConfigTest {
         mvc.perform(get("/api/auth/me"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.authenticated").value(false))
+                .andExpect(jsonPath("$.editor").value(false))
+                .andExpect(jsonPath("$.subject").doesNotExist())
                 .andExpect(header().string("Cache-Control", containsString("no-store")));
     }
 
     @Test
     void exposesOnlySessionProfileNotTokens() throws Exception {
-        mvc.perform(get("/api/auth/me").with(oidcLogin().idToken(token -> token
+        mvc.perform(get("/api/auth/me").with(editorLogin().idToken(token -> token
+                        .subject("editor-subject")
                         .claim("name", "Test User").claim("email", "test@example.com"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(jsonPath("$.editor").value(true))
+                .andExpect(jsonPath("$.subject").value("editor-subject"))
                 .andExpect(jsonPath("$.name").value("Test User"))
                 .andExpect(jsonPath("$.email").value("test@example.com"))
                 .andExpect(jsonPath("$.idToken").doesNotExist())
@@ -62,8 +68,9 @@ class SecurityConfigTest {
     }
 
     @Test
-    void writesRequireLoginAndCsrfForBothResources() throws Exception {
-        for (String path : new String[]{"/api/authors", "/api/authors/1", "/api/quotes", "/api/quotes/1"}) {
+    void writesRequireEditorAndCsrf() throws Exception {
+        for (String path : new String[]{"/api/authors", "/api/authors/1", "/api/quotes", "/api/quotes/1",
+                "/api/characters", "/api/characters/1"}) {
             for (String method : new String[]{"POST", "PUT", "DELETE"}) {
                 mvc.perform(request(org.springframework.http.HttpMethod.valueOf(method), path).with(csrf()))
                         .andExpect(status().isUnauthorized());
@@ -71,6 +78,11 @@ class SecurityConfigTest {
                         .andExpect(status().isForbidden());
                 mvc.perform(request(org.springframework.http.HttpMethod.valueOf(method), path)
                                 .with(oidcLogin()).with(csrf()))
+                        .andExpect(status().isForbidden());
+                mvc.perform(request(org.springframework.http.HttpMethod.valueOf(method), path).with(editorLogin()))
+                        .andExpect(status().isForbidden());
+                mvc.perform(request(org.springframework.http.HttpMethod.valueOf(method), path)
+                                .with(editorLogin()).with(csrf()))
                         .andExpect(status().isOk());
             }
         }
@@ -86,21 +98,51 @@ class SecurityConfigTest {
                 .andReturn();
         CsrfToken token = (CsrfToken) result.getRequest().getAttribute(CsrfToken.class.getName());
         MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
-        mvc.perform(post("/api/authors").session(session).with(oidcLogin())
+        mvc.perform(post("/api/authors").session(session).with(editorLogin())
                         .header(token.getHeaderName(), token.getToken()))
                 .andExpect(status().isOk());
-        mvc.perform(post("/api/authors").with(oidcLogin())
+        mvc.perform(post("/api/authors").with(editorLogin())
                         .header(token.getHeaderName(), token.getToken()))
                 .andExpect(status().isForbidden());
-        mvc.perform(post("/api/authors").session(session).with(oidcLogin()).with(csrf().useInvalidToken()))
+        mvc.perform(post("/api/authors").session(session).with(editorLogin()).with(csrf().useInvalidToken()))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void aiLookupRequiresLoginAndCsrf() throws Exception {
+    void aiLookupRequiresEditorAndCsrf() throws Exception {
         mvc.perform(post("/api/ai/lookups").with(csrf())).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/ai/lookups").with(oidcLogin())).andExpect(status().isForbidden());
-        mvc.perform(post("/api/ai/lookups").with(oidcLogin()).with(csrf())).andExpect(status().isOk());
+        mvc.perform(post("/api/ai/lookups").with(oidcLogin()).with(csrf())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/ai/lookups").with(editorLogin())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/ai/lookups").with(editorLogin()).with(csrf())).andExpect(status().isOk());
+    }
+
+    @Test
+    void nonEditorCanSeeOwnSubjectBrowseAndUseUnchangedStagingPermissions() throws Exception {
+        mvc.perform(get("/api/auth/me").with(oidcLogin().idToken(token -> token.subject("reader-subject"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated").value(true))
+                .andExpect(jsonPath("$.editor").value(false))
+                .andExpect(jsonPath("$.subject").value("reader-subject"));
+        mvc.perform(get("/api/quotes").with(oidcLogin())).andExpect(status().isOk());
+        for (String path : new String[]{"/api/candidates/batch", "/api/candidate-authors", "/api/candidate-quotes",
+                "/api/candidate-authors/1", "/api/candidate-quotes/1",
+                "/api/candidate-authors/1/reject", "/api/candidate-authors/1/snooze-quotes"}) {
+            mvc.perform(post(path).with(csrf())).andExpect(status().isOk());
+            mvc.perform(post(path).with(oidcLogin()).with(csrf())).andExpect(status().isOk());
+            mvc.perform(post(path)).andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
+    void candidatePublicationAndLinkingRequireEditorAndCsrf() throws Exception {
+        for (String path : new String[]{"/api/candidate-authors/1/promote", "/api/candidate-authors/1/link",
+                "/api/candidate-quotes/1/promote"}) {
+            mvc.perform(post(path).with(csrf())).andExpect(status().isUnauthorized());
+            mvc.perform(post(path).with(oidcLogin()).with(csrf())).andExpect(status().isForbidden());
+            mvc.perform(post(path).with(editorLogin())).andExpect(status().isForbidden());
+            mvc.perform(post(path).with(editorLogin()).with(csrf())).andExpect(status().isOk());
+        }
     }
 
     @Test
@@ -142,7 +184,11 @@ class SecurityConfigTest {
     @RestController
     static class Resources {
         @RequestMapping(value = {"/api/authors", "/api/authors/1", "/api/ai/lookups",
-                "/api/quotes", "/api/quotes/1", "/api/categories"},
+                "/api/quotes", "/api/quotes/1", "/api/categories", "/api/characters", "/api/characters/1",
+                "/api/candidates/batch", "/api/candidate-authors", "/api/candidate-quotes",
+                "/api/candidate-authors/1", "/api/candidate-quotes/1",
+                "/api/candidate-authors/1/reject", "/api/candidate-authors/1/snooze-quotes",
+                "/api/candidate-authors/1/promote", "/api/candidate-authors/1/link", "/api/candidate-quotes/1/promote"},
                 produces = MediaType.APPLICATION_JSON_VALUE)
         String resource() {
             return "[]";

@@ -12,7 +12,7 @@
 
 - Shared AddAuthorDialog exposes draft-only Gemini lookup beside Date of birth/death,
   Place of birth and Biography
-  for create/edit/review. Single POST `/api/ai/lookups` requires login and CSRF,
+  for create/edit/review. Single POST `/api/ai/lookups` requires editor access and CSRF,
   accepts `{type, context}`, and never writes published/candidate content.
   AiLookupRequest.Type permits AUTHOR_DATE_OF_BIRTH, AUTHOR_DATE_OF_DEATH,
   AUTHOR_PLACE_OF_BIRTH and AUTHOR_BIOGRAPHY, requiring
@@ -63,8 +63,8 @@
   Keep candidate content out of published author/quote queries and UI.
 - Candidate reads, imports and review-field updates permit anonymous access by
   explicit request. Preserve CSRF on mutations. Promotion endpoints require
-  authentication because they create published content. Admin authorization is
-  deferred; do not describe candidate endpoints as admin-restricted.
+  editor authorization because they create published content. Author linking
+  also requires editor access; do not restrict the remaining staging endpoints.
 - POST imports one candidate, with a lowercase ASCII stable importKey unique
   per candidate type. Repeat keys return stored DTOs unchanged, preserving rejected
   state, edits and original provenance. Conflicting source/page or quote parent
@@ -87,7 +87,7 @@
   POST `/{id}/link` links an existing published author. POST
   `/api/candidate-quotes/{id}/promote` creates and links a Quote from
   CreateQuoteRequest and approves the candidate atomically. These endpoints
-  require authentication and CSRF; pessimistic candidate-row locks serialize
+  require editor access and CSRF; pessimistic candidate-row locks serialize
   retries/concurrent requests, returning the existing linked DTO without
   duplicate publication. Quote promotion also locks its candidate author and
   fails with 409 if that author was rejected. Rejecting an author rejects every
@@ -101,15 +101,15 @@
 - Quote deletion conflicts use RFC 9457 ProblemDetail with stable
   `code=QUOTE_LINKED_TO_CANDIDATES` and
   `type=urn:quote-db:problem:quote-linked-to-candidates`, not message matching.
-  Only this 409 offers the signed-in recovery dialog. Explicit DELETE
+  Only this 409 offers the editor-only recovery dialog. Explicit DELETE
   `candidateStatus=PENDING|REJECTED` invokes QuoteDeletionService: lock the quote,
   update all linked candidate statuses/clear publication links, then delete/flush
   in one transaction. Failure rolls back all changes. Preserve candidate text,
   provenance, candidate-author links and published authors/characters.
-  Recovery uses published-content authentication/CSRF, never anonymous candidate
+  Recovery uses published-content editor authorization/CSRF, never anonymous candidate
   endpoint permissions. Successful recovery refreshes quote totals/candidate counts
   and removes the deleted quote from CandidateReview's in-memory publication cache.
-- CandidateReview replaces the right-side placeholder only for signed-in users.
+- CandidateReview replaces the right-side placeholder only for editors.
   Review next candidate fetches the next PENDING quote; Review snoozed fetches
   the next SNOOZED quote, both page 0/size 1 and oldest ID first. GET does not
   reserve the item. SNOOZED applies only to candidate quotes and is excluded
@@ -340,7 +340,7 @@ retryable; writes refresh totals and recover pages that no longer exist.
   DTOs and CharacterResponse. Never accept client IDs or expose entities.
   PUT replaces all editable fields and clears omitted/null optional fields.
 - GET/HEAD list and single-character endpoints are public; all writes require
-  authentication and CSRF. List uses the same pagination validation as authors,
+  editor authorization and CSRF. List uses the same pagination validation as authors,
   ID ascending, and optional trimmed, case-insensitive literal fullName-only
   substring `query`, with database filtering/counting.
 - Flyway V8 creates `characters` and nullable indexed `quotes.character_id`,
@@ -369,7 +369,7 @@ retryable; writes refresh totals and recover pages that no longer exist.
   list never changes selected IDs or other quote filters. Character labels in
   filters/pickers prefer knownAs and append workTitle in parentheses.
 - Character names on quotes and Sidebar Info buttons open AboutCharacterDialog.
-  Details are public; only authenticated users can create/edit characters.
+  Details are public; only editors can create/edit characters.
   AddCharacterDialog shares characterFields definitions with details, trims
   text, sends cleared optional fields as null, keeps failed drafts and blocks
   duplicate submissions/dismissal while saving. Use native dialogs and restore
@@ -532,9 +532,9 @@ frontend/
 │   ├── components/
 │   │   ├── Header.jsx            # Top header with logo, search, menu
 │   │   ├── LoginDialog.jsx       # Optional Google OIDC login dialog
-│   │   ├── AboutAuthorDialog.jsx # Public author details with authenticated edit action
+│   │   ├── AboutAuthorDialog.jsx # Public author details with editor-only edit action
 │   │   ├── AddAuthorDialog.jsx   # Shared author creation/editing form
-│   │   ├── AboutCharacterDialog.jsx # Public character details with authenticated editing
+│   │   ├── AboutCharacterDialog.jsx # Public character details with editor-only editing
 │   │   ├── AddCharacterDialog.jsx # Character creation/full-replacement editing
 │   │   ├── NameFilter.jsx        # Shared paginated author/character search
 │   │   ├── Sidebar.jsx           # Left sidebar: author/character/category filters
@@ -577,9 +577,9 @@ frontend/
   - Clickable author/character names open their public details dialogs
   - Scrollable for long quote lists
 
-- **Right Sidebar (25% width)**: Candidate review for signed-in users
+- **Right Sidebar (25% width)**: Candidate review for editors
   - Review next candidate opens shared author/quote review forms
-  - Signed-out users retain the animated "Coming Soon" placeholder
+  - Non-editors, including signed-out users, retain the animated "Coming Soon" placeholder
   - Both review controls and the placeholder are top-aligned with pane padding
 
 **Color Palette (CSS Variables)**
@@ -669,7 +669,7 @@ Environment URL is configurable via `.env.local` (dev) or `.env.production` (bui
 - About this Author is a public, read-only native modal that fetches full details through `api.authors.get(id)`; loading failures are visible and retryable
 - Shows full name, known-as name, birth/death dates, birthplace, nationality, biography, and age when available; missing fields display "Not provided"
 - Render date-only author values without timezone shifts and preserve biography line breaks
-- Only authenticated users see the top-right pencil, which opens AddAuthorDialog prefilled for editing
+- Only editors see the top-right pencil, which opens AddAuthorDialog prefilled for editing
 - Share field definitions through `authorFields.js`; AddAuthorDialog supports both existing creation and full-replacement PUT updates
 - Author form labels use asterisks for required fields and hovertext from shared
   `authorFields` descriptions, without an introductory paragraph. Keep top padding
@@ -732,8 +732,20 @@ npm run dev
 - Local Google callback: `http://localhost:8080/login/oauth2/code/google`
 - `FRONTEND_URL` sets the fixed post-login origin, default `http://localhost:5173` (no trailing slash)
 - `SecurityConfig` integrates Spring Security with the existing credentialed MVC CORS configuration
-- Anonymous GET/HEAD browsing of authors, characters and quotes is allowed; published-content API writes require authentication and CSRF. Candidate staging writes temporarily require CSRF only.
-- Every authenticated Google user can write; editor/admin roles are not implemented
+- Anonymous GET/HEAD browsing of authors, characters and quotes is allowed; published-content API writes require editor access and CSRF. Candidate staging writes temporarily require CSRF only.
+- `app.security.editor-subjects` in application.properties defaults to `${EDITOR_SUBJECTS:}`:
+  a comma-separated, case-sensitive Google `sub` allowlist, empty by default.
+  `SecurityConfig.editorAuthoritiesMapper` preserves existing authorities and grants
+  `ROLE_EDITOR` for allowlisted subjects from validated Google ID tokens. Protected
+  API routes, AI lookups, candidate promotion and author linking use `hasRole("EDITOR")`;
+  remaining staging permissions are unchanged. Never grant roles by email/client input.
+- Roles are mapped at login and stored in the session. Restart after config changes,
+  invalidate surviving sessions on revocation, and log in again to refresh roles.
+- `/api/auth/me` returns `authenticated`, `editor` and signed-in users' own `subject`
+  alongside name/email, never tokens. Users can inspect it to discover their Google sub.
+  Frontend `isEditor` props gate all editing/review controls independently of sign-in;
+  non-editors retain account display/logout. Missing editor status grants no editing.
+  Restored Add Quote intent must also check editor access.
 - AuthController returns minimal DTOs from `/api/auth/me` and `/api/auth/csrf`, with `Cache-Control: no-store`
 - `/api/auth/logout` is a CSRF-protected POST that invalidates the session and clears its cookie
 - Frontend API calls include cookies and fetch a fresh session-bound CSRF token before writes

@@ -6,7 +6,7 @@ import DialogHeader from './DialogHeader'
 import '../styles/AddQuoteDialog.css'
 import '../styles/AboutAuthorDialog.css'
 
-export default function AboutCharacterDialog({characterId, isAuthenticated, onClose, onUpdated}) {
+export default function AboutCharacterDialog({characterId, isEditor = false, onClose, onUpdated}) {
   const dialogRef = useRef(null)
   const editButtonRef = useRef(null)
   const [character, setCharacter] = useState(null)
@@ -45,12 +45,12 @@ export default function AboutCharacterDialog({characterId, isAuthenticated, onCl
       <dialog ref={dialogRef} className="add-quote-dialog" aria-labelledby="about-character-title"
         onClose={onClose} onCancel={(event) => {
           event.preventDefault()
-          if (!editing || !isAuthenticated) dialogRef.current.close()
+          if (!editing || !isEditor) dialogRef.current.close()
         }}>
         <DialogHeader titleId="about-character-title" title="About this Character"
-          closeLabel="Close character details" autoFocus disabled={editing && isAuthenticated}
+          closeLabel="Close character details" autoFocus disabled={editing && isEditor}
           onClose={() => dialogRef.current.close()}>
-          {character && isAuthenticated && (
+          {character && isEditor && (
             <button ref={editButtonRef} type="button" className="about-author-edit"
               aria-label="Edit character" aria-haspopup="dialog"
               onClick={() => { setMessage(''); setEditing(true) }}>
@@ -78,7 +78,7 @@ export default function AboutCharacterDialog({characterId, isAuthenticated, onCl
           {message && <p role="status">{message}</p>}
         </div>
       </dialog>
-      {editing && isAuthenticated && (
+      {editing && isEditor && (
         <AddCharacterDialog character={character} onClose={closeEditor} onUpdated={(updated) => {
           setCharacter(updated)
           closeEditor()

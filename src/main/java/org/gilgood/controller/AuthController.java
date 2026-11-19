@@ -1,5 +1,6 @@
 package org.gilgood.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.gilgood.dto.CsrfResponse;
 import org.gilgood.dto.SessionUserResponse;
 import org.springframework.http.CacheControl;
@@ -16,10 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     @GetMapping("/me")
-    public ResponseEntity<SessionUserResponse> currentUser(@AuthenticationPrincipal OidcUser user) {
+    public ResponseEntity<SessionUserResponse> currentUser(
+            @AuthenticationPrincipal OidcUser user, HttpServletRequest request) {
         SessionUserResponse response = user == null
-                ? new SessionUserResponse(false, null, null)
-                : new SessionUserResponse(true, user.getFullName(), user.getEmail());
+                ? new SessionUserResponse(false, false, null, null, null)
+                : new SessionUserResponse(true, request.isUserInRole("EDITOR"),
+                        user.getFullName(), user.getEmail(), user.getSubject());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(response);
     }
 

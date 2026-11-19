@@ -10,7 +10,7 @@ import '../styles/Sidebar.css'
 export default function Sidebar({
   onAuthorSelect, selectedAuthorId, selectedCategoryIds, onCategoryIdsChange, refreshKey = 0,
   selectedCharacterId = null, onCharacterSelect, charactersRefreshKey = 0,
-  isAuthenticated = false, onAuthorChanged, onCharacterChanged,
+  isEditor = false, onAuthorChanged, onCharacterChanged,
 }) {
   const [categories, setCategories] = useState(null)
   const [loadingCategories, setLoadingCategories] = useState(true)
@@ -106,11 +106,11 @@ export default function Sidebar({
         </section>
       </div>
       {aboutAuthorId != null && (
-        <AboutAuthorDialog key={aboutAuthorId} authorId={aboutAuthorId} isAuthenticated={isAuthenticated}
+        <AboutAuthorDialog key={aboutAuthorId} authorId={aboutAuthorId} isEditor={isEditor}
           onClose={() => { setAboutAuthorId(null); restoreAuthorFocus() }} onUpdated={onAuthorChanged} />
       )}
       {aboutCharacterId != null && (
-        <AboutCharacterDialog key={aboutCharacterId} characterId={aboutCharacterId} isAuthenticated={isAuthenticated}
+        <AboutCharacterDialog key={aboutCharacterId} characterId={aboutCharacterId} isEditor={isEditor}
           onClose={() => { setAboutCharacterId(null); restoreCharacterFocus() }} onUpdated={onCharacterChanged} />
       )}
     </div>

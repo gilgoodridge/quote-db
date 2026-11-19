@@ -11,7 +11,7 @@ function formatAuthorDate(value) {
   })
 }
 
-export default function AboutAuthorDialog({authorId, isAuthenticated, onClose, onUpdated}) {
+export default function AboutAuthorDialog({authorId, isEditor = false, onClose, onUpdated}) {
   const dialogRef = useRef(null)
   const editButtonRef = useRef(null)
   const [author, setAuthor] = useState(null)
@@ -57,7 +57,7 @@ export default function AboutAuthorDialog({authorId, isAuthenticated, onClose, o
       onClose={onClose}
       onCancel={(event) => {
         event.preventDefault()
-        if (!editing || !isAuthenticated) dialogRef.current.close()
+        if (!editing || !isEditor) dialogRef.current.close()
       }}
     >
       <DialogHeader
@@ -65,10 +65,10 @@ export default function AboutAuthorDialog({authorId, isAuthenticated, onClose, o
         title="About this Author"
         closeLabel="Close author details"
         onClose={() => dialogRef.current.close()}
-        disabled={editing && isAuthenticated}
+        disabled={editing && isEditor}
         autoFocus
       >
-        {author && isAuthenticated && (
+        {author && isEditor && (
           <button
             ref={editButtonRef}
             type="button"
@@ -118,7 +118,7 @@ export default function AboutAuthorDialog({authorId, isAuthenticated, onClose, o
       {message && <p role="status">{message}</p>}
       </div>
     </dialog>
-      {editing && isAuthenticated && (
+      {editing && isEditor && (
         <AddAuthorDialog
           author={author}
           onClose={closeEditor}
